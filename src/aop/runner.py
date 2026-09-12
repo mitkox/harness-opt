@@ -37,6 +37,17 @@ from .contracts.records import (
     TrajectoryEvent,
     Verdict,
 )
+from .telemetry.observe import (
+    InferenceRecord,
+    SkillCatalogEntry,
+    normalize_tool_call,
+    sample_resources,
+    skill_catalog_digest,
+)
+from .telemetry.redaction import sanitize_attributes
+from .telemetry.spool import SpoolQueue
+from .telemetry.taxonomy import assert_known_event
+from .telemetry.tracing import RunTracer
 from .harnesses.pi_adapter import PiJsonAdapter, harness_executable_digest
 from .harnesses.scripted import ScriptedHarness
 from .inference import verify_served_model
@@ -170,14 +181,44 @@ class Runner:
     def _emit(self, ledger: EventLedger, seq: dict[str, int], run_id: str,
               attempt_id: str, bundle_digest: str, source: str,
               authority: EventAuthority, etype: str, attrs: dict,
-              agent_id: str = "") -> None:
+              agent_id: str = "", parent_agent_id: str = "",
+              trace_id: str = "", span_id: str = "",
+              parent_span_id: str = "", model_digest: str = "",
+              harness_digest: str = "", repo_digest: str = "",
+              env_digest: str = "", skill_id: str = "",
+              skill_version: str = "", skill_digest: str = "",
+              tool_id: str = "", tool_version: str = "",
+              classification: str = "internal",
+              payload_refs: list[str] | None = None,
+              agent_claim_text: str = "") -> None:
+        """M2 envelope emission. Redacts attributes; never inlines secrets."""
+        assert_known_event(etype)
+        now = utcnow().isoformat()
         seq[source] = seq.get(source, -1) + 1
-        ledger.append(TrajectoryEvent(
+        clean = sanitize_attributes(attrs)
+        event = TrajectoryEvent(
             event_id=str(uuid.uuid4()), event_type=etype, run_id=run_id,
             attempt_id=attempt_id, agent_id=agent_id,
+            parent_agent_id=parent_agent_id,
             source=EventSource(id=source, authority=authority),
-            source_sequence=seq[source], observed_at=utcnow().isoformat(),
-            bundle_digest=bundle_digest, attributes=attrs))
+            source_sequence=seq[source], event_timestamp=now,
+            observed_at=now,
+            trace_id=trace_id or "0" * 32, span_id=span_id or "0" * 16,
+            parent_span_id=parent_span_id,
+            model_deployment_digest=model_digest, harness_digest=harness_digest,
+            bundle_digest=bundle_digest, repo_snapshot_digest=repo_digest,
+            environment_digest=env_digest,
+            skill_id=skill_id, skill_version=skill_version,
+            skill_digest=skill_digest, tool_id=tool_id,
+            tool_version=tool_version,
+            data_classification=classification,
+            payload_refs=list(payload_refs or []),
+            attributes=clean)
+        if agent_claim_text and authority == EventAuthority.AGENT_CLAIM:
+            event.attributes["claim_digest"] = (
+                "sha256:" + hashlib.sha256(
+                    agent_claim_text.encode()).hexdigest())
+        ledger.append(event)
 
     # -- admission ---------------------------------------------------------
     def _replay(self, record: RunRecord) -> dict:
@@ -243,9 +284,72 @@ class Runner:
         seq: dict[str, int] = {}
         attempt = self.store.new_attempt(
             run_id, AttemptRecord(attempt_id=new_id("att"), worker_id=new_id("worker")))
+        # M2: one primary run trace; trajectory events carry its IDs.
+        tracer = RunTracer(run_id)
+        wf = tracer.start("workflow.run", {"aop.run_id": run_id,
+                                           "aop.bundle_digest": bundle.digest})
+        adm = tracer.start("admission.resolve", {"aop.task_id": task["task_id"]})
+        ident = {"task_id": task["task_id"], "bundle": bundle.digest,
+                 "model_deployment_digest": model_digest,
+                 "harness_digest": harness_build.harness_digest,
+                 "repo_snapshot_digest": repo_digest,
+                 "environment_digest": env_digest,
+                 "trace_id": tracer.trace_id}
         self._emit(ledger, seq, run_id, attempt.attempt_id, bundle.digest,
                    "aop-runner", EventAuthority.PLATFORM_OBSERVATION,
-                   "run.admitted", {"task_id": task["task_id"], "bundle": bundle.digest})
+                   "run.admitted", ident,
+                   trace_id=tracer.trace_id, span_id=adm.span_id,
+                   parent_span_id=wf.span_id,
+                   model_digest=model_digest,
+                   harness_digest=harness_build.harness_digest,
+                   repo_digest=repo_digest, env_digest=env_digest)
+        tracer.finish(adm)
+        self._emit(ledger, seq, run_id, attempt.attempt_id, bundle.digest,
+                   "aop-runner", EventAuthority.PLATFORM_OBSERVATION,
+                   "run.started", {"queue_delay_s": round(time.monotonic() - t0, 3)},
+                   trace_id=tracer.trace_id, span_id=wf.span_id,
+                   model_digest=model_digest,
+                   harness_digest=harness_build.harness_digest,
+                   repo_digest=repo_digest, env_digest=env_digest)
+        # Prompt/context snapshot as content-addressed artifact (never inline).
+        # Best-effort here: the snapshot-stage write later is the strict one
+        # (storage failures surface as durable infra_error there).
+        prompt_ref = self._artifact_ref_or_none(prompt.encode(), run_id,
+                                                "confidential")
+        self._emit(ledger, seq, run_id, attempt.attempt_id, bundle.digest,
+                   "aop-runner", EventAuthority.PLATFORM_OBSERVATION,
+                   "context.prepared",
+                   {"prompt_digest": (prompt_ref.digest if prompt_ref else ""),
+                    "prompt_bytes": (prompt_ref.size_bytes if prompt_ref else 0)},
+                   trace_id=tracer.trace_id, span_id=wf.span_id,
+                   model_digest=model_digest,
+                   harness_digest=harness_build.harness_digest,
+                   repo_digest=repo_digest, env_digest=env_digest,
+                   payload_refs=([prompt_ref.digest] if prompt_ref else []))
+        # Skill catalog exposure (M2 records exposure separately from use).
+        skill_entries = [SkillCatalogEntry(s, "v1", "sha256:" + "cd" * 32, "")
+                         for s in bundle.skill_variant_ids]
+        catalog_digest = skill_catalog_digest(skill_entries) if skill_entries else (
+            "sha256:" + hashlib.sha256(b"empty-catalog").hexdigest())
+        self._emit(ledger, seq, run_id, attempt.attempt_id, bundle.digest,
+                   "aop-runner", EventAuthority.PLATFORM_OBSERVATION,
+                   "skill.catalog_exposed",
+                   {"skills": [e.skill_id for e in skill_entries],
+                    "catalog_digest": catalog_digest,
+                    "note": "exposure is not selection, loading, or execution"},
+                   trace_id=tracer.trace_id, span_id=wf.span_id,
+                   model_digest=model_digest,
+                   harness_digest=harness_build.harness_digest,
+                   payload_refs=([catalog_digest] if skill_entries else []))
+        self._emit(ledger, seq, run_id, attempt.attempt_id, bundle.digest,
+                   "aop-runner", EventAuthority.PLATFORM_OBSERVATION,
+                   "agent.started", {"agent_id": "agent-1", "harness": harness},
+                   agent_id="agent-1",
+                   trace_id=tracer.trace_id, span_id=wf.span_id,
+                   model_digest=model_digest,
+                   harness_digest=harness_build.harness_digest)
+        spool = SpoolQueue(os.path.join(self.runs_dir, "_spool"),
+                           os.path.join(self.runs_dir, "_collector"))
 
         ctx = {"task": task, "prompt": prompt, "repo_src": repo_src, "case_dir": case_dir,
                "budget": budget, "timeout_s": timeout_s, "t0": t0,
@@ -255,7 +359,9 @@ class Runner:
                "cancel_file": cancel_file, "verifier_manifest": verifier_manifest,
                "verifier_error": verifier_error,
                "hidden_case_dir": hidden_case_dir, "repo_digest": repo_digest,
-               "env_digest": env_digest, "model_digest": model_digest}
+               "env_digest": env_digest, "model_digest": model_digest,
+               "tracer": tracer, "wf": wf, "spool": spool,
+               "prompt_ref": prompt_ref, "catalog_digest": catalog_digest}
         try:
             return self._run_inner(ctx)
         except VerifierSetupError as exc:
@@ -270,11 +376,16 @@ class Runner:
         (task, prompt, repo_src, budget, timeout_s, t0, deployment, harness_build,
          bundle, run_id, run_dir, ledger, seq, attempt, harness, cancel,
          cancel_file, verifier_manifest, verifier_error, hidden_case_dir, repo_digest,
-         env_digest, model_digest) = tuple(ctx[k] for k in (
+         env_digest, model_digest, tracer, wf, spool) = tuple(ctx[k] for k in (
              "task", "prompt", "repo_src", "budget", "timeout_s", "t0", "deployment",
              "harness_build", "bundle", "run_id", "run_dir", "ledger", "seq", "attempt",
              "harness", "cancel", "cancel_file", "verifier_manifest", "verifier_error",
-             "hidden_case_dir", "repo_digest", "env_digest", "model_digest"))
+             "hidden_case_dir", "repo_digest", "env_digest", "model_digest",
+             "tracer", "wf", "spool"))
+        ident_kw = {"trace_id": tracer.trace_id, "span_id": wf.span_id,
+                    "model_digest": model_digest,
+                    "harness_digest": harness_build.harness_digest,
+                    "repo_digest": repo_digest, "env_digest": env_digest}
         client = None
 
         # 1. Attest that the registered local endpoint serves this deployment.
@@ -285,7 +396,7 @@ class Runner:
                 raise InfraError("model_identity_mismatch", str(exc)) from exc
             self._emit(ledger, seq, run_id, attempt.attempt_id, bundle.digest,
                        "aop-runner", EventAuthority.PLATFORM_OBSERVATION,
-                       "model.attested", model_evidence)
+                       "model.attested", model_evidence, **ident_kw)
 
         self.store.set_status(run_id, RunStatus.PREPARING)
         layout = prepare_layout(os.path.join(run_dir, "worker"), snapshot_src=repo_src)
@@ -315,9 +426,12 @@ class Runner:
                          if os.path.isdir(hidden_case_dir) else ""},
         }
         _write_json(os.path.join(run_dir, "manifest.json"), manifest)
+        ws_span = tracer.start("workspace.prepare")
         self._emit(ledger, seq, run_id, attempt.attempt_id, bundle.digest,
                    "aop-runner", EventAuthority.PLATFORM_OBSERVATION,
-                   "workspace.prepared", {"workspace": layout.workspace})
+                   "workspace.prepared", {"workspace": layout.workspace},
+                   **ident_kw)
+        tracer.finish(ws_span)
         self.store.set_status(run_id, RunStatus.RUNNING)
 
         # 2. Adapter preparation.
@@ -336,7 +450,7 @@ class Runner:
             raise InfraError("adapter_prepare_failure", str(exc)) from exc
         self._emit(ledger, seq, run_id, attempt.attempt_id, bundle.digest,
                    "aop-runner", EventAuthority.PLATFORM_OBSERVATION,
-                   "harness.accepted", {"harness": harness})
+                   "harness.accepted", {"harness": harness}, **ident_kw)
 
         # 3. Harness execution.
         cancel_seen = _start_cancel_watch(cancel, cancel_file)
@@ -344,11 +458,35 @@ class Runner:
         if cancel_seen:
             self._emit(ledger, seq, run_id, attempt.attempt_id, bundle.digest,
                        "aop-runner", EventAuthority.PLATFORM_OBSERVATION,
-                       "cancel.requested", {"source": "pre-run"})
+                       "cancel.requested", {"source": "pre-run"}, **ident_kw)
+            self._emit(ledger, seq, run_id, attempt.attempt_id, bundle.digest,
+                       "aop-runner", EventAuthority.PLATFORM_OBSERVATION,
+                       "run.cancel_requested", {"source": "pre-run"}, **ident_kw)
             cancel_event_emitted = True
+        agent_span = tracer.start("agent.execute", {"aop.harness": harness})
+        infer_span = tracer.start("inference.request",
+                                  {"aop.model_deployment_id": deployment.deployment_id})
+        infer_rec = InferenceRecord(
+            deployment_id=deployment.deployment_id,
+            deployment_digest=model_digest,
+            model_id=(deployment.endpoint.model_id if deployment.endpoint else ""),
+            tokenizer_id="unknown-unexposed-by-pi",
+            quantization=deployment.quantization or "unknown",
+            server_build=deployment.server_build or "unknown",
+            context_limit=deployment.context_length_configured or None)
+        self._emit(ledger, seq, run_id, attempt.attempt_id, bundle.digest,
+                   "aop-runner", EventAuthority.PLATFORM_OBSERVATION,
+                   "inference.request", infer_rec.to_attributes(),
+                   trace_id=tracer.trace_id, span_id=infer_span.span_id,
+                   parent_span_id=agent_span.span_id, **{k: v for k, v in ident_kw.items()
+                                                         if k not in ("trace_id", "span_id")})
+        tool_spans: dict[str, object] = {}
+        tool_starts: dict[str, float] = {}
+        first_token_seen = False
         agent_t0 = time.monotonic()
 
         def on_native(raw: dict) -> None:
+            nonlocal first_token_seen
             if harness == "pi":
                 from .harnesses.pi_adapter import native_to_trajectory_kind
                 etype, auth = native_to_trajectory_kind(raw)
@@ -356,24 +494,150 @@ class Runner:
                 etype, auth = "harness.scripted.event", "harness_observation"
             self._emit(ledger, seq, run_id, attempt.attempt_id, bundle.digest,
                        "pi-native" if harness == "pi" else "scripted",
-                       EventAuthority(auth), etype, {"native_type": raw.get("type", "")})
+                       EventAuthority(auth), etype, {"native_type": raw.get("type", "")},
+                       **ident_kw)
+            rtype = raw.get("type", "")
+            if harness == "pi" and rtype in ("message_update", "message_end") \
+                    and not first_token_seen:
+                first_token_seen = True
+                # TTFT is client-observed first streaming chunk, not server timing.
+                self._emit(ledger, seq, run_id, attempt.attempt_id, bundle.digest,
+                           "aop-runner", EventAuthority.PLATFORM_OBSERVATION,
+                           "inference.first_token",
+                           {"client_observed": True,
+                            "note": "client-side first chunk; server prefill "
+                                    "timing unavailable"},
+                           trace_id=tracer.trace_id, span_id=infer_span.span_id,
+                           parent_span_id=agent_span.span_id,
+                           **{k: v for k, v in ident_kw.items()
+                               if k not in ("trace_id", "span_id")})
+            if harness == "pi" and rtype == "tool_execution_start":
+                call_id = str(raw.get("toolCallId", raw.get("tool_call_id", "")))
+                tool_name = str(raw.get("toolName", raw.get("tool_name", "unknown")))
+                args = raw.get("args", {})
+                if not isinstance(args, dict):
+                    args = {"raw": str(args)}
+                tool_starts[call_id] = time.time()
+                tsp = tracer.start("tool.execute",
+                                   {"aop.tool": tool_name, "aop.invocation": call_id})
+                tool_spans[call_id] = tsp
+                call = normalize_tool_call(tool_name, "pi-native", call_id,
+                                           "agent-1", args, {},
+                                           tool_starts[call_id],
+                                           tool_starts[call_id])
+                self._emit(ledger, seq, run_id, attempt.attempt_id, bundle.digest,
+                           "pi-native", EventAuthority.HARNESS_OBSERVATION,
+                           "tool.request",
+                           {"tool_name": call.tool_name,
+                            "invocation_id": call.invocation_id,
+                            "args_digest": call.args_digest,
+                            "args_summary": call.args_summary},
+                           trace_id=tracer.trace_id, span_id=tsp.span_id,
+                           parent_span_id=agent_span.span_id,
+                           tool_id=tool_name, tool_version="pi-native",
+                           **{k: v for k, v in ident_kw.items()
+                               if k not in ("trace_id", "span_id")})
+                self._emit(ledger, seq, run_id, attempt.attempt_id, bundle.digest,
+                           "pi-native", EventAuthority.HARNESS_OBSERVATION,
+                           "tool.started",
+                           {"tool_name": tool_name, "invocation_id": call_id},
+                           trace_id=tracer.trace_id, span_id=tsp.span_id,
+                           parent_span_id=agent_span.span_id,
+                           tool_id=tool_name, tool_version="pi-native",
+                           **{k: v for k, v in ident_kw.items()
+                               if k not in ("trace_id", "span_id")})
+            elif harness == "pi" and rtype in ("tool_execution_end",):
+                call_id = str(raw.get("toolCallId", raw.get("tool_call_id", "")))
+                tool_name = str(raw.get("toolName", raw.get("tool_name", "unknown")))
+                result = raw.get("result", raw.get("output", {}))
+                if not isinstance(result, dict):
+                    result = {"raw": str(result)[:2000]}
+                start = tool_starts.get(call_id, time.time())
+                tsp = tool_spans.pop(call_id, None)
+                call = normalize_tool_call(tool_name, "pi-native", call_id,
+                                           "agent-1", {}, result, start, time.time(),
+                                           exit_status=str(raw.get("status", "ok")))
+                payload_refs = []
+                try:
+                    ref = self.artifacts.put_classified(
+                        json.dumps(result, sort_keys=True).encode(),
+                        run_id, "internal")
+                    payload_refs = [ref.digest]
+                    call.artifact_refs = payload_refs
+                except Exception:
+                    pass
+                self._emit(ledger, seq, run_id, attempt.attempt_id, bundle.digest,
+                           "pi-native", EventAuthority.HARNESS_OBSERVATION,
+                           "tool.completed",
+                           {"tool_name": call.tool_name,
+                            "invocation_id": call.invocation_id,
+                            "result_digest": call.result_digest,
+                            "result_summary": call.result_summary,
+                            "exit_status": call.exit_status},
+                           trace_id=tracer.trace_id,
+                           span_id=(tsp.span_id if tsp else infer_span.span_id),
+                           parent_span_id=agent_span.span_id,
+                           tool_id=tool_name, tool_version="pi-native",
+                           payload_refs=payload_refs,
+                           **{k: v for k, v in ident_kw.items()
+                               if k not in ("trace_id", "span_id")})
+                if tsp is not None:
+                    tracer.finish(tsp)
 
         output = adapter.start(prompt, session, layout.workspace,
                                os.path.join(run_dir, "harness-stdout.log"),
                                os.path.join(run_dir, "harness-stderr.log"),
                                timeout_s, cancel, on_native_event=on_native)
         agent_dt = time.monotonic() - agent_t0
+        for _tsp in list(tool_spans.values()):
+            try:
+                tracer.finish(_tsp, status="error")
+            except Exception:
+                pass
+        infer_rec.duration_s = round(agent_dt, 3)
+        infer_rec.finish_reason = ("completed" if output.terminal_status == "exited"
+                                   else output.terminal_status)
+        if output.terminal_status in ("timeout", "cancelled"):
+            infer_rec.error_class = output.terminal_status
         self._emit(ledger, seq, run_id, attempt.attempt_id, bundle.digest,
                    "aop-runner", EventAuthority.PLATFORM_OBSERVATION,
-                   f"harness.{output.terminal_status}", {"exit_code": output.exit_code})
+                   ("inference.completed" if output.terminal_status == "exited"
+                    else "inference.failed"),
+                   infer_rec.to_attributes(),
+                   trace_id=tracer.trace_id, span_id=infer_span.span_id,
+                   parent_span_id=agent_span.span_id,
+                   **{k: v for k, v in ident_kw.items()
+                       if k not in ("trace_id", "span_id")})
+        tracer.finish(infer_span, status="ok" if output.terminal_status == "exited"
+                      else "error")
+        self._emit(ledger, seq, run_id, attempt.attempt_id, bundle.digest,
+                   "aop-runner", EventAuthority.PLATFORM_OBSERVATION,
+                   f"harness.{output.terminal_status}", {"exit_code": output.exit_code},
+                   **ident_kw)
+        # M2 canonical terminal marker alongside the M1 harness.* marker.
+        terminal_map = {"exited": None, "crashed": "run.infra_error",
+                        "timeout": "run.timeout", "cancelled": "run.cancelled"}
+        if terminal_map.get(output.terminal_status):
+            self._emit(ledger, seq, run_id, attempt.attempt_id, bundle.digest,
+                       "aop-runner", EventAuthority.PLATFORM_OBSERVATION,
+                       terminal_map[output.terminal_status],
+                       {"exit_code": output.exit_code}, **ident_kw)
         self._emit(ledger, seq, run_id, attempt.attempt_id, bundle.digest,
                    "harness-report" if harness == "pi" else "scripted",
                    EventAuthority.AGENT_CLAIM, "agent.claim",
-                   {"text": output.agent_claim})
+                   {"text": output.agent_claim},
+                   agent_claim_text=output.agent_claim, **ident_kw)
+        self._emit(ledger, seq, run_id, attempt.attempt_id, bundle.digest,
+                   "aop-runner", EventAuthority.PLATFORM_OBSERVATION,
+                   "agent.completed",
+                   {"agent_id": "agent-1", "agent_seconds": round(agent_dt, 3)},
+                   agent_id="agent-1", **ident_kw)
+        tracer.finish(agent_span)
 
         eval_result: EvaluationResult | None = None
         scope: dict | None = None
         verifier_ran = False
+        verifier_dt = 0.0
         if output.terminal_status in ("timeout", "cancelled"):
             outcome = (RunOutcome.TIMEOUT if output.terminal_status == "timeout"
                        else RunOutcome.CANCELLED)
@@ -382,7 +646,12 @@ class Runner:
                 if not cancel_event_emitted:
                     self._emit(ledger, seq, run_id, attempt.attempt_id, bundle.digest,
                                "aop-runner", EventAuthority.PLATFORM_OBSERVATION,
-                               "cancel.requested", {"source": "during-run"})
+                               "cancel.requested", {"source": "during-run"},
+                               **ident_kw)
+                    self._emit(ledger, seq, run_id, attempt.attempt_id, bundle.digest,
+                               "aop-runner", EventAuthority.PLATFORM_OBSERVATION,
+                               "run.cancel_requested", {"source": "during-run"},
+                               **ident_kw)
                     cancel_event_emitted = True
                 _write_json(os.path.join(run_dir, "cancellation.json"),
                             {"requested": True, "terminal_status": "cancelled",
@@ -391,10 +660,43 @@ class Runner:
             self.store.set_status(run_id, RunStatus.VERIFYING)
             snapshot_dir = os.path.join(run_dir, "snapshot")
             snapshot_manifest = freeze_workspace(layout.workspace, snapshot_dir)
-            self._safe_artifact(json.dumps(snapshot_manifest, sort_keys=True).encode(), run_id)
+            self._safe_artifact(json.dumps(snapshot_manifest, sort_keys=True).encode(),
+                                run_id)
+            snap_ref = self._artifact_ref_or_none(
+                json.dumps(snapshot_manifest, sort_keys=True).encode(), run_id)
             self._emit(ledger, seq, run_id, attempt.attempt_id, bundle.digest,
                        "aop-runner", EventAuthority.PLATFORM_OBSERVATION,
-                       "output.frozen", {"files": len(snapshot_manifest)})
+                       "output.frozen", {"files": len(snapshot_manifest)},
+                       payload_refs=([snap_ref.digest] if snap_ref else []),
+                       **ident_kw)
+            self._emit(ledger, seq, run_id, attempt.attempt_id, bundle.digest,
+                       "aop-runner", EventAuthority.PLATFORM_OBSERVATION,
+                       "workspace.snapshot",
+                       {"files": len(snapshot_manifest),
+                        "manifest_digest": (snap_ref.digest if snap_ref else "")},
+                       payload_refs=([snap_ref.digest] if snap_ref else []),
+                       **ident_kw)
+            # Patch + frozen diff as content-addressed artifacts.
+            patch_text, diff_text = _patch_and_diff(baseline_manifest,
+                                                    snapshot_manifest,
+                                                    layout.workspace)
+            patch_ref = self._safe_artifact_ref(patch_text.encode(), run_id)
+            diff_ref = self._safe_artifact_ref(diff_text.encode(), run_id)
+            if patch_text.strip():
+                self._emit(ledger, seq, run_id, attempt.attempt_id, bundle.digest,
+                           "aop-runner", EventAuthority.PLATFORM_OBSERVATION,
+                           "patch.generated",
+                           {"patch_digest": patch_ref.digest if patch_ref else "",
+                            "changed_files": len(snapshot_manifest)},
+                           payload_refs=([patch_ref.digest] if patch_ref else []),
+                           **ident_kw)
+            self._emit(ledger, seq, run_id, attempt.attempt_id, bundle.digest,
+                       "aop-runner", EventAuthority.PLATFORM_OBSERVATION,
+                       "diff.frozen",
+                       {"diff_digest": diff_ref.digest if diff_ref else "",
+                        "diff_bytes": len(diff_text.encode())},
+                       payload_refs=([diff_ref.digest] if diff_ref else []),
+                       **ident_kw)
 
             scope = check_scope(baseline_manifest, snapshot_manifest,
                                 task.get("allowed_paths", []),
@@ -403,7 +705,8 @@ class Runner:
             if scope.get("violations"):
                 self._emit(ledger, seq, run_id, attempt.attempt_id, bundle.digest,
                            "aop-runner", EventAuthority.PLATFORM_OBSERVATION,
-                           "scope.violation", {"violations": scope["violations"]})
+                           "scope.violation", {"violations": scope["violations"]},
+                           **ident_kw)
                 verdict, outcome = Verdict.FAIL, RunOutcome.FAIL
                 eval_result = EvaluationResult(
                     run_id=run_id, attempt_id=attempt.attempt_id,
@@ -412,10 +715,24 @@ class Runner:
                     details={"scope": scope}, error_class="scope_violation")
                 _write_json(os.path.join(run_dir, "evaluation.json"),
                             eval_result.model_dump(mode="json"))
+                self._emit(ledger, seq, run_id, attempt.attempt_id, bundle.digest,
+                           "aop-runner", EventAuthority.PLATFORM_OBSERVATION,
+                           "run.failed", {"reason": "scope_violation"}, **ident_kw)
             else:
                 if verifier_manifest is None:
                     raise verifier_error or VerifierSetupError(
                         "missing_verifier_fixture", f"no verifier manifest for {hidden_case_dir}")
+                vspan = tracer.start("verifier.execute",
+                                     {"aop.verifier": verifier_manifest["version"]})
+                self._emit(ledger, seq, run_id, attempt.attempt_id, bundle.digest,
+                           "verifier", EventAuthority.VERIFIER_FACT,
+                           "verifier.started",
+                           {"verifier_id": verifier_manifest.get("verifier_id", ""),
+                            "version": verifier_manifest["version"]},
+                           trace_id=tracer.trace_id, span_id=vspan.span_id,
+                           parent_span_id=wf.span_id,
+                           **{k: v for k, v in ident_kw.items()
+                               if k not in ("trace_id", "span_id")})
                 verifier_t0 = time.monotonic()
                 eval_result = run_verification(
                     run_id, attempt.attempt_id, snapshot_dir, hidden_case_dir,
@@ -426,13 +743,56 @@ class Runner:
                 eval_result.agent_claim = output.agent_claim
                 _write_json(os.path.join(run_dir, "evaluation.json"),
                             eval_result.model_dump(mode="json"))
+                try:
+                    ev_ref = self.artifacts.put_classified(
+                        json.dumps(eval_result.model_dump(mode="json"),
+                                   sort_keys=True).encode(), run_id, "internal")
+                    ev_refs = [ev_ref.digest]
+                except Exception:
+                    ev_refs = []
+                verification = (eval_result.details or {}).get("verification", {})
+                outcomes = verification.get("outcomes", {}) if verification else {}
+                for nodeid, result in sorted(outcomes.items()):
+                    self._emit(ledger, seq, run_id, attempt.attempt_id, bundle.digest,
+                               "verifier", EventAuthority.VERIFIER_FACT,
+                               ("verifier.test_passed" if result == "passed"
+                                else "verifier.test_failed"),
+                               {"test": nodeid, "outcome": result},
+                               trace_id=tracer.trace_id, span_id=vspan.span_id,
+                               parent_span_id=wf.span_id,
+                               **{k: v for k, v in ident_kw.items()
+                                   if k not in ("trace_id", "span_id")})
+                if not outcomes:
+                    self._emit(ledger, seq, run_id, attempt.attempt_id, bundle.digest,
+                               "verifier", EventAuthority.VERIFIER_FACT,
+                               "verifier.test_collected",
+                               {"collected": verification.get("collected", [])},
+                               trace_id=tracer.trace_id, span_id=vspan.span_id,
+                               parent_span_id=wf.span_id,
+                               **{k: v for k, v in ident_kw.items()
+                                   if k not in ("trace_id", "span_id")})
                 self._emit(ledger, seq, run_id, attempt.attempt_id, bundle.digest,
                            "verifier", EventAuthority.VERIFIER_FACT,
                            "evaluation.recorded",
                            {"verdict": eval_result.verdict.value,
                             "error_class": eval_result.error_class,
                             "evidence_digest": eval_result.evidence_digest,
-                            "verifier_seconds": round(verifier_dt, 2)})
+                            "verifier_seconds": round(verifier_dt, 2)},
+                           trace_id=tracer.trace_id, span_id=vspan.span_id,
+                           parent_span_id=wf.span_id,
+                           payload_refs=ev_refs,
+                           **{k: v for k, v in ident_kw.items()
+                               if k not in ("trace_id", "span_id")})
+                self._emit(ledger, seq, run_id, attempt.attempt_id, bundle.digest,
+                           "verifier", EventAuthority.VERIFIER_FACT,
+                           "verifier.completed",
+                           {"verdict": eval_result.verdict.value,
+                            "outcome": eval_result.outcome.value},
+                           trace_id=tracer.trace_id, span_id=vspan.span_id,
+                           parent_span_id=wf.span_id,
+                           **{k: v for k, v in ident_kw.items()
+                               if k not in ("trace_id", "span_id")})
+                tracer.finish(vspan)
                 verdict, outcome = eval_result.verdict, eval_result.outcome
 
         required = REQUIRED_PREFIX_EVENTS
@@ -440,12 +800,56 @@ class Runner:
             required = required + ("evaluation.recorded",)
         completeness = ledger.completeness(required_events=required,
                                            terminal_events=TERMINAL_EVENTS)
-        if not completeness["complete"] and outcome in (RunOutcome.PASS, RunOutcome.FAIL):
+        outcome_key = outcome.value
+        policy_comp = ledger.completeness_for_outcome(outcome_key)
+        # M2 required-evidence policy decides promotion eligibility; the legacy
+        # M1 completeness stays in the report for compatibility.
+        if not policy_comp["complete"] and outcome in (RunOutcome.PASS, RunOutcome.FAIL):
             outcome = RunOutcome.TELEMETRY_INCOMPLETE
+            self._emit(ledger, seq, run_id, attempt.attempt_id, bundle.digest,
+                       "aop-runner", EventAuthority.PLATFORM_OBSERVATION,
+                       "telemetry.incomplete",
+                       {"missing_required": policy_comp["missing_required"],
+                        "policy": policy_comp["policy"]}, **ident_kw)
+        elif policy_comp["complete"] and spool.pending_count(run_id) == 0:
+            pass
+        gaps = policy_comp.get("gaps", {})
+        if gaps:
+            self._emit(ledger, seq, run_id, attempt.attempt_id, bundle.digest,
+                       "aop-runner", EventAuthority.PLATFORM_OBSERVATION,
+                       "telemetry.gap_detected", {"gaps": gaps}, **ident_kw)
+        if outcome in (RunOutcome.PASS, RunOutcome.FAIL):
+            self._emit(ledger, seq, run_id, attempt.attempt_id, bundle.digest,
+                       "aop-runner", EventAuthority.PLATFORM_OBSERVATION,
+                       ("run.completed" if outcome == RunOutcome.PASS
+                        else "run.failed"),
+                       {"outcome": outcome.value}, **ident_kw)
         self.store.finalize_attempt(run_id, attempt.attempt_id,
                                     attempt.fencing_token, outcome, output.agent_claim,
                                     error_class=(eval_result.error_class if eval_result else ""))
         total_dt = time.monotonic() - t0
+        res = sample_resources()
+        res.wall_s = total_dt
+        res.model_s = agent_dt
+        res.harness_tool_s = agent_dt
+        res.verifier_s = verifier_dt
+        resources = res.to_dict()
+        _write_json(os.path.join(run_dir, "resources.json"), resources)
+        tracer.finish(wf, status="ok" if outcome == RunOutcome.PASS else "error")
+        otel_payload = tracer.export(os.path.join(run_dir, "trace-otel.json"))
+        for span in otel_payload.get("spans", []):
+            spool.enqueue(run_id, {"trace_id": span["trace_id"],
+                                   "span": span["name"],
+                                   "span_id": span["span_id"]})
+        spool_report = spool.flush(run_id)
+        if spool_report.get("collector") == "recovered" and \
+                spool_report.get("flushed", 0):
+            try:
+                self._emit(ledger, seq, run_id, attempt.attempt_id, bundle.digest,
+                           "aop-runner", EventAuthority.PLATFORM_OBSERVATION,
+                           "telemetry.recovered", spool_report, **ident_kw)
+            except Exception:
+                pass
         report = {
             "run_id": run_id, "attempt_id": attempt.attempt_id, "case_id": task["case_id"],
             "bundle_digest": bundle.digest,
@@ -461,15 +865,46 @@ class Runner:
             "agent_claim": output.agent_claim,
             "agent_seconds": round(agent_dt, 2), "total_seconds": round(total_dt, 2),
             "completeness": completeness,
+            "completeness_policy": policy_comp,
+            "telemetry_incomplete": policy_comp.get("telemetry_incomplete", False),
+            "trace_id": tracer.trace_id,
+            "resources": resources,
+            "spool": spool_report,
+            "replay": {
+                "repo_snapshot_digest": repo_digest,
+                "environment_digest": env_digest,
+                "model_deployment_digest": model_digest,
+                "harness_digest": harness_build.harness_digest,
+                "bundle_digest": bundle.digest,
+                "verifier_id": task_spec.verifier_id,
+                "verifier_version": task_spec.verifier_version,
+                "tool_versions": ["pi-native"],
+                "skill_versions": list(bundle.skill_variant_ids),
+                "note": "identity metadata for future replay; stochastic model "
+                        "generation is not claimed deterministic",
+            },
             "run_dir": run_dir,
             "note": "verdict is verifier-observed; agent_claim is narration only",
         }
         _write_json(os.path.join(run_dir, "report.json"), report)
         _write_json(os.path.join(run_dir, "trace.json"), {
-            "spans": "client-side projection only; server prefill/decode timing "
-                     "unavailable in M1",
+            "trace_id": tracer.trace_id,
+            "spans": [s["name"] for s in otel_payload.get("spans", [])],
+            "note": "client-side projection only; server prefill/decode timing "
+                    "unavailable (see trace-otel.json provenance)",
             "events": len(ledger.read_all())})
         return report
+
+    def _artifact_ref_or_none(self, data: bytes, run_id: str,
+                              classification: str = "internal"):
+        """Best-effort artifact write (tolerates legacy test doubles)."""
+        try:
+            put = getattr(self.artifacts, "put_classified", None)
+            if put is not None:
+                return put(data, run_id, classification)
+            return self.artifacts.put(data, run_id)
+        except Exception:
+            return None
 
     # -- failure handling --------------------------------------------------
     def _safe_artifact(self, data: bytes, run_id: str) -> None:
@@ -477,6 +912,12 @@ class Runner:
             self.artifacts.put(data, run_id)
         except Exception as exc:  # noqa: BLE001
             raise InfraError("storage_failure", str(exc)) from exc
+
+    def _safe_artifact_ref(self, data: bytes, run_id: str):
+        try:
+            return self.artifacts.put_classified(data, run_id, "internal")
+        except Exception:
+            return None
 
     def _infra_error(self, ctx: dict, error_class: str, exc: BaseException) -> dict:
         run_id = ctx.get("run_id", "")
@@ -530,6 +971,36 @@ def _manifest_of(root: str) -> dict[str, str]:
             with open(full, "rb") as fh:
                 manifest[rel] = hashlib.sha256(fh.read()).hexdigest()
     return manifest
+
+
+def _patch_and_diff(baseline: dict[str, str], snapshot: dict[str, str],
+                    workspace: str) -> tuple[str, str]:
+    """Minimal unified-ish patch + frozen diff over changed files only.
+
+    Large blobs stay in the artifact store; the diff artifact references
+    digests for files too large to inline.
+    """
+    import difflib
+    changed = [rel for rel, digest in snapshot.items()
+               if baseline.get(rel) != digest]
+    patch_lines: list[str] = []
+    for rel in sorted(changed):
+        patch_lines.append(f"--- a/{rel}\n+++ b/{rel}\n")
+        path = os.path.join(workspace, rel)
+        try:
+            with open(path, encoding="utf-8", errors="replace") as fh:
+                content = fh.read()
+        except OSError:
+            content = ""
+        if len(content) > 200_000:
+            digest = "sha256:" + hashlib.sha256(content.encode()).hexdigest()
+            patch_lines.append(f"[blob too large for inline diff; sha256:{digest[7:15]}]\n")
+            continue
+        patch_lines.extend(
+            difflib.unified_diff([], content.splitlines(keepends=True),
+                                 fromfile=f"a/{rel}", tofile=f"b/{rel}"))
+    text = "".join(patch_lines)
+    return text, text
 
 
 def _harness_ro_binds(executable: str) -> list[tuple[str, str]]:

@@ -23,8 +23,10 @@ FAIL_POLICY = [
     ("run.admitted",),
     ("run.started", "harness.accepted", "workspace.prepared"),
     ("execution:activity",),
-    ("verifier.started",),
-    ("verifier.completed", "evaluation.recorded"),
+    # The scope gate rejects before verification; scope.violation is the
+    # evidence in that path, not missing verifier telemetry.
+    ("verifier.started", "scope.violation"),
+    ("verifier.completed", "evaluation.recorded", "scope.violation"),
     ("run.failed", "harness.exited", "harness.crashed"),
 ]
 

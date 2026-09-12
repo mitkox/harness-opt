@@ -25,6 +25,12 @@ class ArtifactStore:
         return os.path.join(self.root, "blobs", hexpart[:2], hexpart)
 
     def put(self, data: bytes, run_id: str) -> ArtifactRef:
+        return self.put_classified(data, run_id, classification="internal")
+
+    def put_classified(self, data: bytes, run_id: str,
+                       classification: str = "internal") -> ArtifactRef:
+        if classification not in ("public", "internal", "confidential", "secret"):
+            raise ValueError(f"unknown classification {classification!r}")
         digest = "sha256:" + sha256_hex(data)
         dest = self._blob_path(digest)
         os.makedirs(os.path.dirname(dest), exist_ok=True)
@@ -45,9 +51,24 @@ class ArtifactStore:
         ref_path = os.path.join(self.root, "refs", run_id, digest.replace(":", "_") + ".json")
         os.makedirs(os.path.dirname(ref_path), exist_ok=True)
         ref = ArtifactRef(digest=digest, path=ref_path, size_bytes=len(data), complete=True)
+        payload = ref.model_dump()
+        payload["classification"] = classification
         with open(ref_path, "w") as fh:
-            json.dump(ref.model_dump(), fh)
+            json.dump(payload, fh)
         return ref
+
+    def list_refs(self, run_id: str) -> list[dict]:
+        """Artifact references owned by a run (for investigation/replay-check)."""
+        ref_dir = os.path.join(self.root, "refs", run_id)
+        if not os.path.isdir(ref_dir):
+            return []
+        out = []
+        for name in sorted(os.listdir(ref_dir)):
+            if not name.endswith(".json"):
+                continue
+            with open(os.path.join(ref_dir, name)) as fh:
+                out.append(json.load(fh))
+        return out
 
     def get(self, digest: str, run_id: str) -> bytes:
         """Cross-run reads denied unless the requesting run owns a ref."""
