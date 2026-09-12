@@ -15,6 +15,10 @@
       "capabilities": {
         "headless": true
       },
+      "executable_sha256": "",
+      "probe_digest": "",
+      "harness_digest": "",
+      "probe_evidence": {},
       "notes": [
         "@earendil-works/pi-coding-agent headless JSONL mode; first adapter."
       ]
@@ -33,6 +37,10 @@
       "capabilities": {
         "headless": false
       },
+      "executable_sha256": "",
+      "probe_digest": "",
+      "harness_digest": "",
+      "probe_evidence": {},
       "notes": [
         "opencode and opencode2 resolve to the same v2.0.2 binary; adapter not started (M5)."
       ]
@@ -51,6 +59,10 @@
       "capabilities": {
         "headless": false
       },
+      "executable_sha256": "",
+      "probe_digest": "",
+      "harness_digest": "",
+      "probe_evidence": {},
       "notes": [
         "PATH prime is the Prime Intellect cloud CLI, NOT the Prime Agent harness; Prime Agent integration not started (M5)."
       ]
@@ -69,6 +81,10 @@
       "capabilities": {
         "headless": false
       },
+      "executable_sha256": "",
+      "probe_digest": "",
+      "harness_digest": "",
+      "probe_evidence": {},
       "notes": [
         "dsh 0.1.5-rc.1 developer preview; local-provider support unprobed (M5)."
       ]

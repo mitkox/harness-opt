@@ -12,7 +12,7 @@ import sys
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 
 from aop.contracts.harness import HarnessBuild, HarnessName, HarnessStatus  # noqa: E402
-from aop.contracts.model import ModelFamily  # noqa: E402
+from aop.contracts.model import ModelFamily, WeightShard  # noqa: E402
 from aop.discovery import (  # noqa: E402
     HARNESS_PROBES,
     build_model_deployment,
@@ -102,9 +102,22 @@ def main() -> None:
         template = evidence.get("props", {}).get("chat_template", "")
         if template:
             dep.chat_template_sha256 = hashlib.sha256(template.encode()).hexdigest()
+        shards = shard_set(dep.weight_path) or [fingerprint_model_file(dep.weight_path)]
+        dep.weight_shards = [WeightShard(
+            path=s["path"], size_bytes=s["size_bytes"],
+            mtime_ns=s.get("mtime_ns", 0),
+            partial_sha256_head_tail_4m=s.get("partial_sha256_head_tail_4m", ""),
+            note=s.get("note", ""),
+        ) for s in shards]
+        dep.weight_total_bytes = sum(s["size_bytes"] for s in shards)
+        dep.weight_manifest_digest = "sha256:" + hashlib.sha256(
+            json.dumps([s.model_dump(mode="json") for s in dep.weight_shards],
+                       sort_keys=True).encode()).hexdigest()
+        dep.serving_config = {
+            "reasoning": "on" in evidence.get("server_command", ""),
+            "context_length": dep.context_length_configured,
+        }
         record = dep.model_dump()
-        record["weight_shards"] = shard_set(dep.weight_path) or [fingerprint_model_file(dep.weight_path)]
-        record["weight_total_bytes"] = sum(s["size_bytes"] for s in record["weight_shards"])
         deployments.append(record)
 
     harnesses = []

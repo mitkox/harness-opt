@@ -11,11 +11,73 @@
       "weight_path": "/home/mitko/dev/models/Qwen3.8-Flash-Next-APEX-I-Compact-00001-of-00006.gguf",
       "weight_size_bytes": 539423008,
       "weight_partial_sha256": "4c344c5fb229ffd2aa3e500b1a3e72d97053ca8f393ce0b613df6bd087c0df37",
+      "weight_shards": [
+        {
+          "schema_version": "0.1",
+          "path": "/home/mitko/dev/models/Qwen3.8-Flash-Next-APEX-I-Compact-00001-of-00006.gguf",
+          "size_bytes": 539423008,
+          "mtime_ns": 1789203218778007984,
+          "partial_sha256_head_tail_4m": "4c344c5fb229ffd2aa3e500b1a3e72d97053ca8f393ce0b613df6bd087c0df37",
+          "sha256": "",
+          "note": "partial hash only; full-file hash deferred (multi-GB weights)"
+        },
+        {
+          "schema_version": "0.1",
+          "path": "/home/mitko/dev/models/Qwen3.8-Flash-Next-APEX-I-Compact-00002-of-00006.gguf",
+          "size_bytes": 28800138432,
+          "mtime_ns": 1789205543832302940,
+          "partial_sha256_head_tail_4m": "96f0bab09b88f9063dbf871642bcfe9defad30e6fb9484f0f657eff08c316e5c",
+          "sha256": "",
+          "note": "partial hash only; full-file hash deferred (multi-GB weights)"
+        },
+        {
+          "schema_version": "0.1",
+          "path": "/home/mitko/dev/models/Qwen3.8-Flash-Next-APEX-I-Compact-00003-of-00006.gguf",
+          "size_bytes": 14626936832,
+          "mtime_ns": 1789205161795473087,
+          "partial_sha256_head_tail_4m": "9ab7d637d3ca616b73fc5f75dd41904b53bd4f291b6a8b5c6cd8bdda9612d639",
+          "sha256": "",
+          "note": "partial hash only; full-file hash deferred (multi-GB weights)"
+        },
+        {
+          "schema_version": "0.1",
+          "path": "/home/mitko/dev/models/Qwen3.8-Flash-Next-APEX-I-Compact-00004-of-00006.gguf",
+          "size_bytes": 14624775200,
+          "mtime_ns": 1789205202913316627,
+          "partial_sha256_head_tail_4m": "538d4d5f2bee1c206fdb872c9bb1d5d028f03791d22ead24b4daba493fb92843",
+          "sha256": "",
+          "note": "partial hash only; full-file hash deferred (multi-GB weights)"
+        },
+        {
+          "schema_version": "0.1",
+          "path": "/home/mitko/dev/models/Qwen3.8-Flash-Next-APEX-I-Compact-00005-of-00006.gguf",
+          "size_bytes": 14624775200,
+          "mtime_ns": 1789205196369182389,
+          "partial_sha256_head_tail_4m": "16f117e3c95f9458946e9281a5c1a33dc7d134ff69a1aadae783847f879e99f7",
+          "sha256": "",
+          "note": "partial hash only; full-file hash deferred (multi-GB weights)"
+        },
+        {
+          "schema_version": "0.1",
+          "path": "/home/mitko/dev/models/Qwen3.8-Flash-Next-APEX-I-Compact-00006-of-00006.gguf",
+          "size_bytes": 11861758976,
+          "mtime_ns": 1789204853534139101,
+          "partial_sha256_head_tail_4m": "792cdc118aabe2d70270a626a89b9290baabe78aa88f4056d8659bee2b6d4b69",
+          "sha256": "",
+          "note": "partial hash only; full-file hash deferred (multi-GB weights)"
+        }
+      ],
+      "weight_total_bytes": 85077807648,
+      "weight_manifest_digest": "sha256:53f8319b4237a4c437c1a0015cb909b4920ccbfae7e57205d4f33612ff8acdb4",
       "quantization": "IQ2_S - 2.5 bpw",
       "server_build": "version: 0.4.0-dev (build 10834, commit 992cb503c)",
       "server_command": "/home/mitko/dev/llama.cpp/build/bin/llama-server -m /home/mitko/dev/models/Qwen3.8-Flash-Next-APEX-I-Compact-00001-of-00006.gguf --device ROCm0 -ngl all -sm none -fit off --ctx-size 0 -ctk q8_0 -ctv q8_0 --kv-unified --batch-size 2048 --ubatch-size 512 --parallel 1 --threads 8 --threads-batch 16 --poll 50 --flash-attn on --cache-prompt --cache-reuse 256 --spec-type ngram-mod --spec-ngram-mod-n-match 24 --spec-ngram-mod-n-min 48 --spec-ngram-mod-n-max 64 --reasoning on --reasoning-effort low --reasoning-budget 512 --reasoning-preserve --temp 1 --top-k 20 --top-p 0.95 --min-p 0.00 --repeat-penalty 1.0 --presence-penalty 0.0 --jinja --chat-template-kwargs {\"preserve_thinking\": true} --load-mode mmap+mlock --metrics --host 0.0.0.0 --port 8000 --agent -a mitko ",
       "chat_template_sha256": "12827f24b742ea4e80cdc12dbcf9622227056b9f797252a3149263d4f9aaadce",
       "context_length_configured": 262144,
+      "serving_config": {
+        "reasoning": true,
+        "context_length": 262144
+      },
       "endpoint": {
         "schema_version": "0.1",
         "alias": "qwen-flash-next",
@@ -27,52 +89,7 @@
       "evidence": [
         "n_params=176943899520",
         "weight_size=539423008"
-      ],
-      "weight_shards": [
-        {
-          "path": "/home/mitko/dev/models/Qwen3.8-Flash-Next-APEX-I-Compact-00001-of-00006.gguf",
-          "size_bytes": 539423008,
-          "mtime_ns": 1789203218778007984,
-          "partial_sha256_head_tail_4m": "4c344c5fb229ffd2aa3e500b1a3e72d97053ca8f393ce0b613df6bd087c0df37",
-          "note": "partial hash only; full-file hash deferred (multi-GB weights)"
-        },
-        {
-          "path": "/home/mitko/dev/models/Qwen3.8-Flash-Next-APEX-I-Compact-00002-of-00006.gguf",
-          "size_bytes": 28800138432,
-          "mtime_ns": 1789205543832302940,
-          "partial_sha256_head_tail_4m": "96f0bab09b88f9063dbf871642bcfe9defad30e6fb9484f0f657eff08c316e5c",
-          "note": "partial hash only; full-file hash deferred (multi-GB weights)"
-        },
-        {
-          "path": "/home/mitko/dev/models/Qwen3.8-Flash-Next-APEX-I-Compact-00003-of-00006.gguf",
-          "size_bytes": 14626936832,
-          "mtime_ns": 1789205161795473087,
-          "partial_sha256_head_tail_4m": "9ab7d637d3ca616b73fc5f75dd41904b53bd4f291b6a8b5c6cd8bdda9612d639",
-          "note": "partial hash only; full-file hash deferred (multi-GB weights)"
-        },
-        {
-          "path": "/home/mitko/dev/models/Qwen3.8-Flash-Next-APEX-I-Compact-00004-of-00006.gguf",
-          "size_bytes": 14624775200,
-          "mtime_ns": 1789205202913316627,
-          "partial_sha256_head_tail_4m": "538d4d5f2bee1c206fdb872c9bb1d5d028f03791d22ead24b4daba493fb92843",
-          "note": "partial hash only; full-file hash deferred (multi-GB weights)"
-        },
-        {
-          "path": "/home/mitko/dev/models/Qwen3.8-Flash-Next-APEX-I-Compact-00005-of-00006.gguf",
-          "size_bytes": 14624775200,
-          "mtime_ns": 1789205196369182389,
-          "partial_sha256_head_tail_4m": "16f117e3c95f9458946e9281a5c1a33dc7d134ff69a1aadae783847f879e99f7",
-          "note": "partial hash only; full-file hash deferred (multi-GB weights)"
-        },
-        {
-          "path": "/home/mitko/dev/models/Qwen3.8-Flash-Next-APEX-I-Compact-00006-of-00006.gguf",
-          "size_bytes": 11861758976,
-          "mtime_ns": 1789204853534139101,
-          "partial_sha256_head_tail_4m": "792cdc118aabe2d70270a626a89b9290baabe78aa88f4056d8659bee2b6d4b69",
-          "note": "partial hash only; full-file hash deferred (multi-GB weights)"
-        }
-      ],
-      "weight_total_bytes": 85077807648
+      ]
     },
     {
       "schema_version": "0.1",
@@ -83,11 +100,28 @@
       "weight_path": "/home/mitko/dev/models/huihui-qwen3.8-27b-abliterated-q4_k_m.gguf",
       "weight_size_bytes": 16810714816,
       "weight_partial_sha256": "655cfe5f423ef636f1cdbeb74809084fa96f7150bb5d9e673b8adcd69ca40237",
+      "weight_shards": [
+        {
+          "schema_version": "0.1",
+          "path": "/home/mitko/dev/models/huihui-qwen3.8-27b-abliterated-q4_k_m.gguf",
+          "size_bytes": 16810714816,
+          "mtime_ns": 1786887189764877166,
+          "partial_sha256_head_tail_4m": "655cfe5f423ef636f1cdbeb74809084fa96f7150bb5d9e673b8adcd69ca40237",
+          "sha256": "",
+          "note": "partial hash only; full-file hash deferred (multi-GB weights)"
+        }
+      ],
+      "weight_total_bytes": 16810714816,
+      "weight_manifest_digest": "sha256:b20ab2cfc2dea499959b1337c8c67477f45d10a1a60be281c9b4f6dede45242a",
       "quantization": "Q4_K - Medium",
       "server_build": "version: 0.4.0-dev (build 10834, commit 992cb503c)",
       "server_command": "/home/mitko/dev/llama.cpp/build/bin/llama-server -m /home/mitko/dev/models/huihui-qwen3.8-27b-abliterated-q4_k_m.gguf -md /home/mitko/dev/models/Qwen3.8-27B-DFlash2-Q4_K_M.gguf --device Vulkan0 --spec-draft-device Vulkan0 -ngl all --spec-draft-ngl all -sm none -fit off --load-mode mmap+mlock --lazy-mode off --ctx-size 131072 --ctx-checkpoints 8 --checkpoint-min-step 8192 -ctk q8_0 -ctv q8_0 --flash-attn on --batch-size 2048 --ubatch-size 256 --parallel 1 --threads 8 --threads-batch 16 --poll 50 --cache-prompt --spec-type draft-dflash --spec-draft-n-max 3 --reasoning on --reasoning-effort medium --reasoning-budget 2048 --reasoning-preserve --temp 1.0 --top-k 20 --top-p 0.95 --min-p 0.0 --repeat-penalty 1.0 --presence-penalty 0.0 --jinja --metrics --host 0.0.0.0 --port 8001 --agent -a mitko ",
       "chat_template_sha256": "c3cf9e34abf4f9e36c2d72165aa9c132d3e2a725b6c2586aaa3a8af9d7a81041",
       "context_length_configured": 131072,
+      "serving_config": {
+        "reasoning": true,
+        "context_length": 131072
+      },
       "endpoint": {
         "schema_version": "0.1",
         "alias": "qwen-27b-abliterated",
@@ -99,17 +133,7 @@
       "evidence": [
         "n_params=27320697856",
         "weight_size=16810714816"
-      ],
-      "weight_shards": [
-        {
-          "path": "/home/mitko/dev/models/huihui-qwen3.8-27b-abliterated-q4_k_m.gguf",
-          "size_bytes": 16810714816,
-          "mtime_ns": 1786887189764877166,
-          "partial_sha256_head_tail_4m": "655cfe5f423ef636f1cdbeb74809084fa96f7150bb5d9e673b8adcd69ca40237",
-          "note": "partial hash only; full-file hash deferred (multi-GB weights)"
-        }
-      ],
-      "weight_total_bytes": 16810714816
+      ]
     }
   ]
 }

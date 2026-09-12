@@ -4,7 +4,12 @@ workflow: debugging
 split: development
 time_budget_s: 600
 verifier_ref: verifier:debug-offbyone:v1
+verifier_id: verifier:debug-offbyone
 repo_subdir: repo
+allowed_paths:
+  - median_bug.py
+protected_paths:
+  - reproducer_visible.py
 acceptance:
   - Visible reproducer passes on the patched snapshot.
   - Hidden behavioral and regression tests pass.
