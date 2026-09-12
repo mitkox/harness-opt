@@ -1,7 +1,7 @@
 # Changelog
 
 All notable changes to HOP are documented here. Tags: `m1-foundation`,
-`m2-observability`, `hop-namespace`, `v0.1.0-alpha`.
+`m2-observability`, `hop-namespace`, `v0.1.0-alpha`, `m3-profiles`.
 
 ## v0.1.0-alpha (2026-09-12)
 
