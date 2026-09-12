@@ -1,0 +1,50 @@
+apiVersion: hop/v1
+kind: Profile
+schema_version: "0.3"
+
+# Example only. This profile is not optimized, benchmarked, or approved.
+metadata:
+  name: coding
+  version: 0.1.0
+  workflow: coding
+  description: >-
+    General coding and refactoring profile for the local Pi harness.
+  notes:
+    - Example only, not optimized; no measured advantage is implied.
+    - Uses canonical skills plus a model-family variant selector.
+
+model:
+  deployment_ref: qwen-flash-next
+  family_hint: qwen
+  variant_selectors:
+    - dimension: model_family
+      value: qwen
+
+harness:
+  name: pi
+  version: ">=0.80.0"
+  overlay_ref: pi-default@^1.0.0
+
+system:
+  prompt_ref: coding-system@^1.0.0
+
+agents:
+  - coding-agent@^1.0.0
+
+skills:
+  - repo-navigation@^1.0.0
+  - debugging@^2.0.0
+  - testing@^1.0.0
+  - git@^1.0.0
+
+tools:
+  policy_ref: coding-tools@^1.0.0
+
+context:
+  policy_ref: default-context@^1.0.0
+
+policy:
+  - enterprise-coding@^1.0.0
+
+distribution:
+  target: apm

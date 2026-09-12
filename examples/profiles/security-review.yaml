@@ -1,0 +1,48 @@
+apiVersion: hop/v1
+kind: Profile
+schema_version: "0.3"
+
+# Example only. This profile is not optimized, benchmarked, or approved.
+metadata:
+  name: security-review
+  version: 0.1.0
+  workflow: security_review
+  description: >-
+    Authorized defensive-security review profile. Read-only, no scanning.
+  notes:
+    - Example only, not optimized; network scanning is mandatory-deny in security-tools.
+
+model:
+  deployment_ref: qwen-flash-next
+  family_hint: qwen
+  variant_selectors:
+    - dimension: model_family
+      value: qwen
+
+harness:
+  name: pi
+  version: ">=0.80.0"
+  overlay_ref: pi-default@^1.0.0
+
+system:
+  prompt_ref: security-system@^1.0.0
+
+agents:
+  - review-agent@^1.0.0
+
+skills:
+  - repo-navigation@^1.0.0
+  - code-review@^1.0.0
+
+tools:
+  # Read-only; network.scanning is mandatory-deny.
+  policy_ref: security-tools@^1.0.0
+
+context:
+  policy_ref: default-context@^1.0.0
+
+policy:
+  - enterprise-coding@^1.0.0
+
+distribution:
+  target: apm

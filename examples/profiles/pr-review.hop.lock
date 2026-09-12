@@ -1,0 +1,113 @@
+{
+  "compilation_target": "pi",
+  "compiler_version": "hop-compiler-v1",
+  "components": [
+    {
+      "dependencies": [
+        "skill:code-review@1.0.0"
+      ],
+      "digest": "sha256:dbbf4492bc4d17480ede786d446f6658e6c35b55722b255c3a6804920382abdf",
+      "name": "review-agent",
+      "source": "/home/mitko/dev/harness-opt/components/agents/review-agent",
+      "type": "agent",
+      "variant": "",
+      "version": "1.0.0"
+    },
+    {
+      "dependencies": [],
+      "digest": "sha256:8dbc5ed3378fe019fd37d2f33a3d165edf4ce832127da76009b069e6300378df",
+      "name": "default-context",
+      "source": "/home/mitko/dev/harness-opt/components/context_policies/default-context",
+      "type": "context_policy",
+      "variant": "",
+      "version": "1.0.0"
+    },
+    {
+      "dependencies": [],
+      "digest": "sha256:4cc4ad5a1ec380fda0fa675bfd72fbd339aff194750e55864f8bc5e039a95684",
+      "name": "pi-default",
+      "source": "/home/mitko/dev/harness-opt/components/overlays/pi-default",
+      "type": "harness_overlay",
+      "variant": "",
+      "version": "1.0.0"
+    },
+    {
+      "dependencies": [],
+      "digest": "sha256:0944d9358f6dd95bfbf0600fe23ee049fb6d8eec641e93547fec46d4a57a5213",
+      "name": "enterprise-coding",
+      "source": "/home/mitko/dev/harness-opt/components/org_policies/enterprise-coding",
+      "type": "org_policy",
+      "variant": "",
+      "version": "1.0.0"
+    },
+    {
+      "dependencies": [
+        "skill:repo-navigation@1.0.0"
+      ],
+      "digest": "sha256:9da7e9177bf4e66aa5e77a164904143e63f6c54e79a439a349a0f3420cb812ee",
+      "name": "code-review",
+      "source": "/home/mitko/dev/harness-opt/components/skills/code-review",
+      "type": "skill",
+      "variant": "qwen",
+      "version": "1.0.0"
+    },
+    {
+      "dependencies": [],
+      "digest": "sha256:bb55806b4cf67dc79f795fe2e7e1848e3132ad8bfe814645a4ec95366d7dc11f",
+      "name": "repo-navigation",
+      "source": "/home/mitko/dev/harness-opt/components/skills/repo-navigation",
+      "type": "skill",
+      "variant": "",
+      "version": "1.0.0"
+    },
+    {
+      "dependencies": [],
+      "digest": "sha256:de1f9f303bca019eb81e6b1d1c735f6d2668f6e24bd3cec8f22de84158ccef76",
+      "name": "review-system",
+      "source": "/home/mitko/dev/harness-opt/components/prompts/review-system",
+      "type": "system_prompt",
+      "variant": "",
+      "version": "1.0.0"
+    },
+    {
+      "dependencies": [],
+      "digest": "sha256:801aa5983caeae2980b1001b4fee7443e1173dcbec455d830946a15d52879a7b",
+      "name": "review-tools",
+      "source": "/home/mitko/dev/harness-opt/components/tool_policies/review-tools",
+      "type": "tool_policy",
+      "variant": "",
+      "version": "1.0.0"
+    }
+  ],
+  "dependency_graph": {
+    "agent:review-agent@1.0.0": [
+      "skill:code-review@1.0.0"
+    ],
+    "context_policy:default-context@1.0.0": [],
+    "harness_overlay:pi-default@1.0.0": [],
+    "org_policy:enterprise-coding@1.0.0": [],
+    "skill:code-review@1.0.0": [
+      "skill:repo-navigation@1.0.0"
+    ],
+    "skill:repo-navigation@1.0.0": [],
+    "system_prompt:review-system@1.0.0": [],
+    "tool_policy:review-tools@1.0.0": []
+  },
+  "harness_overlay": {
+    "dependencies": [],
+    "digest": "sha256:4cc4ad5a1ec380fda0fa675bfd72fbd339aff194750e55864f8bc5e039a95684",
+    "name": "pi-default",
+    "source": "/home/mitko/dev/harness-opt/components/overlays/pi-default",
+    "type": "harness_overlay",
+    "variant": "",
+    "version": "1.0.0"
+  },
+  "hop_version": "0.1.0",
+  "kind": "Lockfile",
+  "lock_digest": "sha256:40c1b9ea9d2968c7b008aa72d6a052d0794c1a2bfb7f909b0d44cee1dcbddfb2",
+  "lockfile_version": "1",
+  "policy_digest": "sha256:7bacd5a2ad41705b9cc3877aba9a55fb2fc28e9a631a5fc6cf8cc22d05d45744",
+  "profile_digest": "sha256:103a28d6f341be052398823189c1bbae7ed3d5256caacfedfb86c84759aadfb0",
+  "profile_name": "pr-review",
+  "profile_version": "0.1.0"
+}
