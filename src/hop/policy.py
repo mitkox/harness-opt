@@ -23,6 +23,8 @@ SCRUB_ENV_EXACT = {
     "ALL_PROXY", "all_proxy", "NO_PROXY", "no_proxy",
     "SSH_AUTH_SOCK", "GIT_ASKPASS",
     # Endpoint redirection for Pi is controlled by the deployment record only.
+    # Both the canonical and legacy spellings are refused (M1 local-only).
+    "HOP_PI_BASE_URL",
     "AOP_PI_BASE_URL",
 }
 

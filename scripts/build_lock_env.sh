@@ -8,8 +8,8 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-VENV="${AOP_LOCK_VENV:-$ROOT/.venv-m1}"
-WHEELS="${AOP_WHEELHOUSE:-$ROOT/.vendor/wheels}"
+VENV="${HOP_LOCK_VENV:-${AOP_LOCK_VENV:-$ROOT/.venv-m1}}"
+WHEELS="${HOP_WHEELHOUSE:-${AOP_WHEELHOUSE:-$ROOT/.vendor/wheels}}"
 
 if [[ ! -d "$WHEELS" ]]; then
   echo "ERROR: local wheelhouse missing at $WHEELS" >&2

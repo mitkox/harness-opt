@@ -20,7 +20,9 @@ import os
 
 
 def collector_available(collector_dir: str) -> bool:
-    if os.environ.get("AOP_COLLECTOR_DOWN") == "1":
+    from ..envcompat import COLLECTOR_DOWN_VARS
+    from ..envcompat import is_flag_set
+    if is_flag_set(*COLLECTOR_DOWN_VARS):
         return False
     marker = os.path.join(collector_dir, ".collector-up")
     # Absent marker + absent dir both mean "no collector"; presence of the

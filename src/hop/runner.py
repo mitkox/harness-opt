@@ -66,7 +66,9 @@ from .verification import (
 
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 RUNS_DIR = os.path.join(ROOT, "runs")
-VERIFIER_ROOT = os.environ.get("AOP_VERIFIER_ROOT", os.path.join(ROOT, ".hidden"))
+from .envcompat import VERIFIER_ROOT_VARS, resolve_env
+VERIFIER_ROOT = resolve_env(*VERIFIER_ROOT_VARS,
+                            default=os.path.join(ROOT, ".hidden"))
 HIDDEN_ROOT = os.path.join(VERIFIER_ROOT, "hidden-tests")
 VERIFIER_VERSION = "debug-verifier-v2"
 ADAPTER_REVISION = "pi-json-adapter-v1"

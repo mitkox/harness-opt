@@ -1,4 +1,4 @@
-"""aop CLI: validate-profile, discover, run, report (M0/M1) + run investigation (M2)."""
+"""hop CLI: validate-profile, discover, run, report (M0/M1) + run investigation (M2)."""
 from __future__ import annotations
 
 import argparse
@@ -10,8 +10,9 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", "src"))
 
 
 def _runs_dir() -> str:
+    from hop.envcompat import RUNS_DIR_VARS, resolve_env
     from hop.runner import RUNS_DIR
-    return os.environ.get("AOP_RUNS_DIR", RUNS_DIR)
+    return resolve_env(*RUNS_DIR_VARS, default=RUNS_DIR)
 
 
 def cmd_validate_profile(args) -> int:
@@ -106,8 +107,8 @@ def cmd_run_investigate(args) -> int:
     return 0
 
 
-def _main(argv=None) -> int:
-    parser = argparse.ArgumentParser(prog="aop")
+def _main(argv=None, prog: str = "hop") -> int:
+    parser = argparse.ArgumentParser(prog=prog)
     sub = parser.add_subparsers(dest="cmd", required=True)
     p = sub.add_parser("validate-profile")
     p.add_argument("--model", required=True)
@@ -136,7 +137,7 @@ def _main(argv=None) -> int:
 
 
 def main(argv=None) -> int:
-    # `aop run show <run-id>` style: `run` doubles as execution (`--case`) and
+    # `hop run show <run-id>` style: `run` doubles as execution (`--case`) and
     # investigation (`run show|trajectory|... <run-id>`). Disambiguate before
     # argparse, which cannot give one subcommand two shapes.
     _VERBS = {"show", "trajectory", "artifacts", "trace", "verify", "skills",
@@ -146,6 +147,13 @@ def main(argv=None) -> int:
         verb = argv[1]
         return _main([f"run-{verb}"] + argv[2:])
     return _main(argv)
+
+
+def legacy_main(argv=None) -> int:
+    """Deprecated `aop` alias: same implementation, warns, same semantics."""
+    print("hop: warning: the `aop` command is deprecated; use `hop` "
+          "(alias removal target: M4)", file=sys.stderr)
+    return main(argv)
 
 
 if __name__ == "__main__":

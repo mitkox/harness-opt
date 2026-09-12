@@ -6,8 +6,9 @@ signal. Tool execution, cancellation, and session export work against an
 isolated config/home; the user's global ~/.pi/agent state is untouched.
 
 Local-only: the provider base URL, model id, context window, and generation
-parameters derive from the registered ``ModelDeployment``. ``AOP_PI_BASE_URL``
-has no authority here and is scrubbed from the worker environment.
+parameters derive from the registered ``ModelDeployment``. ``HOP_PI_BASE_URL``
+(and the legacy ``AOP_PI_BASE_URL``) have no authority here and are scrubbed
+from the worker environment.
 """
 from __future__ import annotations
 
@@ -198,12 +199,13 @@ class PiJsonAdapter:
         """Provider config is derived ONLY from the registered deployment record."""
         if self.deployment is None or self.deployment.endpoint is None:
             raise ValueError("PiJsonAdapter requires a deployment endpoint")
-        # An injected AOP_PI_BASE_URL is deliberately ignored and scrubbed.
+        # An injected HOP_PI_BASE_URL / AOP_PI_BASE_URL is deliberately ignored
+        # and scrubbed.
         base = assert_local_url(self.deployment.endpoint.base_url)
         context = self.deployment.context_length_configured or 8192
         serving = self.deployment.serving_config or {}
         return {"providers": {self.provider: {
-            "name": f"{self.provider} (local AOP)",
+            "name": f"{self.provider} (local HOP)",
             "baseUrl": base, "api": "openai-completions", "apiKey": "local",
             "models": [{"id": self.model, "name": self.model,
                         "reasoning": bool(serving.get("reasoning", False)),
