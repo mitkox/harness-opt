@@ -26,6 +26,18 @@ def test_registration_is_idempotent(tmp_path):
     second = register(registry, name="alpha")
     assert first.record_digest == second.record_digest
     assert len(registry.all_components()) == 1
+    # Creation timestamp is recorded but never part of content identity.
+    assert first.created_at
+    assert second.created_at == first.created_at
+
+
+def test_creation_timestamp_does_not_change_identity(tmp_path):
+    r1 = ComponentRegistry(str(tmp_path / "r1"))
+    r2 = ComponentRegistry(str(tmp_path / "r2"))
+    a = register(r1, name="alpha", files={"x.md": b"same"})
+    b = register(r2, name="alpha", files={"x.md": b"same"})
+    assert a.record_digest == b.record_digest
+    assert a.content_digest == b.content_digest
 
 
 def test_same_version_different_content_is_a_collision(tmp_path):

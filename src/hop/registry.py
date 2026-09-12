@@ -131,6 +131,12 @@ class ComponentRegistry:
 
         self._write_content(record.content_digest, files)
         record.files = _file_list(files)
+        if not record.created_at:
+            # Informational provenance only: excluded from record_digest, so
+            # identity stays deterministic while the record keeps a timestamp.
+            from .contracts.base import utcnow
+
+            record.created_at = utcnow().isoformat()
         self._index[record.record_digest] = record
         _atomic_write(os.path.join(self.root, "records",
                                    record.record_digest.split(":")[1] + ".json"),
