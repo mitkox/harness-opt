@@ -31,3 +31,13 @@ Thumbs.db
 .idea/
 .vscode/
 *.code-workspace
+# secrets / credentials (never commit real values)
+.env.*
+*.pem
+*.key
+*.p12
+id_rsa*
+id_ed25519*
+credentials.json
+secrets.yaml
+secrets.yml
