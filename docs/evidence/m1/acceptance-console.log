@@ -1,0 +1,43 @@
+[PASS] 1. buggy baseline fails trusted verification: verdict=fail
+[PASS] 2. legitimate repair passes: verdict=pass
+[PASS] 3. os._exit(0) cannot create a false PASS: verdict=error err=verification_no_result
+[PASS] 4. sitecustomize.py cannot create a false PASS: verdict=fail executed=False
+[PASS] 5. malicious conftest.py / pytest.ini cannot create a false PASS: verdict=fail
+[PASS] 6. skip-all / zero-test / deselection rejected: rejected=['all_skipped', 'collect_only', 'deselected', 'zero']
+[PASS] 7. agent cannot read/write hidden material or verifier code: NO_READ WRITE_DENIED VERIFIER_DENIED cat: /tmp/aop-bound-vbv_0h_4/run-other/workspace/secret.txt: No such file or directory OTHER_DENIED 
+[PASS] 8. candidate startup hooks cannot execute inside verifier: verdict=fail
+[PASS] 9. Pi cannot be redirected to a non-approved endpoint: remote_refused=True env_scrubbed=True
+[PASS] 10. executed model identity matches recorded deployment: served=['mitko']
+[PASS] 11. changing any model weight shard changes bundle identity: shard_changes_change_digest=[True, True, True, True]
+[PASS] 12. duplicate admission behaves idempotently: replay=True
+[PASS] 13. infrastructure failures end as durable infra_error runs: error_class=missing_verifier_fixture
+[PASS] 14. emitted trajectory records validate against the schema: all emitted events valid
+[PASS] 15. missing required terminal trajectory data marks incomplete: missing_required=['terminal_harness_event']
+[PASS] 16. pass, fail, timeout and cancellation all have durable artifacts: outcomes={'pass': 'pass', 'fail': 'fail', 'timeout': 'timeout', 'cancelled': 'cancelled'}
+[PASS] 17. every run identifies repository/environment/model/harness inputs: identity fields present
+[PASS] 18. fresh environment reproducible from the dependency lock: lock=yes offline_wheelhouse=True built_venv=True
+[PASS] 1b. real Pi run derives pass/fail from the trusted verifier: outcome=pass verdict=pass secs=30.9
+
+| Requirement | Probe | Result | Evidence |
+|---|---|---|---|
+| 1. buggy baseline fails trusted verification | verification.run_verification(baseline) | PASS | /tmp/aop-acc-36rk859h/verify |
+| 2. legitimate repair passes | verification.run_verification(repair) | PASS | /tmp/aop-acc-1uaflhuv/verify |
+| 3. os._exit(0) cannot create a false PASS | verification.run_verification(os._exit) | PASS | /tmp/aop-acc-mcfyffj8/verify |
+| 4. sitecustomize.py cannot create a false PASS | verification.run_verification(sitecustomize) | PASS | /tmp/aop-acc-yc8pc5i_/verify |
+| 5. malicious conftest.py / pytest.ini cannot create a false PASS | verification.run_verification(conftest+pytest.ini) | PASS | /tmp/aop-acc-aw7flc6s/verify |
+| 6. skip-all / zero-test / deselection rejected | verification.evaluate_report(...) | PASS | in-process structural report checks |
+| 7. agent cannot read/write hidden material or verifier code | sandbox.spawn_isolated(probe) | PASS | /tmp/aop-bound-vbv_0h_4/run-mine/worker/workspace/stdout.log |
+| 8. candidate startup hooks cannot execute inside verifier | verification.run_verification(usercustomize) | PASS | /tmp/aop-acc-8u2kpzgx/verify |
+| 9. Pi cannot be redirected to a non-approved endpoint | policy.assert_local_url + scrub_worker_env | PASS | aop.policy |
+| 10. executed model identity matches recorded deployment | inference.verify_served_model | PASS | {"base_url": "http://127.0.0.1:8000/v1", "expected_model_id": "mitko", "served_ids": ["mitko"], "served_model_path": "/h |
+| 11. changing any model weight shard changes bundle identity | bundle.compile_bundle(shard N) | PASS | in-process |
+| 12. duplicate admission behaves idempotently | Runner.execute(same idempotency key) | PASS | /tmp/aop-acc-runs-_8td12q_/run-cdc6fbe74f6c |
+| 13. infrastructure failures end as durable infra_error runs | Runner.execute(missing verifier fixture) | PASS | /tmp/aop-acc-runs-_8td12q_/run-ef0ede6aaab9 |
+| 14. emitted trajectory records validate against the schema | jsonschema.validate(events.jsonl) | PASS | /tmp/aop-acc-runs-_8td12q_/run-cdc6fbe74f6c/events.jsonl |
+| 15. missing required terminal trajectory data marks incomplete | EventLedger.completeness | PASS | /tmp/aop-acc-runs-_8td12q_/run-cdc6fbe74f6c/alt-events.jsonl |
+| 16. pass, fail, timeout and cancellation all have durable artifacts | Runner.execute(scripted arms) | PASS | /tmp/aop-acc-runs-_8td12q_/run-28f991a33e63,/tmp/aop-acc-runs-_8td12q_/run-ca1e9c52a8ed,/tmp/aop-acc-runs-_8td12q_/run-409e8f15d10c,/tmp/aop-acc-runs-_8td12q_/run-98d4cc827b67 |
+| 17. every run identifies repository/environment/model/harness inputs | manifest.json input identity | PASS | /tmp/aop-acc-runs-_8td12q_/run-cdc6fbe74f6c/manifest.json |
+| 18. fresh environment reproducible from the dependency lock | requirements.lock + scripts/build_lock_env.sh | PASS | /home/mitko/dev/harness-opt/requirements.lock |
+| 1b. real Pi run derives pass/fail from the trusted verifier | Runner.execute(harness=pi) | PASS | /tmp/aop-acc-runs-20naoe2g/run-71779e9c986a |
+
+summary: {'pass': 19, 'fail': 0}

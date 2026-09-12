@@ -1,0 +1,203 @@
+{
+  "attempt_id": "att-0d415ecc4398",
+  "bundle": {
+    "adapter_revision": "pi-json-adapter-v1",
+    "base_prompt_sha256": "667e3c544f17133691a132aa9293a86c1640d9106713c3633db502c84b963151",
+    "deployable": true,
+    "digest": "sha256:d13da30ecb8fa2bdc1373bb73fa290f665d13c67eca945690ddb1fc34d32144f",
+    "hardware_envelope": "",
+    "harness": "pi",
+    "harness_digest": "sha256:e31951236fdc77795abcf89812d8a5f3923f7babcbfcc255e5e82ced97248683",
+    "harness_version": "0.85.1",
+    "inference_config_digest": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+    "kind": "ExecutionBundle",
+    "model_deployment_digest": "sha256:8ff6a90b6fddfb9c11ef5bc3f75570a6ed27fcaa75f515bf7b072181737378d1",
+    "model_deployment_id": "qwen-flash-next-IQ2_S_-_2.5_bpw",
+    "policy_id": "local-default-v1",
+    "sandbox_digest": "",
+    "schema_version": "0.1",
+    "skill_variant_ids": [],
+    "source_map": {
+      "base_prompt_sha256": "667e3c544f17133691a132aa9293a86c1640d9106713c3633db502c84b963151",
+      "harness": "pi@0.85.1",
+      "harness_digest": "sha256:e31951236fdc77795abcf89812d8a5f3923f7babcbfcc255e5e82ced97248683",
+      "model_deployment_digest": "sha256:8ff6a90b6fddfb9c11ef5bc3f75570a6ed27fcaa75f515bf7b072181737378d1",
+      "model_deployment_id": "qwen-flash-next-IQ2_S_-_2.5_bpw",
+      "policy_id": "local-default-v1"
+    }
+  },
+  "harness": {
+    "adapter_revision": "pi-json-adapter-v1",
+    "blocked_reason": "",
+    "capabilities": {
+      "cancellation": true,
+      "headless": true,
+      "model_selection": true,
+      "session_export": true,
+      "streaming": true
+    },
+    "executable": "/home/mitko/.npm-global/lib/node_modules/@earendil-works/pi-coding-agent/dist/bundle/cli.js",
+    "executable_sha256": "e6d7fcf36a239cf3746e67ddf4222081ac01a601b85a3ee688bdfe9c161d754c",
+    "harness": "pi",
+    "harness_digest": "sha256:7ede832c9170290dfd78804f276ccd8aea00762b1ce235ee9bd89c8b63c4b597",
+    "kind": "HarnessBuild",
+    "notes": [],
+    "probe_digest": "sha256:2f0835225b7d57f8696ae77a200b1cf6587f4a5cebb29d9cbff1b196c1d9eed4",
+    "probe_evidence": {
+      "executable": {
+        "package_json_sha256": "f1738e4b42203e5f22bcb513f13fb2fb224f1e98d1f129ff042f87048665a94c",
+        "package_version": "0.85.1",
+        "path": "/home/mitko/.npm-global/bin/pi",
+        "realpath": "/home/mitko/.npm-global/lib/node_modules/@earendil-works/pi-coding-agent/dist/bundle/cli.js",
+        "requested": "pi",
+        "sha256": "e6d7fcf36a239cf3746e67ddf4222081ac01a601b85a3ee688bdfe9c161d754c"
+      },
+      "help": {
+        "exit_code": 0,
+        "flags": {
+          "--approve": true,
+          "--mode": true,
+          "--model": true,
+          "--no-session": true,
+          "--print": true,
+          "--provider": true,
+          "--session-dir": true
+        },
+        "help_sha256": "894957a01dfbf97ec0723edadbbc95094e0f216fc735705f47b94c2ddcb0962a"
+      },
+      "termination": {
+        "executable": "/home/mitko/.npm-global/bin/pi",
+        "exit_code": 1,
+        "ok": true,
+        "was_running": false
+      },
+      "version": {
+        "exit_code": 0,
+        "output": "0.85.1"
+      }
+    },
+    "protocol": "pi-jsonl-v3",
+    "schema_version": "0.1",
+    "source_revision": "",
+    "status": "qualified",
+    "version": "0.85.1"
+  },
+  "harness_digest": "sha256:7ede832c9170290dfd78804f276ccd8aea00762b1ce235ee9bd89c8b63c4b597",
+  "model": {
+    "chat_template_sha256": "12827f24b742ea4e80cdc12dbcf9622227056b9f797252a3149263d4f9aaadce",
+    "context_length_configured": 262144,
+    "deployment_id": "qwen-flash-next-IQ2_S_-_2.5_bpw",
+    "discovery_label": "Qwen/Qwen3.8-Flash-Next",
+    "endpoint": {
+      "alias": "qwen-flash-next",
+      "api": "openai-completions",
+      "base_url": "http://127.0.0.1:8000/v1",
+      "model_id": "mitko",
+      "schema_version": "0.1"
+    },
+    "evidence": [
+      "n_params=176943899520",
+      "weight_size=539423008"
+    ],
+    "family": "qwen",
+    "kind": "ModelDeployment",
+    "quantization": "IQ2_S - 2.5 bpw",
+    "schema_version": "0.1",
+    "server_build": "version: 0.4.0-dev (build 10834, commit 992cb503c)",
+    "server_command": "/home/mitko/dev/llama.cpp/build/bin/llama-server -m /home/mitko/dev/models/Qwen3.8-Flash-Next-APEX-I-Compact-00001-of-00006.gguf --device ROCm0 -ngl all -sm none -fit off --ctx-size 0 -ctk q8_0 -ctv q8_0 --kv-unified --batch-size 2048 --ubatch-size 512 --parallel 1 --threads 8 --threads-batch 16 --poll 50 --flash-attn on --cache-prompt --cache-reuse 256 --spec-type ngram-mod --spec-ngram-mod-n-match 24 --spec-ngram-mod-n-min 48 --spec-ngram-mod-n-max 64 --reasoning on --reasoning-effort low --reasoning-budget 512 --reasoning-preserve --temp 1 --top-k 20 --top-p 0.95 --min-p 0.00 --repeat-penalty 1.0 --presence-penalty 0.0 --jinja --chat-template-kwargs {\"preserve_thinking\": true} --load-mode mmap+mlock --metrics --host 0.0.0.0 --port 8000 --agent -a mitko ",
+    "serving_config": {
+      "context_length": 262144,
+      "reasoning": true
+    },
+    "status": "qualified",
+    "weight_manifest_digest": "sha256:53f8319b4237a4c437c1a0015cb909b4920ccbfae7e57205d4f33612ff8acdb4",
+    "weight_partial_sha256": "4c344c5fb229ffd2aa3e500b1a3e72d97053ca8f393ce0b613df6bd087c0df37",
+    "weight_path": "/home/mitko/dev/models/Qwen3.8-Flash-Next-APEX-I-Compact-00001-of-00006.gguf",
+    "weight_shards": [
+      {
+        "mtime_ns": 1789203218778007984,
+        "note": "partial hash only; full-file hash deferred (multi-GB weights)",
+        "partial_sha256_head_tail_4m": "4c344c5fb229ffd2aa3e500b1a3e72d97053ca8f393ce0b613df6bd087c0df37",
+        "path": "/home/mitko/dev/models/Qwen3.8-Flash-Next-APEX-I-Compact-00001-of-00006.gguf",
+        "schema_version": "0.1",
+        "sha256": "",
+        "size_bytes": 539423008
+      },
+      {
+        "mtime_ns": 1789205543832302940,
+        "note": "partial hash only; full-file hash deferred (multi-GB weights)",
+        "partial_sha256_head_tail_4m": "96f0bab09b88f9063dbf871642bcfe9defad30e6fb9484f0f657eff08c316e5c",
+        "path": "/home/mitko/dev/models/Qwen3.8-Flash-Next-APEX-I-Compact-00002-of-00006.gguf",
+        "schema_version": "0.1",
+        "sha256": "",
+        "size_bytes": 28800138432
+      },
+      {
+        "mtime_ns": 1789205161795473087,
+        "note": "partial hash only; full-file hash deferred (multi-GB weights)",
+        "partial_sha256_head_tail_4m": "9ab7d637d3ca616b73fc5f75dd41904b53bd4f291b6a8b5c6cd8bdda9612d639",
+        "path": "/home/mitko/dev/models/Qwen3.8-Flash-Next-APEX-I-Compact-00003-of-00006.gguf",
+        "schema_version": "0.1",
+        "sha256": "",
+        "size_bytes": 14626936832
+      },
+      {
+        "mtime_ns": 1789205202913316627,
+        "note": "partial hash only; full-file hash deferred (multi-GB weights)",
+        "partial_sha256_head_tail_4m": "538d4d5f2bee1c206fdb872c9bb1d5d028f03791d22ead24b4daba493fb92843",
+        "path": "/home/mitko/dev/models/Qwen3.8-Flash-Next-APEX-I-Compact-00004-of-00006.gguf",
+        "schema_version": "0.1",
+        "sha256": "",
+        "size_bytes": 14624775200
+      },
+      {
+        "mtime_ns": 1789205196369182389,
+        "note": "partial hash only; full-file hash deferred (multi-GB weights)",
+        "partial_sha256_head_tail_4m": "16f117e3c95f9458946e9281a5c1a33dc7d134ff69a1aadae783847f879e99f7",
+        "path": "/home/mitko/dev/models/Qwen3.8-Flash-Next-APEX-I-Compact-00005-of-00006.gguf",
+        "schema_version": "0.1",
+        "sha256": "",
+        "size_bytes": 14624775200
+      },
+      {
+        "mtime_ns": 1789204853534139101,
+        "note": "partial hash only; full-file hash deferred (multi-GB weights)",
+        "partial_sha256_head_tail_4m": "792cdc118aabe2d70270a626a89b9290baabe78aa88f4056d8659bee2b6d4b69",
+        "path": "/home/mitko/dev/models/Qwen3.8-Flash-Next-APEX-I-Compact-00006-of-00006.gguf",
+        "schema_version": "0.1",
+        "sha256": "",
+        "size_bytes": 11861758976
+      }
+    ],
+    "weight_size_bytes": 539423008,
+    "weight_total_bytes": 85077807648
+  },
+  "model_deployment_digest": "sha256:8ff6a90b6fddfb9c11ef5bc3f75570a6ed27fcaa75f515bf7b072181737378d1",
+  "run_id": "run-c85be3744478",
+  "task": {
+    "allowed_paths": [
+      "median_bug.py"
+    ],
+    "case_id": "debug-offbyone",
+    "environment_digest": "sha256:ed392dd8c8e111ab0a36ceef67e5e2530a72e51630072076f640f42e1d1343d6",
+    "kind": "TaskSpec",
+    "prompt": "Fix the bug in median_bug.py so that the visible reproducer passes.\n\nSteps:\n1. Run `python3 reproducer_visible.py` to observe the failure.\n2. Edit only median_bug.py (do not modify or rename the reproducer).\n3. Re-run the reproducer until it prints \"reproducer passed\".\n\nConstraints: no network access, no new dependencies, keep the function signature.\n",
+    "protected_paths": [
+      "reproducer_visible.py"
+    ],
+    "repo_snapshot_digest": "sha256:7affcb2596e1aa4a6187d09477ae588175b1b714ddb9f54e9d51bb95b40cca29",
+    "schema_version": "0.1",
+    "split": "development",
+    "task_id": "debug-offbyone-t1",
+    "time_budget_s": 600.0,
+    "verifier_id": "verifier:debug-offbyone",
+    "verifier_ref": "verifier:debug-offbyone:v1",
+    "verifier_version": "debug-verifier-v2",
+    "workflow": "debugging"
+  },
+  "verifier": {
+    "hidden_test_hash": "58b95d9e5f42e9272563371f14998484cf81e0a3230cf1b19a8ffb32307f2806",
+    "id": "verifier:debug-offbyone",
+    "version": "debug-verifier-v2"
+  }
+}

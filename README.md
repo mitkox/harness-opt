@@ -14,3 +14,13 @@ Contents:
 - `VALIDATION_REPORT.md`: structural validation performed on this handoff, not platform tests.
 
 All schema names, `aop` interfaces, milestone gates, and example policies are project-specific proposals. Upstream runtime settings and interfaces must be probed against pinned builds. The plan is local-only across inference, evaluation, optimization, and observability.
+
+## Implementation status
+
+M0/M1 are implemented in `src/aop/` with the Pi headless adapter, local-only
+inference, `bwrap`-isolated agent and verifier processes, a trusted positive
+verifier, durable run/artifact storage, schema-valid trajectories, scoped
+candidate changes, and a pinned dependency lock. Evidence and the full
+requirement-to-probe matrix are in `docs/evidence/m1/` and
+`docs/acceptance-m1.md`; operating instructions are in `docs/runbook-m1.md`.
+M2 and later are not implemented.

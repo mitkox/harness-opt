@@ -1,0 +1,92 @@
+{
+  "agent_claim": "Fixed. The bug was an off-by-one in the even-length branch: it averaged `ordered[mid] + ordered[mid + 1]` instead of the two central elements `ordered[mid - 1] + ordered[mid]`. For `[1, 2, 3, 4]` this returned 3.5 instead of 2.5. The reproducer now prints \"reproducer passed\".",
+  "agent_seconds": 23.14,
+  "attempt_id": "att-0d415ecc4398",
+  "bundle_digest": "sha256:d13da30ecb8fa2bdc1373bb73fa290f665d13c67eca945690ddb1fc34d32144f",
+  "case_id": "debug-offbyone",
+  "completeness": {
+    "complete": true,
+    "gaps": {},
+    "missing_required": [],
+    "sources": [
+      "aop-runner",
+      "harness-report",
+      "pi-native",
+      "verifier"
+    ]
+  },
+  "error_class": "",
+  "harness": {
+    "adapter_revision": "pi-json-adapter-v1",
+    "blocked_reason": "",
+    "capabilities": {
+      "cancellation": true,
+      "headless": true,
+      "model_selection": true,
+      "session_export": true,
+      "streaming": true
+    },
+    "executable": "/home/mitko/.npm-global/lib/node_modules/@earendil-works/pi-coding-agent/dist/bundle/cli.js",
+    "executable_sha256": "e6d7fcf36a239cf3746e67ddf4222081ac01a601b85a3ee688bdfe9c161d754c",
+    "harness": "pi",
+    "harness_digest": "sha256:7ede832c9170290dfd78804f276ccd8aea00762b1ce235ee9bd89c8b63c4b597",
+    "kind": "HarnessBuild",
+    "notes": [],
+    "probe_digest": "sha256:2f0835225b7d57f8696ae77a200b1cf6587f4a5cebb29d9cbff1b196c1d9eed4",
+    "probe_evidence": {
+      "executable": {
+        "package_json_sha256": "f1738e4b42203e5f22bcb513f13fb2fb224f1e98d1f129ff042f87048665a94c",
+        "package_version": "0.85.1",
+        "path": "/home/mitko/.npm-global/bin/pi",
+        "realpath": "/home/mitko/.npm-global/lib/node_modules/@earendil-works/pi-coding-agent/dist/bundle/cli.js",
+        "requested": "pi",
+        "sha256": "e6d7fcf36a239cf3746e67ddf4222081ac01a601b85a3ee688bdfe9c161d754c"
+      },
+      "help": {
+        "exit_code": 0,
+        "flags": {
+          "--approve": true,
+          "--mode": true,
+          "--model": true,
+          "--no-session": true,
+          "--print": true,
+          "--provider": true,
+          "--session-dir": true
+        },
+        "help_sha256": "894957a01dfbf97ec0723edadbbc95094e0f216fc735705f47b94c2ddcb0962a"
+      },
+      "termination": {
+        "executable": "/home/mitko/.npm-global/bin/pi",
+        "exit_code": 1,
+        "ok": true,
+        "was_running": false
+      },
+      "version": {
+        "exit_code": 0,
+        "output": "0.85.1"
+      }
+    },
+    "protocol": "pi-jsonl-v3",
+    "schema_version": "0.1",
+    "source_revision": "",
+    "status": "qualified",
+    "version": "0.85.1"
+  },
+  "harness_digest": "sha256:7ede832c9170290dfd78804f276ccd8aea00762b1ce235ee9bd89c8b63c4b597",
+  "inputs": {
+    "environment_digest": "sha256:ed392dd8c8e111ab0a36ceef67e5e2530a72e51630072076f640f42e1d1343d6",
+    "repo_snapshot_digest": "sha256:7affcb2596e1aa4a6187d09477ae588175b1b714ddb9f54e9d51bb95b40cca29"
+  },
+  "model_deployment_digest": "sha256:8ff6a90b6fddfb9c11ef5bc3f75570a6ed27fcaa75f515bf7b072181737378d1",
+  "model_deployment_id": "qwen-flash-next-IQ2_S_-_2.5_bpw",
+  "note": "verdict is verifier-observed; agent_claim is narration only",
+  "outcome": "pass",
+  "run_dir": "/home/mitko/dev/harness-opt/runs/run-c85be3744478",
+  "run_id": "run-c85be3744478",
+  "total_seconds": 24.78,
+  "verdict": "pass",
+  "verifier": {
+    "id": "verifier:debug-offbyone",
+    "version": "debug-verifier-v2"
+  }
+}

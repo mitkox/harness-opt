@@ -1,0 +1,19 @@
+{
+  "run_id": "run-c85be3744478",
+  "attempt_id": "att-0d415ecc4398",
+  "verifier_version": "debug-verifier-v2",
+  "verdict": "pass",
+  "outcome": "pass",
+  "error_class": "",
+  "contamination_check": "clean",
+  "hidden_test_hash": "58b95d9e5f42e9272563371f14998484cf81e0a3230cf1b19a8ffb32307f2806",
+  "evidence_digest": "sha256:3098b5635434998638f402b96bc8cbcf2f8f86758d28c85d6ec918519bdf7bde",
+  "counts": {
+    "expected": 9,
+    "collected": 9,
+    "executed": 9,
+    "passed": 9,
+    "failed": 0
+  },
+  "note": "redacted: per-test node ids and the hidden manifest are evaluator-owned and intentionally omitted from repository evidence."
+}
