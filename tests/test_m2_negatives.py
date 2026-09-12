@@ -110,7 +110,7 @@ def test_agent_claim_cannot_become_verifier_evidence(tmp_path):
 def test_tempo_outage_cannot_erase_authoritative_evidence(tmp_path, monkeypatch):
     """Collector/Tempo down: ledger stays durable, spool holds projections."""
     from hop.runner import Runner
-    monkeypatch.setenv("AOP_COLLECTOR_DOWN", "1")
+    monkeypatch.setenv("HOP_COLLECTOR_DOWN", "1")
     runner = Runner(runs_dir=str(tmp_path / "runs"))
     rep = runner.execute("debug-offbyone", harness="scripted:repair",
                          idempotency_key="neg-outage")
@@ -122,7 +122,7 @@ def test_tempo_outage_cannot_erase_authoritative_evidence(tmp_path, monkeypatch)
     assert os.path.exists(os.path.join(rep["run_dir"], "evaluation.json"))
     assert rep["completeness_policy"]["complete"] is True
     # backend returns: spool recovers without touching the ledger
-    monkeypatch.delenv("AOP_COLLECTOR_DOWN")
+    monkeypatch.delenv("HOP_COLLECTOR_DOWN")
     spool = SpoolQueue(os.path.join(runner.runs_dir, "_spool"),
                        os.path.join(runner.runs_dir, "_collector"))
     flushed = spool.flush(rep["run_id"])
@@ -130,12 +130,12 @@ def test_tempo_outage_cannot_erase_authoritative_evidence(tmp_path, monkeypatch)
 
 
 def test_spool_restart_recovers_pending_telemetry(tmp_path, monkeypatch):
-    monkeypatch.setenv("AOP_COLLECTOR_DOWN", "1")
+    monkeypatch.setenv("HOP_COLLECTOR_DOWN", "1")
     spool = SpoolQueue(str(tmp_path / "spool"), str(tmp_path / "collector"))
     spool.enqueue("run-x", {"span": "workflow.run"})
     spool2 = SpoolQueue(str(tmp_path / "spool"), str(tmp_path / "collector"))
     assert spool2.pending_count("run-x") == 1
-    monkeypatch.delenv("AOP_COLLECTOR_DOWN")
+    monkeypatch.delenv("HOP_COLLECTOR_DOWN")
     assert spool2.flush("run-x")["flushed"] == 1
 
 

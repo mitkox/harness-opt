@@ -25,7 +25,7 @@ def test_trace_span_correlation_bidirectional(tmp_path):
 
 
 def test_collector_unavailable_before_run_spools(tmp_path, monkeypatch):
-    monkeypatch.setenv("AOP_COLLECTOR_DOWN", "1")
+    monkeypatch.setenv("HOP_COLLECTOR_DOWN", "1")
     spool = SpoolQueue(str(tmp_path / "spool"), str(tmp_path / "collector"))
     assert collector_available(str(tmp_path / "collector")) is False
     spool.enqueue("run-1", {"span": "workflow.run"})
@@ -38,11 +38,11 @@ def test_collector_midrun_outage_then_recovery(tmp_path, monkeypatch):
     spool = SpoolQueue(str(tmp_path / "spool"), str(tmp_path / "collector"))
     spool.enqueue("run-1", {"span": "a"})
     assert spool.flush("run-1")["flushed"] == 1
-    monkeypatch.setenv("AOP_COLLECTOR_DOWN", "1")
+    monkeypatch.setenv("HOP_COLLECTOR_DOWN", "1")
     spool.enqueue("run-1", {"span": "b"})
     mid = spool.flush("run-1")
     assert mid["pending"] == 1 and mid.get("telemetry_gap") is True
-    monkeypatch.delenv("AOP_COLLECTOR_DOWN")
+    monkeypatch.delenv("HOP_COLLECTOR_DOWN")
     rec = spool.flush("run-1")
     assert rec == {"flushed": 1, "pending": 0, "collector": "recovered"}
     assert spool.pending_count("run-1") == 0

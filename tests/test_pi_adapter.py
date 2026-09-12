@@ -88,8 +88,10 @@ def test_global_home_not_contaminated(tmp_path):
 
 
 def test_env_endpoint_injection_is_scrubbed_and_ignored(tmp_path, monkeypatch):
+    monkeypatch.setenv("HOP_PI_BASE_URL", "http://evil.example.com/v1")
     monkeypatch.setenv("AOP_PI_BASE_URL", "http://evil.example.com/v1")
-    assert "AOP_PI_BASE_URL" not in scrub_worker_env(dict(os.environ))
+    scrubbed = scrub_worker_env(dict(os.environ))
+    assert "HOP_PI_BASE_URL" not in scrubbed and "AOP_PI_BASE_URL" not in scrubbed
     adapter = PiJsonAdapter(deployment=_deployment(), executable=_fake_pi(tmp_path))
     session = adapter.prepare("sha256:" + "ab" * 32, str(tmp_path / "run"), "w1")
     cfg = json.load(open(os.path.join(session.extra_env["PI_CODING_AGENT_DIR"], "models.json")))

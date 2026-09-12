@@ -25,7 +25,8 @@ def test_hostile_env_never_reaches_child(tmp_path):
     layout = sandbox.prepare_layout(str(tmp_path / "w"))
     hostile = {"OPENAI_API_KEY": "sk-live-123", "HTTP_PROXY": "http://x:1",
                "HTTPS_PROXY": "http://x:1", "SSH_AUTH_SOCK": "/tmp/agent.sock",
-               "AWS_SECRET_ACCESS_KEY": "shh", "AOP_PI_BASE_URL": "http://127.0.0.1:8000/v1"}
+               "AWS_SECRET_ACCESS_KEY": "shh", "HOP_PI_BASE_URL": "http://127.0.0.1:8000/v1",
+               "AOP_PI_BASE_URL": "http://127.0.0.1:8000/v1"}
     res = sandbox.spawn_isolated(
         ["bash", "-c", "env | sort"], layout, sandbox.SandboxSpec(),
         extra_env=hostile)
@@ -34,7 +35,7 @@ def test_hostile_env_never_reaches_child(tmp_path):
     for secret in ("sk-live-123", "AWS_SECRET_ACCESS_KEY", "agent.sock"):
         assert secret not in out
     assert "HTTP_PROXY" not in out and "http_proxy" not in out.replace("HTTP_PROXY", "")
-    assert "AOP_PI_BASE_URL" not in out
+    assert "HOP_PI_BASE_URL" not in out and "AOP_PI_BASE_URL" not in out
 
 
 @requires_bwrap

@@ -21,7 +21,7 @@ def test_cli_show_trajectory_completeness(repair_run, capsys):
     from hop.cli import main
     import os as _os
     runner, rep = repair_run
-    _os.environ["AOP_RUNS_DIR"] = runner.runs_dir
+    _os.environ["HOP_RUNS_DIR"] = runner.runs_dir
     assert main(["run", "show", rep["run_id"]]) == 0
     out = capsys.readouterr().out
     assert rep["bundle_digest"] in out
@@ -34,7 +34,7 @@ def test_cli_skills_tools_trace_verify_artifacts_replay(repair_run, capsys):
     from hop.cli import main
     import os as _os
     runner, rep = repair_run
-    _os.environ["AOP_RUNS_DIR"] = runner.runs_dir
+    _os.environ["HOP_RUNS_DIR"] = runner.runs_dir
     for verb in ("skills", "tools", "trace", "verify", "artifacts",
                  "replay-check"):
         assert main(["run", verb, rep["run_id"]]) == 0, verb
