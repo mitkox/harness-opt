@@ -11,7 +11,12 @@ dependencies = [
   "pydantic>=2.0",
   "PyYAML>=6.0",
 ]
-optional-dependencies = {}
+
+[project.optional-dependencies]
+test = [
+  "pytest>=8.0",
+  "jsonschema>=4.0",
+]
 
 [project.scripts]
 aop = "aop.cli:main"
