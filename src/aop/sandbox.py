@@ -21,6 +21,7 @@ from .policy import check_no_proxy_leak, scrub_worker_env
 class SandboxSpec:
     cpu_time_s: int = 300
     memory_bytes: int = 4 * 1024 * 1024 * 1024
+    max_processes: int = 4096  # must exceed host baseline threads (measured 716)
     output_limit_bytes: int = 8 * 1024 * 1024
 
 
@@ -84,7 +85,8 @@ def _preexec(spec: SandboxSpec):
         try:
             import resource
             resource.setrlimit(resource.RLIMIT_CPU, (spec.cpu_time_s, spec.cpu_time_s))
-            resource.setrlimit(resource.RLIMIT_NPROC, (256, 256))
+            resource.setrlimit(resource.RLIMIT_NPROC,
+                               (spec.max_processes, spec.max_processes))
             resource.setrlimit(resource.RLIMIT_AS,
                                (spec.memory_bytes, spec.memory_bytes))
         except BaseException:
