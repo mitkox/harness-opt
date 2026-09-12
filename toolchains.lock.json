@@ -1,0 +1,26 @@
+{
+  "schema_version": "0.1",
+  "generated": "2026-09-12",
+  "note": "Pinned identities observed locally. Regenerate with scripts/discover.py; never hand-edit.",
+  "python": "3.14.4 (GCC 15.2.0, Linux x86_64)",
+  "python_packages": {
+    "pydantic": "2.13.4",
+    "PyYAML": "6.0.3",
+    "pytest": "9.0.2",
+    "fastapi": "0.138.0 (present, unused in M1)"
+  },
+  "serving_runtime": {
+    "binary": "/home/mitko/dev/llama.cpp/build/bin/llama-server",
+    "version": "0.4.0-dev (build 10834, commit 992cb503c)"
+  },
+  "harnesses": {
+    "pi": {"package": "@earendil-works/pi-coding-agent", "version": "0.85.1", "mode": "headless JSONL (-p --mode json)"},
+    "opencode": {"path": "/home/mitko/.npm-global/lib/node_modules/@opencode/cli/bin/opencode.exe", "version": "v2.0.2", "note": "opencode and opencode2 are the same binary"},
+    "prime": {"path": "/home/mitko/.local/share/uv/tools/prime/bin/prime", "version": "Prime CLI 0.6.33", "note": "cloud CLI, not the Prime Agent harness; blocked for M5"},
+    "dsh": {"package": "@deepseek-ai/dsh", "version": "0.1.5-rc.1", "note": "developer preview; blocked for M5"}
+  },
+  "models": {
+    "qwen-flash-next": {"endpoint": "http://127.0.0.1:8000", "params": 176943899520, "quant": "IQ2_S", "bytes": 85077807648, "ctx": 262144},
+    "qwen-27b-abliterated": {"endpoint": "http://127.0.0.1:8001", "params": 27320697856, "quant": "Q4_K_M + DFlash2 draft", "bytes": 16810714816, "ctx": 131072}
+  }
+}

@@ -1,0 +1,77 @@
+{
+  "schema_version": "0.1",
+  "harnesses": [
+    {
+      "schema_version": "0.1",
+      "kind": "HarnessBuild",
+      "harness": "pi",
+      "executable": "/home/mitko/.npm-global/bin/pi",
+      "version": "0.85.1",
+      "source_revision": "",
+      "adapter_revision": "pi-json-adapter-v1",
+      "protocol": "pi-jsonl-v3",
+      "status": "discovered",
+      "blocked_reason": "",
+      "capabilities": {
+        "headless": true
+      },
+      "notes": [
+        "@earendil-works/pi-coding-agent headless JSONL mode; first adapter."
+      ]
+    },
+    {
+      "schema_version": "0.1",
+      "kind": "HarnessBuild",
+      "harness": "opencode_v2",
+      "executable": "/home/mitko/.npm-global/bin/opencode",
+      "version": "opencode v2.0.2",
+      "source_revision": "",
+      "adapter_revision": "unimplemented",
+      "protocol": "",
+      "status": "discovered",
+      "blocked_reason": "",
+      "capabilities": {
+        "headless": false
+      },
+      "notes": [
+        "opencode and opencode2 resolve to the same v2.0.2 binary; adapter not started (M5)."
+      ]
+    },
+    {
+      "schema_version": "0.1",
+      "kind": "HarnessBuild",
+      "harness": "prime",
+      "executable": "/home/mitko/.local/bin/prime",
+      "version": "Prime CLI version: 0.6.33",
+      "source_revision": "",
+      "adapter_revision": "unimplemented",
+      "protocol": "",
+      "status": "discovered",
+      "blocked_reason": "",
+      "capabilities": {
+        "headless": false
+      },
+      "notes": [
+        "PATH prime is the Prime Intellect cloud CLI, NOT the Prime Agent harness; Prime Agent integration not started (M5)."
+      ]
+    },
+    {
+      "schema_version": "0.1",
+      "kind": "HarnessBuild",
+      "harness": "deepseek_harness",
+      "executable": "/home/mitko/.npm-global/bin/dsh",
+      "version": "0.1.5-rc.1",
+      "source_revision": "",
+      "adapter_revision": "unimplemented",
+      "protocol": "",
+      "status": "discovered",
+      "blocked_reason": "",
+      "capabilities": {
+        "headless": false
+      },
+      "notes": [
+        "dsh 0.1.5-rc.1 developer preview; local-provider support unprobed (M5)."
+      ]
+    }
+  ]
+}

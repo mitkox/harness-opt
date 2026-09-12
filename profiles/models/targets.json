@@ -1,0 +1,44 @@
+{
+  "schema_version": "0.1",
+  "kind": "ModelTargetList",
+  "inference_policy": "local_only",
+  "targets": [
+    {
+      "id": "deepseek-v4-flash",
+      "family": "deepseek",
+      "source_label": "deepseek-ai/DeepSeek-V4-Flash",
+      "status": "pending_local_discovery",
+      "qualified_deployment_ids": []
+    },
+    {
+      "id": "deepseek-v4-1-flash",
+      "family": "deepseek",
+      "source_label": "deepseek-ai/DeepSeek-V4.1-Flash",
+      "status": "pending_local_discovery",
+      "qualified_deployment_ids": []
+    },
+    {
+      "id": "qwen3-8-flash-next",
+      "family": "qwen",
+      "source_label": "Qwen/Qwen3.8-Flash-Next",
+      "status": "qualified",
+      "qualified_deployment_ids": [
+        "qwen-flash-next-IQ2_S_-_2.5_bpw"
+      ]
+    },
+    {
+      "id": "qwen3-8-27b",
+      "family": "qwen",
+      "source_label": "Qwen/Qwen3.8-27B",
+      "status": "pending_local_discovery",
+      "qualified_deployment_ids": []
+    },
+    {
+      "id": "glm-5-3-flash",
+      "family": "glm",
+      "source_label": "zai-org/GLM-5.3-Flash",
+      "status": "pending_local_discovery",
+      "qualified_deployment_ids": []
+    }
+  ]
+}
