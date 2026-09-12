@@ -1,4 +1,4 @@
-"""aop CLI: validate-profile, discover, run, report (M0/M1)."""
+"""aop CLI: validate-profile, discover, run, report (M0/M1) + run investigation (M2)."""
 from __future__ import annotations
 
 import argparse
@@ -7,6 +7,11 @@ import os
 import sys
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", "src"))
+
+
+def _runs_dir() -> str:
+    from aop.runner import RUNS_DIR
+    return os.environ.get("AOP_RUNS_DIR", RUNS_DIR)
 
 
 def cmd_validate_profile(args) -> int:
@@ -67,7 +72,41 @@ def cmd_report(args) -> int:
     return 0
 
 
-def main(argv=None) -> int:
+def cmd_run_investigate(args) -> int:
+    from aop import investigate as inv
+    runs_dir = _runs_dir()
+    run_dir = inv.find_run_dir(runs_dir, args.run_id)
+    report = inv.show(run_dir)
+    run_id = report["run_id"]
+    if args.sub == "show":
+        print(json.dumps(report, indent=2, sort_keys=True))
+    elif args.sub == "trajectory":
+        print(json.dumps(inv.trajectory(run_dir, args.event_type or ""),
+                         indent=2, sort_keys=True))
+    elif args.sub == "artifacts":
+        print(json.dumps(inv.artifacts(run_dir, runs_dir, run_id),
+                         indent=2, sort_keys=True))
+    elif args.sub == "trace":
+        print(json.dumps(inv.trace_view(run_dir), indent=2, sort_keys=True))
+    elif args.sub == "verify":
+        print(json.dumps(inv.verify_view(run_dir), indent=2, sort_keys=True))
+    elif args.sub == "skills":
+        print(json.dumps(inv.skills_view(run_dir), indent=2, sort_keys=True))
+    elif args.sub == "tools":
+        print(json.dumps(inv.tools_view(run_dir), indent=2, sort_keys=True))
+    elif args.sub == "completeness":
+        print(json.dumps(inv.completeness_view(run_dir, args.outcome or ""),
+                         indent=2, sort_keys=True))
+    elif args.sub == "replay-check":
+        print(json.dumps(inv.replay_check(run_dir, runs_dir, run_id),
+                         indent=2, sort_keys=True))
+    else:
+        print(f"unknown run subcommand {args.sub}", file=sys.stderr)
+        return 2
+    return 0
+
+
+def _main(argv=None) -> int:
     parser = argparse.ArgumentParser(prog="aop")
     sub = parser.add_subparsers(dest="cmd", required=True)
     p = sub.add_parser("validate-profile")
@@ -85,8 +124,28 @@ def main(argv=None) -> int:
     rep = sub.add_parser("report")
     rep.add_argument("--run-dir", required=True)
     rep.set_defaults(func=cmd_report)
+    for verb in ("show", "trajectory", "artifacts", "trace", "verify", "skills",
+                 "tools", "completeness", "replay-check"):
+        verb_p = sub.add_parser(f"run-{verb}")
+        verb_p.add_argument("run_id")
+        verb_p.add_argument("--event-type", default="")
+        verb_p.add_argument("--outcome", default="")
+        verb_p.set_defaults(func=cmd_run_investigate, sub=verb)
     args = parser.parse_args(argv)
     return args.func(args)
+
+
+def main(argv=None) -> int:
+    # `aop run show <run-id>` style: `run` doubles as execution (`--case`) and
+    # investigation (`run show|trajectory|... <run-id>`). Disambiguate before
+    # argparse, which cannot give one subcommand two shapes.
+    _VERBS = {"show", "trajectory", "artifacts", "trace", "verify", "skills",
+              "tools", "completeness", "replay-check"}
+    argv = list(sys.argv[1:] if argv is None else argv)
+    if len(argv) >= 2 and argv[0] == "run" and argv[1] in _VERBS:
+        verb = argv[1]
+        return _main([f"run-{verb}"] + argv[2:])
+    return _main(argv)
 
 
 if __name__ == "__main__":
