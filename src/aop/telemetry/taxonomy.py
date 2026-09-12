@@ -99,7 +99,9 @@ EVENT_TAXONOMY: frozenset[str] = frozenset(
 # stored trajectories (e.g. harness.pi.message_end, harness.scripted.event).
 EXTENSIBLE_PREFIXES = ("harness.", "skill.", "tool.", "agent.", "verifier.",
                        "telemetry.", "run.", "inference.", "context.",
-                       "workspace.", "file.", "patch.", "diff.", "subagent.")
+                       "workspace.", "file.", "patch.", "diff.", "subagent.",
+                       "test.", "cancel.", "scope.", "model.", "output.",
+                       "evaluation.")
 
 
 def is_known_event(event_type: str) -> bool:
