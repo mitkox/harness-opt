@@ -1,0 +1,41 @@
+{
+  "run_id": "run-24fbe17344bd",
+  "attempt_id": "att-5f4c37c95c37",
+  "case_id": "debug-offbyone",
+  "bundle_digest": "sha256:0117e2a22c135b9ef0af8345246695288033689a25d21bc580dba76d755c19e9",
+  "model_deployment_id": "qwen-flash-next-IQ2_S_-_2.5_bpw",
+  "harness": {
+    "schema_version": "0.1",
+    "kind": "HarnessBuild",
+    "harness": "pi",
+    "executable": "/home/mitko/.npm-global/bin/pi",
+    "version": "0.85.1",
+    "source_revision": "",
+    "adapter_revision": "pi-json-adapter-v1",
+    "protocol": "pi-jsonl-v3",
+    "status": "qualified",
+    "blocked_reason": "",
+    "capabilities": {
+      "headless": true,
+      "streaming": true,
+      "cancellation": true,
+      "session_export": true
+    },
+    "notes": []
+  },
+  "outcome": "timeout",
+  "verdict": "inconclusive",
+  "agent_claim": "",
+  "agent_seconds": 0.0,
+  "total_seconds": 0.23,
+  "completeness": {
+    "complete": true,
+    "gaps": {},
+    "sources": [
+      "aop-runner",
+      "scripted"
+    ]
+  },
+  "run_dir": "/home/mitko/dev/harness-opt/runs/run-24fbe17344bd",
+  "note": "verdict is verifier-observed; agent_claim is narration only"
+}

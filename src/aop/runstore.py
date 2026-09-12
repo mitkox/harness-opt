@@ -4,6 +4,7 @@ from __future__ import annotations
 import json
 import os
 import sqlite3
+import threading
 
 from .contracts.records import AttemptRecord, RunOutcome, RunRecord, RunStatus
 
@@ -11,7 +12,8 @@ from .contracts.records import AttemptRecord, RunOutcome, RunRecord, RunStatus
 class RunStore:
     def __init__(self, path: str):
         os.makedirs(os.path.dirname(path), exist_ok=True)
-        self.conn = sqlite3.connect(path)
+        self._lock = threading.Lock()
+        self.conn = sqlite3.connect(path, check_same_thread=False)
         self.conn.execute("PRAGMA journal_mode=WAL")
         self.conn.execute(
             "CREATE TABLE IF NOT EXISTS runs (run_id TEXT PRIMARY KEY, record TEXT NOT NULL, "
@@ -21,34 +23,41 @@ class RunStore:
 
     def admit(self, record: RunRecord) -> tuple[RunRecord, bool]:
         """Idempotent admission: same idempotency_key returns the existing run."""
-        if record.idempotency_key:
-            row = self.conn.execute(
-                "SELECT record FROM runs WHERE idempotency_key=?", (record.idempotency_key,)
-            ).fetchone()
-            if row:
+        with self._lock:
+            if record.idempotency_key:
+                row = self.conn.execute(
+                    "SELECT record FROM runs WHERE idempotency_key=?",
+                    (record.idempotency_key,),
+                ).fetchone()
+                if row:
+                    return RunRecord.model_validate(json.loads(row[0])), False
+            try:
+                self.conn.execute(
+                    "INSERT INTO runs (run_id, record, idempotency_key) VALUES (?,?,?)",
+                    (record.run_id, record.model_dump_json(),
+                     record.idempotency_key or None),
+                )
+                self.conn.commit()
+            except sqlite3.IntegrityError:
+                row = self.conn.execute(
+                    "SELECT record FROM runs WHERE run_id=?", (record.run_id,)).fetchone()
                 return RunRecord.model_validate(json.loads(row[0])), False
-        try:
-            self.conn.execute(
-                "INSERT INTO runs (run_id, record, idempotency_key) VALUES (?,?,?)",
-                (record.run_id, record.model_dump_json(), record.idempotency_key or None),
-            )
-            self.conn.commit()
-        except sqlite3.IntegrityError:
-            row = self.conn.execute(
-                "SELECT record FROM runs WHERE run_id=?", (record.run_id,)).fetchone()
-            return RunRecord.model_validate(json.loads(row[0])), False
-        return record, True
+            return record, True
 
     def get(self, run_id: str) -> RunRecord:
-        row = self.conn.execute("SELECT record FROM runs WHERE run_id=?", (run_id,)).fetchone()
+        with self._lock:
+            row = self.conn.execute(
+                "SELECT record FROM runs WHERE run_id=?", (run_id,)).fetchone()
         if row is None:
             raise KeyError(run_id)
         return RunRecord.model_validate(json.loads(row[0]))
 
     def _save(self, record: RunRecord) -> None:
-        self.conn.execute("UPDATE runs SET record=? WHERE run_id=?",
-                          (record.model_dump_json(), record.run_id))
-        self.conn.commit()
+        with self._lock:
+            self.conn.execute(
+                "UPDATE runs SET record=? WHERE run_id=?",
+                (record.model_dump_json(), record.run_id))
+            self.conn.commit()
 
     def set_status(self, run_id: str, status: RunStatus) -> RunRecord:
         record = self.get(run_id)

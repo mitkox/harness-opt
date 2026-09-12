@@ -1,0 +1,18 @@
+{
+  "schema_version": "0.1",
+  "kind": "EvaluationResult",
+  "run_id": "run-4f6fc82747d7",
+  "attempt_id": "att-643e46981e1f",
+  "verifier_version": "debug-verifier-v1",
+  "verdict": "fail",
+  "outcome": "fail",
+  "agent_claim": "Fixed! All tests pass (trust me)",
+  "details": {
+    "exit_code": 1,
+    "timed_out": false,
+    "log_tail": "FF..FFF..                                                                [100%]\n=================================== FAILURES ===================================\n_______________________________ test_even_length _______________________________\n\n    def test_even_length():\n>       assert median([1, 2, 3, 4]) == 2.5\nE       assert 3.5 == 2.5\nE        +  where 3.5 = median([1, 2, 3, 4])\n\n../../../.hidden/hidden-tests/debug-offbyone/test_hidden_median.py:12: AssertionError\n__________________________ test_even_length_unsorted ___________________________\n\n    def test_even_length_unsorted():\n>       assert median([4, 1, 3, 2]) == 2.5\nE       assert 3.5 == 2.5\nE        +  where 3.5 = median([4, 1, 3, 2])\n\n../../../.hidden/hidden-tests/debug-offbyone/test_hidden_median.py:16: AssertionError\n______________________________ test_two_elements _______________________________\n\n    def test_two_elements():\n>       assert median([10, 20]) == 15.0\n               ^^^^^^^^^^^^^^^^\n\n../../../.hidden/hidden-tests/debug-offbyone/test_hidden_median.py:28: \n_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ \n\nvalues = [10, 20]\n\n    def median(values):\n        if not values:\n            raise ValueError(\"median of empty list\")\n        ordered = sorted(values)\n        n = len(ordered)\n        mid = n // 2\n        if n % 2 == 1:\n            return ordered[mid]\n        # BUG: uses the wrong pair for even-length input.\n>       return (ordered[mid] + ordered[mid + 1]) / 2\n                               ^^^^^^^^^^^^^^^^\nE       IndexError: list index out of range\n\nmedian_bug.py:13: IndexError\n__________________________ test_floats_and_negatives ___________________________\n\n    def test_floats_and_negatives():\n>       assert median([-1.5, 2.5, 0.0, 1.0]) == 0.5\nE       assert 1.75 == 0.5\nE        +  where 1.75 = median([-1.5, 2.5, 0.0, 1.0])\n\n../../../.hidden/hidden-tests/debug-offbyone/test_hidden_median.py:32: AssertionError\n_______________________________ test_large_even ________________________________\n\n    def test_large_even():\n>       assert median(list(range(100))) == 49.5\nE       assert 50.5 == 49.5\nE        +  where 50.5 = median([0, 1, 2, 3, 4, 5, ...])\nE        +    where [0, 1, 2, 3, 4, 5, ...] = list(range(0, 100))\nE        +      where range(0, 100) = range(100)\n\n../../../.hidden/hidden-tests/debug-offbyone/test_hidden_median.py:36: AssertionError\n=========================== short test summary info ============================\nFAILED ../../../.hidden/hidden-tests/debug-offbyone/test_hidden_median.py::test_even_length\nFAILED ../../../.hidden/hidden-tests/debug-offbyone/test_hidden_median.py::test_even_length_unsorted\nFAILED ../../../.hidden/hidden-tests/debug-offbyone/test_hidden_median.py::test_two_elements\nFAILED ../../../.hidden/hidden-tests/debug-offbyone/test_hidden_median.py::test_floats_and_negatives\nFAILED ../../../.hidden/hidden-tests/debug-offbyone/test_hidden_median.py::test_large_even\n",
+    "contamination": "clean"
+  },
+  "hidden_test_hash": "7ee2db8bc61ac9d01b31425958499b5bb6619d25899504bfc5c6031ee4b49c4c",
+  "contamination_check": "clean"
+}

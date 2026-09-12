@@ -33,9 +33,16 @@ class ScriptedHarness:
               stdout_path: str, stderr_path: str, timeout_s: float,
               cancel: threading.Event, on_native_event=None) -> HarnessOutput:
         deadline = time.monotonic() + timeout_s
-        elapsed = 0.0
         step = 0.05
-        target = self.delay_s if self.behavior == "hang" else min(self.delay_s, timeout_s + 1)
+        if self.behavior == "hang":
+            while True:
+                if cancel.is_set():
+                    return HarnessOutput(terminal_status="cancelled", exit_code=-15)
+                if time.monotonic() >= deadline:
+                    return HarnessOutput(terminal_status="timeout", exit_code=124)
+                time.sleep(step)
+        elapsed = 0.0
+        target = min(self.delay_s, timeout_s + 1)
         while elapsed < target:
             if cancel.is_set():
                 return HarnessOutput(terminal_status="cancelled", exit_code=-15)
@@ -43,8 +50,6 @@ class ScriptedHarness:
                 return HarnessOutput(terminal_status="timeout", exit_code=124)
             time.sleep(step)
             elapsed += step
-        if self.behavior == "hang":
-            return HarnessOutput(terminal_status="timeout", exit_code=124)
         if self.behavior == "fail":
             return HarnessOutput(terminal_status="exited", exit_code=1,
                                  agent_claim="I could not fix it")
