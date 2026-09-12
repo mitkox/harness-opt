@@ -35,6 +35,9 @@ _PATTERNS: list[tuple[str, re.Pattern]] = [
 _ENV_SECRET_KEYS = ("TOKEN", "PASSWORD", "API_KEY", "SECRET", "PRIVATE_KEY",
                     "AUTHORIZATION", "CREDENTIALS")
 
+_SECRET_KEY_MARKERS = ("password", "passwd", "secret", "token", "api_key",
+                       "apikey", "auth", "private_key", "credential", "bearer")
+
 
 def classify_environment(env: dict[str, str]) -> dict[str, str]:
     """Classify env keys; anything secret must be scrubbed before telemetry."""
@@ -81,6 +84,14 @@ def sanitize_attributes(attrs: dict, *, max_str: int = 2000) -> dict:
     """
     clean: dict = {}
     for key, value in attrs.items():
+        lowered = str(key).lower()
+        if isinstance(value, str) and any(m in lowered for m in _SECRET_KEY_MARKERS):
+            # Secret by key name (e.g. {"password": "hunter2"}): the value
+            # alone carries no "password:" prefix, so pattern matching on the
+            # value would miss it. Redact wholesale, keep a digest for joins.
+            clean[key] = "***REDACTED:key:" + lowered + "***"
+            clean[key + "_digest"] = digest_of(value)
+            continue
         if isinstance(value, str):
             redacted, _ = redact_text(value)
             if len(redacted) > max_str:
