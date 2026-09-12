@@ -2,7 +2,9 @@
 
 Per-run JSONL file, fsync per append batch. Per-source monotonic sequences;
 at-least-once dedup by event_id; cursor-based reread for observer reconnect;
-gap detection -> completeness report.
+gap detection plus required-terminal-event detection -> completeness report.
+Sequence contiguity alone is not sufficient: a run whose required events were
+never emitted is incomplete even with no gaps.
 """
 from __future__ import annotations
 
@@ -10,6 +12,10 @@ import json
 import os
 
 from .contracts.records import TrajectoryEvent
+
+REQUIRED_PREFIX_EVENTS = ("run.admitted", "workspace.prepared", "harness.accepted")
+TERMINAL_EVENTS = ("harness.exited", "harness.crashed", "harness.timeout",
+                   "harness.cancelled")
 
 
 class EventLedger:
@@ -29,24 +35,25 @@ class EventLedger:
                     continue
                 evt = TrajectoryEvent.model_validate(json.loads(line))
                 self._seen.add(evt.event_id)
-                prev = self._last_seq.get(evt.source_id, -1)
-                self._last_seq[evt.source_id] = max(prev, evt.source_sequence)
+                prev = self._last_seq.get(evt.source.id, -1)
+                self._last_seq[evt.source.id] = max(prev, evt.source_sequence)
 
     def append(self, event: TrajectoryEvent) -> bool:
         """Returns False if duplicate (deduped). Raises on sequence regression."""
         if event.event_id in self._seen:
             return False
-        prev = self._last_seq.get(event.source_id, -1)
+        prev = self._last_seq.get(event.source.id, -1)
         if event.source_sequence <= prev:
             raise ValueError(
-                f"sequence regression for {event.source_id}: {event.source_sequence} <= {prev}"
+                f"sequence regression for {event.source.id}: "
+                f"{event.source_sequence} <= {prev}"
             )
         with open(self.path, "a") as fh:
             fh.write(event.model_dump_json() + "\n")
             fh.flush()
             os.fsync(fh.fileno())
         self._seen.add(event.event_id)
-        self._last_seq[event.source_id] = event.source_sequence
+        self._last_seq[event.source.id] = event.source_sequence
         return True
 
     def read_all(self) -> list[TrajectoryEvent]:
@@ -64,15 +71,24 @@ class EventLedger:
         events = self.read_all()
         return events[cursor:], len(events)
 
-    def completeness(self) -> dict:
-        """Per-source gap detection. Any gap -> not promotion-eligible."""
+    def completeness(self, required_events: tuple[str, ...] = REQUIRED_PREFIX_EVENTS,
+                     terminal_events: tuple[str, ...] = TERMINAL_EVENTS) -> dict:
+        """Gap AND required-event completeness. Any failure -> not promotion-eligible."""
+        events = self.read_all()
         by_source: dict[str, list[int]] = {}
-        for evt in self.read_all():
-            by_source.setdefault(evt.source_id, []).append(evt.source_sequence)
+        types: set[str] = set()
+        for evt in events:
+            by_source.setdefault(evt.source.id, []).append(evt.source_sequence)
+            types.add(evt.event_type)
         gaps = {}
         for source, seqs in by_source.items():
             expected = set(range(min(seqs), max(seqs) + 1)) if seqs else set()
             missing = sorted(expected - set(seqs))
             if missing:
                 gaps[source] = missing
-        return {"complete": not gaps, "gaps": gaps, "sources": sorted(by_source)}
+        missing_required = [t for t in required_events if t not in types]
+        if not any(t in types for t in terminal_events):
+            missing_required.append("terminal_harness_event")
+        return {"complete": not gaps and not missing_required, "gaps": gaps,
+                "missing_required": missing_required,
+                "sources": sorted(by_source)}

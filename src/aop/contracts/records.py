@@ -4,9 +4,13 @@ from __future__ import annotations
 
 from enum import Enum
 
-from pydantic import Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from .base import AopBase
+
+# RFC-4122 textual UUID; the published trajectory schema requires format: uuid.
+UUID_PATTERN = (r"^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-"
+                r"[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$")
 
 
 class TaskSpec(AopBase):
@@ -21,7 +25,11 @@ class TaskSpec(AopBase):
     environment_digest: str = Field(default="")
     time_budget_s: float = Field(default=600.0, gt=0)
     verifier_ref: str = Field(min_length=1, description="Opaque reference only")
+    verifier_id: str = Field(default="")
+    verifier_version: str = Field(default="")
     split: str = Field(default="development")
+    allowed_paths: list[str] = Field(default_factory=list)
+    protected_paths: list[str] = Field(default_factory=list)
 
     def assert_no_hidden_content(self, hidden_markers: list[str], haystack: str) -> None:
         for marker in hidden_markers:
@@ -35,8 +43,10 @@ class ExecutionBundle(AopBase):
     kind: str = Field(default="ExecutionBundle", frozen=True)
     digest: str = Field(pattern=r"^sha256:[0-9a-f]{64}$")
     model_deployment_id: str = Field(min_length=1)
+    model_deployment_digest: str = Field(default="")
     harness: str = Field(min_length=1)
     harness_version: str = Field(min_length=1)
+    harness_digest: str = Field(default="")
     adapter_revision: str = Field(min_length=1)
     base_prompt_sha256: str = Field(min_length=1)
     policy_id: str = Field(min_length=1)
@@ -65,6 +75,9 @@ class RunStatus(str, Enum):
     RUNNING = "running"
     VERIFYING = "verifying"
     COMPLETED = "completed"
+    INFRA_ERROR = "infra_error"
+    CANCELLED = "cancelled"
+    TIMEOUT = "timeout"
 
 
 class AttemptRecord(AopBase):
@@ -75,6 +88,7 @@ class AttemptRecord(AopBase):
     status: RunStatus = RunStatus.ADMITTED
     outcome: RunOutcome | None = None
     agent_claim: str = Field(default="", description="What the agent said; never a verdict")
+    error_class: str = Field(default="")
     idempotency_key: str = Field(default="")
 
 
@@ -87,30 +101,59 @@ class RunRecord(AopBase):
     status: RunStatus = RunStatus.ADMITTED
     attempts: list[AttemptRecord] = Field(default_factory=list)
     idempotency_key: str = Field(default="")
+    # Input identity: every run must identify the exact snapshot it evaluated.
+    repo_snapshot_digest: str = Field(default="")
+    environment_digest: str = Field(default="")
+    verifier_id: str = Field(default="")
+    verifier_version: str = Field(default="")
+    model_deployment_digest: str = Field(default="")
+    harness_digest: str = Field(default="")
+    error_class: str = Field(default="")
 
 
 class EventAuthority(str, Enum):
-    TRUSTED_OBSERVER = "trusted_observer"
-    AGENT_REPORT = "agent_report"
+    """Who produced the bytes. Harness/model output is never automatically trusted.
+
+    - platform_observation: control-plane runner observed a process/state transition
+    - harness_observation: the harness itself reported a fact about its own execution
+    - agent_claim: model/agent narration; never evidence of task success
+    - verifier_fact: trusted verifier result on the frozen snapshot
+    - synthetic_fixture: contract fixture, not execution evidence
+    """
+
+    PLATFORM_OBSERVATION = "platform_observation"
+    HARNESS_OBSERVATION = "harness_observation"
+    AGENT_CLAIM = "agent_claim"
+    VERIFIER_FACT = "verifier_fact"
     SYNTHETIC_FIXTURE = "synthetic_fixture"
 
 
-class TrajectoryEvent(AopBase):
-    """Durable event envelope (BUILD_PLAN §11). Claims vs facts via source.authority."""
+class EventSource(BaseModel):
+    model_config = ConfigDict(extra="forbid")
 
-    kind: str = Field(default="TrajectoryEvent", frozen=True)
-    event_id: str = Field(min_length=1)
+    id: str = Field(min_length=1)
+    authority: EventAuthority
+
+
+class TrajectoryEvent(AopBase):
+    """Durable event envelope (BUILD_PLAN §11).
+
+    Field-for-field compatible with ``specs/trajectory-event.schema.json`` v0.1.
+    Note there is deliberately no ``kind`` field: the published envelope does not
+    carry one and the schema forbids additional properties.
+    """
+
+    event_id: str = Field(pattern=UUID_PATTERN)
     event_type: str = Field(min_length=1)
     run_id: str = Field(min_length=1)
     attempt_id: str = Field(min_length=1)
     agent_id: str = Field(default="")
-    source_id: str = Field(min_length=1)
-    authority: EventAuthority = EventAuthority.TRUSTED_OBSERVER
+    source: EventSource
     source_sequence: int = Field(ge=0)
     observed_at: str = Field(min_length=1)
     bundle_digest: str = Field(pattern=r"^sha256:[0-9a-f]{64}$")
-    trace_id: str = Field(default="", pattern=r"^[0-9a-f]{32}$")
-    span_id: str = Field(default="", pattern=r"^[0-9a-f]{16}$")
+    trace_id: str = Field(default="0" * 32, pattern=r"^[0-9a-f]{32}$")
+    span_id: str = Field(default="0" * 16, pattern=r"^[0-9a-f]{16}$")
     synthetic_fixture: bool = False
     payload_refs: list[str] = Field(default_factory=list)
     attributes: dict = Field(default_factory=dict)
@@ -137,6 +180,8 @@ class EvaluationResult(AopBase):
     details: dict = Field(default_factory=dict)
     hidden_test_hash: str = Field(default="")
     contamination_check: str = Field(default="not_checked")
+    error_class: str = Field(default="")
+    evidence_digest: str = Field(default="")
 
 
 class ArtifactRef(AopBase):
@@ -160,3 +205,6 @@ class VerifierSpec(AopBase):
     version: str = Field(min_length=1)
     hidden_test_dir: str = Field(min_length=1)
     command: list[str] = Field(min_length=1)
+    expected_tests: list[str] = Field(default_factory=list)
+    mandatory_tests: list[str] = Field(default_factory=list)
+    minimum_test_count: int = Field(default=1, ge=0)

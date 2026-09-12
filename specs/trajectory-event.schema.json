@@ -53,9 +53,12 @@
           "type": "string"
         },
         "authority": {
+          "description": "Who produced the bytes. Harness/model output is never automatically trusted. See docs/adr/ADR-004-event-authority.md.",
           "enum": [
-            "trusted_observer",
-            "agent_report",
+            "platform_observation",
+            "harness_observation",
+            "agent_claim",
+            "verifier_fact",
             "synthetic_fixture"
           ]
         }

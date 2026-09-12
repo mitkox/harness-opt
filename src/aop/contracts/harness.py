@@ -22,6 +22,31 @@ class HarnessStatus(str, Enum):
     BLOCKED = "blocked"
 
 
+class HarnessCapabilities(AopBase):
+    """Result of probe(): what this adapter/build actually supports.
+
+    Capability claims must come from actual probes. ``probe_evidence`` records
+    the exact commands, exit codes, and output digests backing each claim;
+    ``--version`` alone is never sufficient.
+    """
+
+    kind: str = Field(default="HarnessCapabilities", frozen=True)
+    harness: HarnessName
+    build_version: str = Field(min_length=1)
+    adapter_revision: str = Field(min_length=1)
+    supports_headless: bool = False
+    supports_streaming_events: bool = False
+    supports_cancellation: bool = False
+    supports_session_export: bool = False
+    supports_isolated_home: bool = False
+    supports_model_selection: bool = False
+    executable_path: str = Field(default="")
+    executable_sha256: str = Field(default="")
+    probe_evidence: dict = Field(default_factory=dict)
+    probe_digest: str = Field(default="")
+    unsupported: dict[str, str] = Field(default_factory=dict)
+
+
 class HarnessBuild(AopBase):
     """Pinned identity of one harness build plus its adapter revision."""
 
@@ -35,20 +60,8 @@ class HarnessBuild(AopBase):
     status: HarnessStatus = HarnessStatus.DISCOVERED
     blocked_reason: str = Field(default="")
     capabilities: dict[str, bool] = Field(default_factory=dict)
+    executable_sha256: str = Field(default="")
+    probe_digest: str = Field(default="")
+    harness_digest: str = Field(default="")
+    probe_evidence: dict = Field(default_factory=dict)
     notes: list[str] = Field(default_factory=list)
-
-
-class HarnessCapabilities(AopBase):
-    """Result of probe(): what this adapter/build actually supports."""
-
-    kind: str = Field(default="HarnessCapabilities", frozen=True)
-    harness: HarnessName
-    build_version: str = Field(min_length=1)
-    adapter_revision: str = Field(min_length=1)
-    supports_headless: bool = False
-    supports_streaming_events: bool = False
-    supports_cancellation: bool = False
-    supports_session_export: bool = False
-    supports_isolated_home: bool = False
-    supports_model_selection: bool = False
-    unsupported: dict[str, str] = Field(default_factory=dict)

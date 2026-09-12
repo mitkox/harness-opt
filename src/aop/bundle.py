@@ -1,13 +1,24 @@
 """Immutable execution bundle compiler (M1 slice): resolve + digest + refuse drafts."""
 from __future__ import annotations
 
-import hashlib
 import json
 
 from .contracts.base import sha256_hex
 from .contracts.harness import HarnessBuild
 from .contracts.model import ModelDeployment
 from .policy import POLICY_ID
+
+
+def model_deployment_digest(model: ModelDeployment) -> str:
+    """Content identity of a model deployment, including every weight shard."""
+    payload = model.model_dump(mode="json", exclude={"evidence", "status"})
+    return "sha256:" + sha256_hex(json.dumps(payload, sort_keys=True).encode())
+
+
+def harness_build_digest(harness: HarnessBuild) -> str:
+    """Content identity of the pinned harness build + adapter revision."""
+    payload = harness.model_dump(mode="json", exclude={"notes", "blocked_reason", "status"})
+    return "sha256:" + sha256_hex(json.dumps(payload, sort_keys=True).encode())
 
 
 def compile_bundle(model: ModelDeployment, harness: HarnessBuild, base_prompt: str,
@@ -20,9 +31,13 @@ def compile_bundle(model: ModelDeployment, harness: HarnessBuild, base_prompt: s
     if harness.status.value != "qualified":
         raise ValueError(f"harness {harness.harness.value} is {harness.status.value}")
     inference_config = inference_config or {}
+    model_digest = model_deployment_digest(model)
+    harness_digest = harness_build_digest(harness)
     source_map = {
         "model_deployment_id": model.deployment_id,
+        "model_deployment_digest": model_digest,
         "harness": f"{harness.harness.value}@{harness.version}",
+        "harness_digest": harness_digest,
         "base_prompt_sha256": sha256_hex(base_prompt.encode()),
         "policy_id": POLICY_ID,
     }
@@ -39,7 +54,9 @@ def compile_bundle(model: ModelDeployment, harness: HarnessBuild, base_prompt: s
     digest = "sha256:" + sha256_hex(canonical.encode())
     bundle = ExecutionBundle(
         digest=digest, model_deployment_id=model.deployment_id,
+        model_deployment_digest=model_digest,
         harness=harness.harness.value, harness_version=harness.version,
+        harness_digest=harness_digest,
         adapter_revision=harness.adapter_revision,
         base_prompt_sha256=source_map["base_prompt_sha256"], policy_id=POLICY_ID,
         skill_variant_ids=sorted(skill_variant_ids or []),
