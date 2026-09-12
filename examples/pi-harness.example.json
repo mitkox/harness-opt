@@ -1,0 +1,24 @@
+{
+  "schema_version": "0.1",
+  "kind": "HarnessBuild",
+  "harness": "pi",
+  "executable": "pi",
+  "version": "0.85.1",
+  "source_revision": "",
+  "adapter_revision": "pi-json-adapter-v1",
+  "protocol": "pi-jsonl-v3",
+  "status": "discovered",
+  "blocked_reason": "",
+  "capabilities": {
+    "headless": true
+  },
+  "executable_sha256": "",
+  "probe_digest": "",
+  "harness_digest": "",
+  "probe_evidence": {},
+  "notes": [
+    "Synthetic placeholder. Run scripts/discover.py on a machine with the",
+    "Pi harness installed to register the real executable, version, and",
+    "probe evidence in profiles/harnesses/local-inventory.json."
+  ]
+}

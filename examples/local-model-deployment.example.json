@@ -1,0 +1,41 @@
+{
+  "schema_version": "0.1",
+  "kind": "ModelDeployment",
+  "deployment_id": "qwen-example-local",
+  "discovery_label": "Qwen/Qwen3-Example-Local",
+  "family": "qwen",
+  "weight_path": "/path/to/local/model/example.gguf",
+  "weight_size_bytes": 0,
+  "weight_partial_sha256": "",
+  "weight_shards": [
+    {
+      "schema_version": "0.1",
+      "path": "/path/to/local/model/example.gguf",
+      "size_bytes": 0,
+      "mtime_ns": 0,
+      "partial_sha256_head_tail_4m": "",
+      "sha256": "",
+      "note": "synthetic placeholder; register real weights with scripts/discover.py"
+    }
+  ],
+  "weight_total_bytes": 0,
+  "weight_manifest_digest": "",
+  "quantization": "example",
+  "server_build": "example local server build",
+  "server_command": "llama-server -m /path/to/local/model/example.gguf --host 127.0.0.1 --port 8000",
+  "chat_template_sha256": "",
+  "context_length_configured": 32768,
+  "serving_config": {
+    "reasoning": false,
+    "context_length": 32768
+  },
+  "endpoint": {
+    "schema_version": "0.1",
+    "alias": "qwen-example",
+    "base_url": "http://127.0.0.1:8000/v1",
+    "api": "openai-completions",
+    "model_id": "example-model"
+  },
+  "status": "pending_local_discovery",
+  "evidence": []
+}
