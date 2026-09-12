@@ -1,0 +1,140 @@
+{
+  "apm": {
+    "available": true,
+    "lock_returncode": 0,
+    "lock_tail": "[+] Lockfile written to apm.lock.yaml\n",
+    "pack_returncode": 0,
+    "pack_tail": "[i] No plugin.json found; synthesising from apm.yml.\n[*] Packed 10 file(s) -> \n<tmp>/apm-tooling/build/hop-debugging-0.1.0\n[i] Claude plugin bundle ready -- contains plugin.json plus plugin-native \ndirectories and an embedded apm.lock.yaml.\n[i] Share with: apm install \n<tmp>/apm-tooling/build/hop-debugging-0.1.0\n",
+    "packed_files": [
+      "hop-debugging-0.1.0/agents/coding-agent.md",
+      "hop-debugging-0.1.0/apm.lock.yaml",
+      "hop-debugging-0.1.0/instructions/system.md",
+      "hop-debugging-0.1.0/plugin.json",
+      "hop-debugging-0.1.0/skills/debugging/SKILL.md",
+      "hop-debugging-0.1.0/skills/debugging/resources/repro-checklist.md",
+      "hop-debugging-0.1.0/skills/debugging/scripts/collect_env.sh",
+      "hop-debugging-0.1.0/skills/git/SKILL.md",
+      "hop-debugging-0.1.0/skills/repo-navigation/SKILL.md",
+      "hop-debugging-0.1.0/skills/repo-navigation/resources/navigation-checklist.md",
+      "hop-debugging-0.1.0/skills/testing/SKILL.md"
+    ]
+  },
+  "apm_export": {
+    "export_dir": "<tmp>/apm-export",
+    "files": [
+      ".hop/hop.lock",
+      "agents/coding-agent.md",
+      "apm.yml",
+      "instructions/system.md",
+      "skills/debugging/SKILL.md",
+      "skills/debugging/resources/repro-checklist.md",
+      "skills/debugging/scripts/collect_env.sh",
+      "skills/git/SKILL.md",
+      "skills/repo-navigation/SKILL.md",
+      "skills/repo-navigation/resources/navigation-checklist.md",
+      "skills/testing/SKILL.md"
+    ],
+    "lock_digest": "sha256:5db7b86cf50835fa2bdc08fcfca7ba4485ffe69672ccc529824512192cd5621e",
+    "no_weights_or_secrets": true,
+    "package_digest": "sha256:c828f295f5360a88ee7a80dcf974c8e28dca57d8380f8d2bfde1589159d28d63",
+    "profile_digest": "sha256:e9a0388c7341fdbdd1b4497267e3d575c3545c36091528b7c35e6adc5aba65a1",
+    "source_profile": "debugging",
+    "verified": true
+  },
+  "determinism": {
+    "artifact_equal": true,
+    "lock_equal": true
+  },
+  "home": "<HOP_HOME>",
+  "notes": [],
+  "profiles": {
+    "ci-repair": {
+      "artifact_digest": "sha256:54eab444fc55de0fad2d1d76c6c7ce7ab9eb8fad61f32d9e3b1a46ec749e1f37",
+      "components": 10,
+      "lock_digest": "sha256:5c1b2769de2e62a698a15805094d78eea52ed854b63c14b5dca27709575301b0",
+      "notes": "example only; not optimized",
+      "profile_digest": "sha256:c4d4a1bcb4a506755e12bc345d10b529497b8c692c4b35d6dc3c50bfe91d659f",
+      "valid": true,
+      "variants": {
+        "debugging": "qwen"
+      }
+    },
+    "coding": {
+      "artifact_digest": "sha256:2722df95bfc51370cb7dc5375e13a2f656f9e38e211d08ffe45ecc2e0498a181",
+      "components": 10,
+      "lock_digest": "sha256:f9afe169d67642cacb78ccf56c39162166a59b02e56d3d10d918f5559f19802f",
+      "notes": "example only; not optimized",
+      "profile_digest": "sha256:3b31b2d0ca2c5ec845f80643854d80f2df08e459afab59cde70c3dc5fcdb248b",
+      "valid": true,
+      "variants": {
+        "debugging": "qwen"
+      }
+    },
+    "debugging": {
+      "artifact_digest": "sha256:30a71bbf6ec1a517a3dff81fe2271b79568ab7d19c8caa5b58bba4c52d5b35ca",
+      "components": 10,
+      "lock_digest": "sha256:5db7b86cf50835fa2bdc08fcfca7ba4485ffe69672ccc529824512192cd5621e",
+      "notes": "example only; not optimized",
+      "profile_digest": "sha256:e9a0388c7341fdbdd1b4497267e3d575c3545c36091528b7c35e6adc5aba65a1",
+      "valid": true,
+      "variants": {
+        "debugging": "qwen"
+      }
+    },
+    "pr-review": {
+      "artifact_digest": "sha256:8045d699dfae3563ac2f7761444d653ae91551bc71167293bb9a9ac5d126ceb4",
+      "components": 8,
+      "lock_digest": "sha256:40c1b9ea9d2968c7b008aa72d6a052d0794c1a2bfb7f909b0d44cee1dcbddfb2",
+      "notes": "example only; not optimized",
+      "profile_digest": "sha256:103a28d6f341be052398823189c1bbae7ed3d5256caacfedfb86c84759aadfb0",
+      "valid": true,
+      "variants": {
+        "code-review": "qwen"
+      }
+    },
+    "security-review": {
+      "artifact_digest": "sha256:f072c8876c3174e5588718b10cda1b465e52ac3962348eca7e5e97a92cd6475b",
+      "components": 8,
+      "lock_digest": "sha256:57d6129eff53621bf0a5557769998d0476c6ce860f44cc23e217850a707a7b14",
+      "notes": "example only; not optimized",
+      "profile_digest": "sha256:a543529c1f0d28d62a9f1d6cc3402731cd6890c85bc2dacd44464e4720827480",
+      "valid": true,
+      "variants": {
+        "code-review": "qwen"
+      }
+    }
+  },
+  "real_pi_run": {
+    "model_deployment_id": "qwen-flash-next-IQ2_S_-_2.5_bpw",
+    "outcome": "pass",
+    "profile": {
+      "compiled_target": "pi",
+      "compiled_target_digest": "sha256:30a71bbf6ec1a517a3dff81fe2271b79568ab7d19c8caa5b58bba4c52d5b35ca",
+      "lock_digest": "sha256:5db7b86cf50835fa2bdc08fcfca7ba4485ffe69672ccc529824512192cd5621e",
+      "profile_digest": "sha256:e9a0388c7341fdbdd1b4497267e3d575c3545c36091528b7c35e6adc5aba65a1",
+      "profile_id": "debugging@0.1.0",
+      "registry_root": "/tmp/hop-m3-demo-a0i8r7pw/home/registry",
+      "resolution_digest": "sha256:87f79daecbbb38bcc02e74b9a512e0c36fc139951daa656804ce663e0845ca33"
+    },
+    "run_id": "run-b9e57681e480",
+    "verdict": "pass"
+  },
+  "registry": {
+    "components": 19,
+    "integrity_ok": true
+  },
+  "scripted_run": {
+    "outcome": "pass",
+    "profile": {
+      "compiled_target": "pi",
+      "compiled_target_digest": "sha256:2722df95bfc51370cb7dc5375e13a2f656f9e38e211d08ffe45ecc2e0498a181",
+      "lock_digest": "sha256:f9afe169d67642cacb78ccf56c39162166a59b02e56d3d10d918f5559f19802f",
+      "profile_digest": "sha256:3b31b2d0ca2c5ec845f80643854d80f2df08e459afab59cde70c3dc5fcdb248b",
+      "profile_id": "coding@0.1.0",
+      "registry_root": "/tmp/hop-m3-demo-a0i8r7pw/home/registry",
+      "resolution_digest": "sha256:3ba2c8052253174954a37a085bbb87317402aa8ff014af9b7aecc159063ebb74"
+    },
+    "run_id": "run-83324976db78",
+    "verdict": "pass"
+  }
+}

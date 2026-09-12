@@ -1,0 +1,14 @@
+component_type: context_policy
+name: default-context
+version: 1.0.0
+description: Default deterministic context policy.
+compatibility:
+  harnesses:
+  - pi
+rules:
+  context.strategy:
+    value: deterministic
+    class: default
+  context.compaction:
+    value: record-loss
+    class: default

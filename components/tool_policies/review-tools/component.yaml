@@ -1,0 +1,17 @@
+component_type: tool_policy
+name: review-tools
+version: 1.0.0
+description: Read-only review tool allowlist.
+compatibility:
+  harnesses:
+  - pi
+rules:
+  tools.allow:
+    value:
+    - read
+    - grep
+    - glob
+    class: default
+  writes.allowed:
+    value: false
+    class: overridable

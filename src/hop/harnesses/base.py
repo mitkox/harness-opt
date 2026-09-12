@@ -13,6 +13,9 @@ class PreparedSession:
     harness: str
     layout_root: str
     extra_env: dict[str, str] = field(default_factory=dict)
+    # M3 compiled-profile inputs (empty for legacy profile-less runs).
+    system_prompt: str = ""
+    skill_dirs: list[str] = field(default_factory=list)
 
 
 @dataclass

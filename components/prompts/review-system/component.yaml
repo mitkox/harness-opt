@@ -1,0 +1,7 @@
+component_type: system_prompt
+name: review-system
+version: 1.0.0
+description: Read-only PR review system prompt.
+compatibility:
+  harnesses:
+  - pi

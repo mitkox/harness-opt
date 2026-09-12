@@ -1,0 +1,20 @@
+component_type: tool_policy
+name: coding-tools
+version: 1.0.0
+description: Coding tool allowlist with controlled writes.
+compatibility:
+  harnesses:
+  - pi
+rules:
+  tools.allow:
+    value:
+    - read
+    - write
+    - edit
+    - bash
+    - grep
+    - glob
+    class: default
+  writes.allowed:
+    value: true
+    class: overridable

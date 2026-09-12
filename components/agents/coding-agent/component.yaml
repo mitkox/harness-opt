@@ -1,0 +1,18 @@
+component_type: agent
+name: coding-agent
+version: 1.0.0
+description: Implement and repair coding tasks.
+dependencies:
+- debugging@^2.0.0
+- testing@^1.0.0
+- git@^1.0.0
+tool_requirements:
+- read
+- write
+- edit
+- bash
+- grep
+- glob
+compatibility:
+  harnesses:
+  - pi

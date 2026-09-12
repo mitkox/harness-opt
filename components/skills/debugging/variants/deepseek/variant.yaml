@@ -1,0 +1,4 @@
+name: deepseek
+selectors:
+- dimension: model_family
+  value: deepseek

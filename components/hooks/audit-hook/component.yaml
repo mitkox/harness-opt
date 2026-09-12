@@ -1,0 +1,9 @@
+component_type: hook
+name: audit-hook
+version: 1.0.0
+description: Example hook definition (Pi target reports it unsupported).
+compatibility:
+  harnesses:
+  - prime
+  - opencode_v2
+  - deepseek_harness

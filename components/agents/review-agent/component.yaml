@@ -1,0 +1,13 @@
+component_type: agent
+name: review-agent
+version: 1.0.0
+description: Read-only review agent.
+dependencies:
+- code-review@^1.0.0
+tool_requirements:
+- read
+- grep
+- glob
+compatibility:
+  harnesses:
+  - pi

@@ -1,0 +1,20 @@
+component_type: tool_policy
+name: security-tools
+version: 1.0.0
+description: Authorized defensive tools; no scanning.
+compatibility:
+  harnesses:
+  - pi
+rules:
+  tools.allow:
+    value:
+    - read
+    - grep
+    - glob
+    class: default
+  network.scanning:
+    value: deny
+    class: mandatory
+  writes.allowed:
+    value: false
+    class: overridable

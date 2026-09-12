@@ -1,0 +1,7 @@
+component_type: system_prompt
+name: debugging-system
+version: 1.0.0
+description: 'Debugging system prompt: reproduce, diagnose, repair.'
+compatibility:
+  harnesses:
+  - pi

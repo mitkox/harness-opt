@@ -106,6 +106,24 @@
     "environment_digest": {
       "type": "string"
     },
+    "profile_id": {
+      "type": "string",
+      "description": "M3 source profile identity (name@version); empty for M1/M2 events."
+    },
+    "profile_digest": {
+      "type": "string",
+      "description": "M3 source profile digest; lock_digest carries the frozen resolution."
+    },
+    "lock_digest": {
+      "type": "string",
+      "description": "M3 lockfile digest; empty for M1/M2 events."
+    },
+    "compiled_target": {
+      "type": "string"
+    },
+    "compiled_target_digest": {
+      "type": "string"
+    },
     "skill_id": {
       "type": "string"
     },

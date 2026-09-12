@@ -1,0 +1,37 @@
+component_type: skill
+name: repo-navigation
+version: 1.0.0
+description: Locate relevant code, tests, and ownership before editing.
+purpose: Find the smallest set of files that matters for a task.
+triggers:
+  positive:
+  - Where is X implemented?
+  - Find the tests for this module.
+  negative:
+  - Explain this project's architecture in general terms.
+dependencies: []
+tool_requirements:
+- read
+- grep
+- glob
+permission_requirements:
+- Read authorized repository
+resources:
+- resources/navigation-checklist.md
+scripts: []
+compatibility:
+  harnesses:
+  - pi
+  model_families:
+  - qwen
+  - deepseek
+  - glm
+model_family_hints:
+- qwen
+- deepseek
+- glm
+harness_hints:
+- pi
+provenance:
+  origin: hop-m3-example
+  license: Apache-2.0

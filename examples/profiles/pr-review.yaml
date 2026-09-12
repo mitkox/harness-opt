@@ -1,0 +1,48 @@
+apiVersion: hop/v1
+kind: Profile
+schema_version: "0.3"
+
+# Example only. This profile is not optimized, benchmarked, or approved.
+metadata:
+  name: pr-review
+  version: 0.1.0
+  workflow: pr_review
+  description: >-
+    Read-only pull-request review profile. Findings only; no repository writes.
+  notes:
+    - Example only, not optimized; read-only by construction (review-tools denies writes).
+
+model:
+  deployment_ref: qwen-flash-next
+  family_hint: qwen
+  variant_selectors:
+    - dimension: model_family
+      value: qwen
+
+harness:
+  name: pi
+  version: ">=0.80.0"
+  overlay_ref: pi-default@^1.0.0
+
+system:
+  prompt_ref: review-system@^1.0.0
+
+agents:
+  - review-agent@^1.0.0
+
+skills:
+  - repo-navigation@^1.0.0
+  - code-review@^1.0.0
+
+tools:
+  # Read-only allowlist: read, grep, glob.
+  policy_ref: review-tools@^1.0.0
+
+context:
+  policy_ref: default-context@^1.0.0
+
+policy:
+  - enterprise-coding@^1.0.0
+
+distribution:
+  target: apm

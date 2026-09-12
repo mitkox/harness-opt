@@ -24,8 +24,15 @@ def harness_build_digest(harness: HarnessBuild) -> str:
 def compile_bundle(model: ModelDeployment, harness: HarnessBuild, base_prompt: str,
                    skill_variant_ids: list[str] | None = None,
                    inference_config: dict | None = None,
-                   sandbox_digest: str = "", hardware_envelope: str = "") -> dict:
-    """Returns (ExecutionBundle, source_map). Raises on unresolved inputs."""
+                   sandbox_digest: str = "", hardware_envelope: str = "",
+                   profile_id: str = "", profile_digest: str = "",
+                   lock_digest: str = "", compiled_target: str = "",
+                   compiled_target_digest: str = "") -> dict:
+    """Returns (ExecutionBundle, source_map). Raises on unresolved inputs.
+
+    M3: profile/lock/compiled-target identity participates in the bundle digest
+    when supplied. Legacy M1/M2 calls pass nothing and are unchanged.
+    """
     from .contracts.records import ExecutionBundle
     model.require_qualified()
     if harness.status.value != "qualified":
@@ -40,6 +47,11 @@ def compile_bundle(model: ModelDeployment, harness: HarnessBuild, base_prompt: s
         "harness_digest": harness_digest,
         "base_prompt_sha256": sha256_hex(base_prompt.encode()),
         "policy_id": POLICY_ID,
+        "profile_id": profile_id,
+        "profile_digest": profile_digest,
+        "lock_digest": lock_digest,
+        "compiled_target": compiled_target,
+        "compiled_target_digest": compiled_target_digest,
     }
     canonical = json.dumps({
         "model": model.model_dump(mode="json"),
@@ -50,6 +62,11 @@ def compile_bundle(model: ModelDeployment, harness: HarnessBuild, base_prompt: s
         "inference": inference_config,
         "sandbox": sandbox_digest,
         "hardware": hardware_envelope,
+        "profile_id": profile_id,
+        "profile_digest": profile_digest,
+        "lock_digest": lock_digest,
+        "compiled_target": compiled_target,
+        "compiled_target_digest": compiled_target_digest,
     }, sort_keys=True)
     digest = "sha256:" + sha256_hex(canonical.encode())
     bundle = ExecutionBundle(
@@ -63,5 +80,8 @@ def compile_bundle(model: ModelDeployment, harness: HarnessBuild, base_prompt: s
         inference_config_digest=sha256_hex(json.dumps(inference_config,
                                                       sort_keys=True).encode()),
         sandbox_digest=sandbox_digest, hardware_envelope=hardware_envelope,
+        profile_id=profile_id, profile_digest=profile_digest,
+        lock_digest=lock_digest, compiled_target=compiled_target,
+        compiled_target_digest=compiled_target_digest,
         source_map=source_map, deployable=True)
     return bundle, source_map

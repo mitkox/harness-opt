@@ -173,11 +173,126 @@ def check_scope(baseline: dict[str, str], snapshot: dict[str, str],
 
 class Runner:
     def __init__(self, runs_dir: str = RUNS_DIR, store: RunStore | None = None,
-                 artifacts: ArtifactStore | None = None):
+                 artifacts: ArtifactStore | None = None, registry=None,
+                 hop_home: str | None = None):
         self.runs_dir = runs_dir
         os.makedirs(runs_dir, exist_ok=True)
         self.store = store or RunStore(os.path.join(runs_dir, "ledger.db"))
         self.artifacts = artifacts or ArtifactStore(os.path.join(runs_dir, "artifacts"))
+        # M3: optional profile registry. Lazily constructed only when a profile
+        # run is requested, so legacy M1/M2 callers need no registry.
+        self._registry = registry
+        self._hop_home = hop_home
+
+    def registry(self):
+        if self._registry is None:
+            from .profiles import open_registry
+
+            self._registry = open_registry(self._hop_home)
+        return self._registry
+
+    def _effective_hop_home(self) -> str:
+        if self._hop_home:
+            return self._hop_home
+        root = getattr(self.registry(), "root", "")
+        if root:
+            return os.path.dirname(root)
+        return ""
+
+    def _prepare_profile(self, profile_path: str, target: str,
+                         overrides: dict[str, str] | None,
+                         deployment: ModelDeployment | None = None) -> dict | None:
+        """Resolve -> lock -> compile a source profile entirely in memory.
+
+        Returning compiled bytes (rather than writing first) lets the execution
+        bundle digest include the compiled-target digest before admission.
+        """
+        if not profile_path:
+            return None
+        from . import profiles as P
+
+        registry = self.registry()
+        profile = P.load_profile(profile_path)
+        # A profile naming a model deployment is a hard identity claim: the
+        # deployment must exist locally and match the run's deployment.
+        if profile.model.deployment_ref:
+            try:
+                declared = load_deployment(profile.model.deployment_ref)
+            except KeyError as exc:
+                raise InfraError(
+                    "unknown_model_deployment",
+                    f"profile references undeclared model deployment "
+                    f"{profile.model.deployment_ref!r}") from exc
+            if deployment is not None and \
+                    model_deployment_digest(declared) != model_deployment_digest(deployment):
+                raise InfraError(
+                    "profile_model_mismatch",
+                    f"profile deployment {profile.model.deployment_ref!r} does not "
+                    f"match run model {deployment.deployment_id!r}")
+        resolved = P.resolve(profile, registry, overrides)
+        from hop import __version__
+
+        lock = P.build_lockfile(resolved, hop_version=__version__,
+                                compilation_target=target)
+        # Fails closed if any locked component is absent or mutated.
+        P.verify_lock(lock, registry)
+        # Persist the exact resolution so replay-check/materialize can prove the
+        # locked configuration is still available. Derive the store home from
+        # the registry location so callers passing only a registry stay coherent.
+        P.persist_resolved(resolved, lock, home=self._effective_hop_home())
+        artifact, files = P.compile_resolved(profile, resolved, lock, registry,
+                                             target=target)
+        return {
+            "profile": profile, "resolved": resolved, "lock": lock,
+            "artifact": artifact, "files": files,
+            "profile_id": f"{profile.metadata.name}@{profile.metadata.version}",
+            "profile_digest": resolved.profile_digest,
+            "lock_digest": lock.lock_digest,
+            "artifact_digest": artifact.artifact_digest,
+            "target": target,
+            "registry_root": registry.root,
+            "skill_ids": [f"{c.name}@{c.version}" for c in resolved.components
+                          if c.type.value == "skill"],
+        }
+
+    def _profile_refusal_report(self, case_id: str, task: dict,
+                                profile_path: str, exc: BaseException) -> dict:
+        """Durable infra_error for a profile that cannot be admitted at all.
+
+        The profile never reaches the agent worker: a missing component, cycle,
+        policy violation, or undeclared model deployment is refused here and
+        recorded with a content-addressed, error-derived bundle digest.
+        """
+        error_class = (getattr(exc, "code", "") or getattr(exc, "error_class", "")
+                       or "profile_resolution_error")
+        payload = {"profile": profile_path, "case_id": case_id,
+                   "error_class": error_class, "type": type(exc).__name__}
+        digest = "sha256:" + hashlib.sha256(
+            json.dumps(payload, sort_keys=True).encode()).hexdigest()
+        run_id = new_id("run")
+        record, _ = self.store.admit(RunRecord(
+            run_id=run_id, task_id=task.get("task_id", case_id), case_id=case_id,
+            bundle_digest=digest))
+        run_id = record.run_id
+        run_dir = os.path.join(self.runs_dir, run_id)
+        os.makedirs(run_dir, exist_ok=True)
+        attempt = self.store.new_attempt(
+            run_id, AttemptRecord(attempt_id=new_id("att"),
+                                  worker_id=new_id("worker")))
+        self.store.mark_infra_error(run_id, attempt.attempt_id, error_class)
+        detail = {"error_class": error_class, "error_type": type(exc).__name__,
+                  "message": str(exc),
+                  "detail": getattr(exc, "detail", {})}
+        report = {"run_id": run_id, "case_id": case_id, "bundle_digest": digest,
+                  "outcome": RunOutcome.INFRA_ERROR.value,
+                  "verdict": Verdict.ERROR.value,
+                  "error_class": error_class, "run_dir": run_dir,
+                  "profile": {"profile_path": profile_path},
+                  "error": detail,
+                  "note": "profile refused before agent execution"}
+        _write_json(os.path.join(run_dir, "report.json"), report)
+        _write_json(os.path.join(run_dir, "error.json"), detail)
+        return report
 
     # -- event emission ----------------------------------------------------
     def _emit(self, ledger: EventLedger, seq: dict[str, int], run_id: str,
@@ -190,6 +305,9 @@ class Runner:
               env_digest: str = "", skill_id: str = "",
               skill_version: str = "", skill_digest: str = "",
               tool_id: str = "", tool_version: str = "",
+              profile_id: str = "", profile_digest: str = "",
+              lock_digest: str = "", compiled_target: str = "",
+              compiled_target_digest: str = "",
               classification: str = "internal",
               payload_refs: list[str] | None = None,
               agent_claim_text: str = "") -> None:
@@ -210,6 +328,9 @@ class Runner:
             model_deployment_digest=model_digest, harness_digest=harness_digest,
             bundle_digest=bundle_digest, repo_snapshot_digest=repo_digest,
             environment_digest=env_digest,
+            profile_id=profile_id, profile_digest=profile_digest,
+            lock_digest=lock_digest, compiled_target=compiled_target,
+            compiled_target_digest=compiled_target_digest,
             skill_id=skill_id, skill_version=skill_version,
             skill_digest=skill_digest, tool_id=tool_id,
             tool_version=tool_version,
@@ -238,6 +359,14 @@ class Runner:
                       "verdict": "inconclusive", "run_dir": run_dir}
         report["idempotent_replay"] = True
         report["run_status"] = record.status.value
+        if record.profile_id and "profile" not in report:
+            report["profile"] = {
+                "profile_id": record.profile_id,
+                "profile_digest": record.profile_digest,
+                "lock_digest": record.lock_digest,
+                "compiled_target": record.compiled_target,
+                "compiled_target_digest": record.compiled_target_digest,
+            }
         return report
 
     # -- public API --------------------------------------------------------
@@ -246,7 +375,9 @@ class Runner:
                 cancel: threading.Event | None = None,
                 idempotency_key: str = "",
                 cancel_file: str | None = None,
-                skill_ids: list[str] | None = None) -> dict:
+                skill_ids: list[str] | None = None,
+                profile: str = "", profile_target: str = "pi",
+                variant_overrides: dict[str, str] | None = None) -> dict:
         cancel = cancel or threading.Event()
         task, prompt, repo_src, case_dir = load_case(case_id)
         budget = float(task.get("time_budget_s", 600))
@@ -255,8 +386,31 @@ class Runner:
 
         deployment = load_deployment(model_alias)
         harness_build = qualify_pi_for_m1()
-        bundle, _ = compile_bundle(deployment, harness_build, prompt,
-                                   skill_variant_ids=skill_ids)
+        try:
+            profile_info = self._prepare_profile(profile, profile_target,
+                                                 variant_overrides, deployment)
+        except Exception as exc:  # profile validation/resolution/compile refusal
+            if not profile:
+                raise
+            return self._profile_refusal_report(case_id, task, profile, exc)
+        if profile_info is not None:
+            skill_ids = profile_info["skill_ids"]
+        bundle, _ = compile_bundle(
+            deployment, harness_build, prompt, skill_variant_ids=skill_ids,
+            profile_id=(profile_info["profile_id"] if profile_info else ""),
+            profile_digest=(profile_info["profile_digest"] if profile_info else ""),
+            lock_digest=(profile_info["lock_digest"] if profile_info else ""),
+            compiled_target=(profile_target if profile_info else ""),
+            compiled_target_digest=(profile_info["artifact_digest"]
+                                    if profile_info else ""))
+        profile_kw = {
+            "profile_id": (profile_info["profile_id"] if profile_info else ""),
+            "profile_digest": (profile_info["profile_digest"] if profile_info else ""),
+            "lock_digest": (profile_info["lock_digest"] if profile_info else ""),
+            "compiled_target": (profile_target if profile_info else ""),
+            "compiled_target_digest": (profile_info["artifact_digest"]
+                                       if profile_info else ""),
+        }
         hidden_case_dir = os.path.join(HIDDEN_ROOT, case_id)
         verifier_error: VerifierSetupError | None = None
         try:
@@ -278,7 +432,13 @@ class Runner:
             repo_snapshot_digest=repo_digest, environment_digest=env_digest,
             verifier_id=verifier_id, verifier_version=verifier_version,
             model_deployment_digest=model_digest,
-            harness_digest=harness_build.harness_digest))
+            harness_digest=harness_build.harness_digest,
+            profile_id=(profile_info["profile_id"] if profile_info else ""),
+            profile_digest=(profile_info["profile_digest"] if profile_info else ""),
+            lock_digest=(profile_info["lock_digest"] if profile_info else ""),
+            compiled_target=(profile_target if profile_info else ""),
+            compiled_target_digest=(profile_info["artifact_digest"]
+                                    if profile_info else "")))
         if not created:
             return self._replay(record)
         run_id = record.run_id
@@ -306,7 +466,7 @@ class Runner:
                    parent_span_id=wf.span_id,
                    model_digest=model_digest,
                    harness_digest=harness_build.harness_digest,
-                   repo_digest=repo_digest, env_digest=env_digest)
+                   repo_digest=repo_digest, env_digest=env_digest, **profile_kw)
         tracer.finish(adm)
         self._emit(ledger, seq, run_id, attempt.attempt_id, bundle.digest,
                    "aop-runner", EventAuthority.PLATFORM_OBSERVATION,
@@ -314,7 +474,7 @@ class Runner:
                    trace_id=tracer.trace_id, span_id=wf.span_id,
                    model_digest=model_digest,
                    harness_digest=harness_build.harness_digest,
-                   repo_digest=repo_digest, env_digest=env_digest)
+                   repo_digest=repo_digest, env_digest=env_digest, **profile_kw)
         # Prompt/context snapshot as content-addressed artifact (never inline).
         # Best-effort here: the snapshot-stage write later is the strict one
         # (storage failures surface as durable infra_error there).
@@ -329,7 +489,8 @@ class Runner:
                    model_digest=model_digest,
                    harness_digest=harness_build.harness_digest,
                    repo_digest=repo_digest, env_digest=env_digest,
-                   payload_refs=([prompt_ref.digest] if prompt_ref else []))
+                   payload_refs=([prompt_ref.digest] if prompt_ref else []),
+                   **profile_kw)
         # Skill catalog exposure (M2 records exposure separately from use).
         skill_entries = [SkillCatalogEntry(
             s.split("@")[0], s.split("@")[1] if "@" in s else "v1",
@@ -346,14 +507,16 @@ class Runner:
                    trace_id=tracer.trace_id, span_id=wf.span_id,
                    model_digest=model_digest,
                    harness_digest=harness_build.harness_digest,
-                   payload_refs=([catalog_digest] if skill_entries else []))
+                   payload_refs=([catalog_digest] if skill_entries else []),
+                   **profile_kw)
         self._emit(ledger, seq, run_id, attempt.attempt_id, bundle.digest,
                    "aop-runner", EventAuthority.PLATFORM_OBSERVATION,
                    "agent.started", {"agent_id": "agent-1", "harness": harness},
                    agent_id="agent-1",
                    trace_id=tracer.trace_id, span_id=wf.span_id,
                    model_digest=model_digest,
-                   harness_digest=harness_build.harness_digest)
+                   harness_digest=harness_build.harness_digest,
+                   **profile_kw)
         spool = SpoolQueue(os.path.join(self.runs_dir, "_spool"),
                            os.path.join(self.runs_dir, "_collector"))
 
@@ -367,7 +530,8 @@ class Runner:
                "hidden_case_dir": hidden_case_dir, "repo_digest": repo_digest,
                "env_digest": env_digest, "model_digest": model_digest,
                "tracer": tracer, "wf": wf, "spool": spool,
-               "prompt_ref": prompt_ref, "catalog_digest": catalog_digest}
+               "prompt_ref": prompt_ref, "catalog_digest": catalog_digest,
+               "profile_info": profile_info, "profile_target": profile_target}
         try:
             return self._run_inner(ctx)
         except VerifierSetupError as exc:
@@ -382,16 +546,25 @@ class Runner:
         (task, prompt, repo_src, budget, timeout_s, t0, deployment, harness_build,
          bundle, run_id, run_dir, ledger, seq, attempt, harness, cancel,
          cancel_file, verifier_manifest, verifier_error, hidden_case_dir, repo_digest,
-         env_digest, model_digest, tracer, wf, spool) = tuple(ctx[k] for k in (
+         env_digest, model_digest, tracer, wf, spool, profile_info,
+         profile_target) = tuple(ctx[k] for k in (
              "task", "prompt", "repo_src", "budget", "timeout_s", "t0", "deployment",
              "harness_build", "bundle", "run_id", "run_dir", "ledger", "seq", "attempt",
              "harness", "cancel", "cancel_file", "verifier_manifest", "verifier_error",
              "hidden_case_dir", "repo_digest", "env_digest", "model_digest",
-             "tracer", "wf", "spool"))
+             "tracer", "wf", "spool", "profile_info", "profile_target"))
         ident_kw = {"trace_id": tracer.trace_id, "span_id": wf.span_id,
                     "model_digest": model_digest,
                     "harness_digest": harness_build.harness_digest,
-                    "repo_digest": repo_digest, "env_digest": env_digest}
+                    "repo_digest": repo_digest, "env_digest": env_digest,
+                    "profile_id": (profile_info["profile_id"] if profile_info else ""),
+                    "profile_digest": (profile_info["profile_digest"]
+                                       if profile_info else ""),
+                    "lock_digest": (profile_info["lock_digest"]
+                                    if profile_info else ""),
+                    "compiled_target": (profile_target if profile_info else ""),
+                    "compiled_target_digest": (profile_info["artifact_digest"]
+                                               if profile_info else "")}
         client = None
 
         # 1. Attest that the registered local endpoint serves this deployment.
@@ -406,6 +579,15 @@ class Runner:
 
         self.store.set_status(run_id, RunStatus.PREPARING)
         layout = prepare_layout(os.path.join(run_dir, "worker"), snapshot_src=repo_src)
+        compiled_dir = ""
+        if profile_info is not None:
+            compiled_dir = os.path.join(run_dir, "worker", "profile")
+            for rel, data in sorted(profile_info["files"].items()):
+                destination = os.path.join(compiled_dir, rel)
+                os.makedirs(os.path.dirname(destination) or compiled_dir,
+                            exist_ok=True)
+                with open(destination, "wb") as fh:
+                    fh.write(data)
         hidden_markers = (os.listdir(hidden_case_dir)
                           if os.path.isdir(hidden_case_dir) else [])
         assert_no_hidden_material(layout.workspace, hidden_markers)
@@ -431,6 +613,19 @@ class Runner:
                          "hidden_test_hash": hash_hidden_dir(hidden_case_dir)
                          if os.path.isdir(hidden_case_dir) else ""},
         }
+        if profile_info is not None:
+            manifest["profile"] = {
+                "profile_id": profile_info["profile_id"],
+                "profile_digest": profile_info["profile_digest"],
+                "resolution_digest": profile_info["resolved"].resolution_digest,
+                "lock_digest": profile_info["lock_digest"],
+                "compiled_target": profile_target,
+                "compiled_target_digest": profile_info["artifact_digest"],
+                "registry_root": profile_info["registry_root"],
+                "resolved": profile_info["resolved"].model_dump(mode="json"),
+                "lock": profile_info["lock"].model_dump(mode="json"),
+                "compiled_artifact": profile_info["artifact"].model_dump(mode="json"),
+            }
         _write_json(os.path.join(run_dir, "manifest.json"), manifest)
         ws_span = tracer.start("workspace.prepare")
         self._emit(ledger, seq, run_id, attempt.attempt_id, bundle.digest,
@@ -445,7 +640,8 @@ class Runner:
         if harness == "pi":
             spec = SandboxSpec(share_network=True,
                                ro_binds=_harness_ro_binds(harness_build.executable))
-            adapter = PiJsonAdapter(deployment=deployment, spec=spec)
+            adapter = PiJsonAdapter(deployment=deployment, spec=spec,
+                                    compiled_dir=compiled_dir)
         elif harness.startswith("scripted:"):
             adapter = ScriptedHarness(harness.split(":", 1)[1])
         else:
@@ -900,6 +1096,15 @@ class Runner:
             "verifier": {"id": task_spec.verifier_id, "version": task_spec.verifier_version},
             "inputs": {"repo_snapshot_digest": repo_digest,
                        "environment_digest": env_digest},
+            "profile": ({
+                "profile_id": profile_info["profile_id"],
+                "profile_digest": profile_info["profile_digest"],
+                "resolution_digest": profile_info["resolved"].resolution_digest,
+                "lock_digest": profile_info["lock_digest"],
+                "compiled_target": profile_target,
+                "compiled_target_digest": profile_info["artifact_digest"],
+                "registry_root": profile_info["registry_root"],
+            } if profile_info else {}),
             "outcome": outcome.value, "verdict": verdict.value,
             "error_class": (eval_result.error_class if eval_result else ""),
             "agent_claim": output.agent_claim,
@@ -918,6 +1123,13 @@ class Runner:
                 "bundle_digest": bundle.digest,
                 "verifier_id": task_spec.verifier_id,
                 "verifier_version": task_spec.verifier_version,
+                "profile_id": (profile_info["profile_id"] if profile_info else ""),
+                "profile_digest": (profile_info["profile_digest"]
+                                   if profile_info else ""),
+                "lock_digest": (profile_info["lock_digest"] if profile_info else ""),
+                "compiled_target": (profile_target if profile_info else ""),
+                "compiled_target_digest": (profile_info["artifact_digest"]
+                                           if profile_info else ""),
                 "tool_versions": ["pi-native"],
                 "skill_versions": list(bundle.skill_variant_ids),
                 "note": "identity metadata for future replay; stochastic model "

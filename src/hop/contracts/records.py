@@ -54,6 +54,12 @@ class ExecutionBundle(AopBase):
     inference_config_digest: str = Field(default="")
     sandbox_digest: str = Field(default="")
     hardware_envelope: str = Field(default="")
+    # M3: distributable agent-side identity. Empty for legacy M1/M2 runs.
+    profile_id: str = Field(default="")
+    profile_digest: str = Field(default="")
+    lock_digest: str = Field(default="")
+    compiled_target: str = Field(default="")
+    compiled_target_digest: str = Field(default="")
     source_map: dict[str, str] = Field(default_factory=dict)
     deployable: bool = Field(default=False,
                              description="False for draft targets with unresolved inputs")
@@ -108,6 +114,12 @@ class RunRecord(AopBase):
     verifier_version: str = Field(default="")
     model_deployment_digest: str = Field(default="")
     harness_digest: str = Field(default="")
+    # M3 profile identity. Optional/empty so M1/M2 records stay readable.
+    profile_id: str = Field(default="")
+    profile_digest: str = Field(default="")
+    lock_digest: str = Field(default="")
+    compiled_target: str = Field(default="")
+    compiled_target_digest: str = Field(default="")
     error_class: str = Field(default="")
 
 
@@ -166,6 +178,13 @@ class TrajectoryEvent(AopBase):
     bundle_digest: str = Field(pattern=r"^sha256:[0-9a-f]{64}$")
     repo_snapshot_digest: str = Field(default="")
     environment_digest: str = Field(default="")
+    # M3: distributable profile identity carried on every event (empty for
+    # legacy M1/M2 events; additive, backward compatible).
+    profile_id: str = Field(default="")
+    profile_digest: str = Field(default="")
+    lock_digest: str = Field(default="")
+    compiled_target: str = Field(default="")
+    compiled_target_digest: str = Field(default="")
     skill_id: str = Field(default="")
     skill_version: str = Field(default="")
     skill_digest: str = Field(default="")

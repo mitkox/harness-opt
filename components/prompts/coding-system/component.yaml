@@ -1,0 +1,7 @@
+component_type: system_prompt
+name: coding-system
+version: 1.0.0
+description: 'Coding system prompt: implement and refactor under scope.'
+compatibility:
+  harnesses:
+  - pi

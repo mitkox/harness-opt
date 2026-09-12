@@ -1,0 +1,45 @@
+component_type: skill
+name: debugging
+version: 2.0.0
+description: Reproduce, diagnose, and repair a defect with verifiable evidence.
+purpose: Turn a failing behavior into a passing verified repair.
+triggers:
+  positive:
+  - Fix this failing test.
+  - The service throws on startup; repair it.
+  negative:
+  - Explain what debugging means.
+  - Review this PR without modifying files.
+dependencies:
+- repo-navigation@^1.0.0
+tool_requirements:
+- read
+- write
+- edit
+- bash
+- grep
+- glob
+permission_requirements:
+- Read authorized repository
+- Modify task-scoped workspace
+- Run approved local tools
+resources:
+- resources/repro-checklist.md
+scripts:
+- scripts/collect_env.sh
+compatibility:
+  harnesses:
+  - pi
+  model_families:
+  - qwen
+  - deepseek
+  - glm
+model_family_hints:
+- qwen
+- deepseek
+- glm
+harness_hints:
+- pi
+provenance:
+  origin: hop-m3-example
+  license: Apache-2.0
