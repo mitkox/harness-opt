@@ -117,6 +117,7 @@ class EventAuthority(str, Enum):
     - platform_observation: control-plane runner observed a process/state transition
     - harness_observation: the harness itself reported a fact about its own execution
     - agent_claim: model/agent narration; never evidence of task success
+    - model_output: raw model text as observed (still untrusted, distinct from claim)
     - verifier_fact: trusted verifier result on the frozen snapshot
     - synthetic_fixture: contract fixture, not execution evidence
     """
@@ -124,6 +125,7 @@ class EventAuthority(str, Enum):
     PLATFORM_OBSERVATION = "platform_observation"
     HARNESS_OBSERVATION = "harness_observation"
     AGENT_CLAIM = "agent_claim"
+    MODEL_OUTPUT = "model_output"
     VERIFIER_FACT = "verifier_fact"
     SYNTHETIC_FIXTURE = "synthetic_fixture"
 
@@ -136,28 +138,49 @@ class EventSource(BaseModel):
 
 
 class TrajectoryEvent(AopBase):
-    """Durable event envelope (BUILD_PLAN §11).
+    """Durable event envelope (BUILD_PLAN §11), M2 v0.2.
 
-    Field-for-field compatible with ``specs/trajectory-event.schema.json`` v0.1.
-    Note there is deliberately no ``kind`` field: the published envelope does not
-    carry one and the schema forbids additional properties.
+    Field-for-field compatible with ``specs/trajectory-event.schema.json``
+    v0.2. v0.1 events (without the M2 identity/classification fields) still
+    validate: new fields carry safe defaults and migration fills them.
+    Note there is deliberately no ``kind`` field: the published envelope does
+    not carry one and the schema forbids additional properties.
     """
 
+    schema_version: str = Field(default="0.2", frozen=True)
     event_id: str = Field(pattern=UUID_PATTERN)
     event_type: str = Field(min_length=1)
     run_id: str = Field(min_length=1)
     attempt_id: str = Field(min_length=1)
     agent_id: str = Field(default="")
+    parent_agent_id: str = Field(default="")
     source: EventSource
     source_sequence: int = Field(ge=0)
+    event_timestamp: str = Field(default="")
     observed_at: str = Field(min_length=1)
-    bundle_digest: str = Field(pattern=r"^sha256:[0-9a-f]{64}$")
     trace_id: str = Field(default="0" * 32, pattern=r"^[0-9a-f]{32}$")
     span_id: str = Field(default="0" * 16, pattern=r"^[0-9a-f]{16}$")
+    parent_span_id: str = Field(default="")
+    model_deployment_digest: str = Field(default="")
+    harness_digest: str = Field(default="")
+    bundle_digest: str = Field(pattern=r"^sha256:[0-9a-f]{64}$")
+    repo_snapshot_digest: str = Field(default="")
+    environment_digest: str = Field(default="")
+    skill_id: str = Field(default="")
+    skill_version: str = Field(default="")
+    skill_digest: str = Field(default="")
+    tool_id: str = Field(default="")
+    tool_version: str = Field(default="")
+    data_classification: str = Field(default="internal",
+                                     pattern=r"^(public|internal|confidential|secret)$")
     synthetic_fixture: bool = False
     payload_refs: list[str] = Field(default_factory=list)
     attributes: dict = Field(default_factory=dict)
     parent_event_ids: list[str] = Field(default_factory=list)
+
+    def authority_allows_verdict(self) -> bool:
+        """Only verifier_fact carries task verdicts; never infer from claims."""
+        return self.source.authority.value == "verifier_fact"
 
 
 class Verdict(str, Enum):

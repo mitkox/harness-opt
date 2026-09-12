@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "title": "AOP draft trajectory event envelope",
+  "title": "AOP trajectory event envelope v0.2 (M2)",
   "type": "object",
   "additionalProperties": false,
   "required": [
@@ -22,7 +22,7 @@
   ],
   "properties": {
     "schema_version": {
-      "const": "0.1"
+      "enum": ["0.1", "0.2"]
     },
     "event_id": {
       "type": "string",
@@ -39,6 +39,9 @@
       "type": "string"
     },
     "agent_id": {
+      "type": "string"
+    },
+    "parent_agent_id": {
       "type": "string"
     },
     "source": {
@@ -58,6 +61,7 @@
             "platform_observation",
             "harness_observation",
             "agent_claim",
+            "model_output",
             "verifier_fact",
             "synthetic_fixture"
           ]
@@ -67,6 +71,9 @@
     "source_sequence": {
       "type": "integer",
       "minimum": 0
+    },
+    "event_timestamp": {
+      "type": "string"
     },
     "observed_at": {
       "type": "string",
@@ -83,6 +90,40 @@
     "span_id": {
       "type": "string",
       "pattern": "^[0-9a-f]{16}$"
+    },
+    "parent_span_id": {
+      "type": "string"
+    },
+    "model_deployment_digest": {
+      "type": "string"
+    },
+    "harness_digest": {
+      "type": "string"
+    },
+    "repo_snapshot_digest": {
+      "type": "string"
+    },
+    "environment_digest": {
+      "type": "string"
+    },
+    "skill_id": {
+      "type": "string"
+    },
+    "skill_version": {
+      "type": "string"
+    },
+    "skill_digest": {
+      "type": "string"
+    },
+    "tool_id": {
+      "type": "string"
+    },
+    "tool_version": {
+      "type": "string"
+    },
+    "data_classification": {
+      "type": "string",
+      "enum": ["public", "internal", "confidential", "secret"]
     },
     "synthetic_fixture": {
       "type": "boolean"
