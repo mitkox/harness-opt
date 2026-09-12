@@ -78,11 +78,12 @@ class PiJsonAdapter:
 
     def __init__(self, deployment: ModelDeployment | None = None,
                  executable: str = "pi", provider: str = "hop_local",
-                 spec: SandboxSpec | None = None):
+                 spec: SandboxSpec | None = None, compiled_dir: str = ""):
         self.deployment = deployment
         self.executable = executable
         self.provider = provider
         self.spec = spec or SandboxSpec()
+        self.compiled_dir = compiled_dir
         self.model = ""
         self.base_url = ""
         if deployment is not None:
@@ -187,13 +188,26 @@ class PiJsonAdapter:
                 "defaultProvider": self.provider, "defaultModel": self.model,
                 "quietStartup": True, "enableInstallTelemetry": False,
             }, fh, indent=2)
+        system_prompt = ""
+        skill_dirs: list[str] = []
+        if self.compiled_dir:
+            prompt_path = os.path.join(self.compiled_dir, "system-prompt.md")
+            if os.path.isfile(prompt_path):
+                with open(prompt_path, encoding="utf-8", errors="replace") as fh:
+                    system_prompt = fh.read()
+            skills_root = os.path.join(self.compiled_dir, "skills")
+            if os.path.isdir(skills_root):
+                skill_dirs = [os.path.join(skills_root, name)
+                              for name in sorted(os.listdir(skills_root))
+                              if os.path.isdir(os.path.join(skills_root, name))]
         return PreparedSession(
             session_id=new_id("pi"), harness="pi", layout_root=layout_root,
             extra_env={
                 "PI_CODING_AGENT_DIR": config_dir,
                 "PI_CODING_AGENT_SESSION_DIR": session_dir,
                 "PI_OFFLINE": "1",
-            })
+            },
+            system_prompt=system_prompt, skill_dirs=skill_dirs)
 
     def _local_models_config(self) -> dict:
         """Provider config is derived ONLY from the registered deployment record."""
@@ -224,8 +238,14 @@ class PiJsonAdapter:
             os.makedirs(path, exist_ok=True)
         cmd = [self.executable, "-p", "--mode", "json",
                "--provider", self.provider, "--model", self.model,
-               "--session-dir", os.path.join(session.layout_root, "session"),
-               "--approve", task_prompt]
+               "--session-dir", os.path.join(session.layout_root, "session")]
+        # M3 compiled profile: system prompt text + one --skill per compiled
+        # skill directory. The compiled artifact is the source of truth.
+        if session.system_prompt:
+            cmd += ["--system-prompt", session.system_prompt]
+        for skill_dir in session.skill_dirs:
+            cmd += ["--skill", skill_dir]
+        cmd += ["--approve", task_prompt]
         result = spawn_isolated(cmd, layout, self.spec, extra_env=session.extra_env,
                                 timeout_s=timeout_s, cancel=cancel,
                                 stdout_path=stdout_path, stderr_path=stderr_path)
