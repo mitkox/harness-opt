@@ -13,7 +13,8 @@ import time
 from ..contracts.harness import HarnessCapabilities, HarnessName
 from .base import HarnessOutput, PreparedSession
 
-BEHAVIORS = ("succeed", "fail", "hang", "claim_success", "repair", "scope_violation")
+BEHAVIORS = ("succeed", "fail", "hang", "claim_success", "repair",
+              "scope_violation", "skill_repair")
 
 _REPAIRS = {
     "median_bug.py": (
@@ -84,12 +85,30 @@ class ScriptedHarness:
                 return HarnessOutput(terminal_status="timeout", exit_code=124)
             time.sleep(step)
             elapsed += step
-        if self.behavior in ("repair", "scope_violation"):
+        if self.behavior in ("repair", "scope_violation", "skill_repair"):
             apply_known_repair(workspace)
         if self.behavior == "scope_violation":
             protected = os.path.join(workspace, "reproducer_visible.py")
             with open(protected, "a") as fh:
                 fh.write("\n# candidate poked a protected file\n")
+        if self.behavior == "skill_repair" and on_native_event is not None:
+            # Deterministic skill lifecycle through the same native-event path
+            # the Pi adapter uses: exposure != selection != load != execution.
+            for native in (
+                {"type": "skill_selected", "skillId": "debug-helper",
+                 "skillVersion": "v3"},
+                {"type": "skill_loaded", "skillId": "debug-helper",
+                 "skillVersion": "v3",
+                 "resources": ["scripts/repro.py"]},
+                {"type": "tool_execution_start", "toolCallId": "skill-tool-1",
+                 "toolName": "read", "args": {"path": "median_bug.py"}},
+                {"type": "tool_execution_end", "toolCallId": "skill-tool-1",
+                 "toolName": "read", "status": "ok",
+                 "result": {"bytes": 120}},
+                {"type": "skill_executed", "skillId": "debug-helper",
+                 "skillVersion": "v3", "status": "ok"},
+            ):
+                on_native_event(native)
         if self.behavior == "fail":
             return HarnessOutput(terminal_status="exited", exit_code=1,
                                  agent_claim="I could not fix it")
@@ -99,5 +118,8 @@ class ScriptedHarness:
         if self.behavior == "repair":
             return HarnessOutput(terminal_status="exited", exit_code=0,
                                  agent_claim="Repair applied")
+        if self.behavior == "skill_repair":
+            return HarnessOutput(terminal_status="exited", exit_code=0,
+                                 agent_claim="Repair applied via debug-helper v3")
         return HarnessOutput(terminal_status="exited", exit_code=0,
                              agent_claim="done")

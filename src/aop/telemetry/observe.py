@@ -186,6 +186,7 @@ def sample_resources() -> ResourceSample:
     except Exception:
         pass
     gpu_mem, gpu_util = None, None
+    gpu_note = "no gpu meter available"
     for probe in ("rocm-smi", "nvidia-smi"):
         try:
             import shutil as _shutil
@@ -194,12 +195,18 @@ def sample_resources() -> ResourceSample:
                 out = _sp.run([probe, "--showmeminfo", "vram"],
                               capture_output=True, text=True, timeout=5)
                 if out.returncode == 0 and out.stdout.strip():
-                    gpu_mem = -1  # host-level output present but unattributed
+                    # Host-level meter present but unattributed to this run:
+                    # keep null (never attribute a shared meter to one task).
+                    gpu_note = (f"{probe} present but host-level; "
+                                "not attributed to this run")
                     break
         except Exception:
             continue
-    return ResourceSample(cpu_s=cpu_s, peak_rss_bytes=peak_rss,
-                          gpu_mem_bytes=gpu_mem, gpu_util=gpu_util)
+    sample = ResourceSample(cpu_s=cpu_s, peak_rss_bytes=peak_rss,
+                            gpu_mem_bytes=gpu_mem, gpu_util=gpu_util)
+    sample.provenance = dict(METRIC_PROVENANCE)
+    sample.provenance["gpu_note"] = gpu_note
+    return sample
 
 
 def file_digest_of(path: str) -> str:

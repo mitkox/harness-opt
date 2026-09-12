@@ -243,7 +243,8 @@ class Runner:
                 harness: str = "pi", timeout_s: float | None = None,
                 cancel: threading.Event | None = None,
                 idempotency_key: str = "",
-                cancel_file: str | None = None) -> dict:
+                cancel_file: str | None = None,
+                skill_ids: list[str] | None = None) -> dict:
         cancel = cancel or threading.Event()
         task, prompt, repo_src, case_dir = load_case(case_id)
         budget = float(task.get("time_budget_s", 600))
@@ -252,7 +253,8 @@ class Runner:
 
         deployment = load_deployment(model_alias)
         harness_build = qualify_pi_for_m1()
-        bundle, _ = compile_bundle(deployment, harness_build, prompt)
+        bundle, _ = compile_bundle(deployment, harness_build, prompt,
+                                   skill_variant_ids=skill_ids)
         hidden_case_dir = os.path.join(HIDDEN_ROOT, case_id)
         verifier_error: VerifierSetupError | None = None
         try:
@@ -327,8 +329,10 @@ class Runner:
                    repo_digest=repo_digest, env_digest=env_digest,
                    payload_refs=([prompt_ref.digest] if prompt_ref else []))
         # Skill catalog exposure (M2 records exposure separately from use).
-        skill_entries = [SkillCatalogEntry(s, "v1", "sha256:" + "cd" * 32, "")
-                         for s in bundle.skill_variant_ids]
+        skill_entries = [SkillCatalogEntry(
+            s.split("@")[0], s.split("@")[1] if "@" in s else "v1",
+            "sha256:" + hashlib.sha256(s.encode()).hexdigest(), "")
+            for s in bundle.skill_variant_ids]
         catalog_digest = skill_catalog_digest(skill_entries) if skill_entries else (
             "sha256:" + hashlib.sha256(b"empty-catalog").hexdigest())
         self._emit(ledger, seq, run_id, attempt.attempt_id, bundle.digest,
@@ -497,6 +501,40 @@ class Runner:
                        EventAuthority(auth), etype, {"native_type": raw.get("type", "")},
                        **ident_kw)
             rtype = raw.get("type", "")
+            native_source = "pi-native" if harness == "pi" else "scripted"
+            if rtype in ("skill_selected", "skill_loaded", "skill_executed",
+                         "skill_failed"):
+                skill_id = str(raw.get("skillId", raw.get("skill_id", "")))
+                skill_version = str(raw.get("skillVersion",
+                                            raw.get("skill_version", "")))
+                skill_digest = ("sha256:" + hashlib.sha256(
+                    f"{skill_id}@{skill_version}".encode()).hexdigest()
+                    if skill_id else "")
+                skill_map = {"skill_selected": "skill.selected",
+                             "skill_loaded": "skill.loaded",
+                             "skill_executed": "skill.executed",
+                             "skill_failed": "skill.failed"}
+                if rtype == "skill_selected":
+                    sspan = tracer.start("skill.select", {"aop.skill": skill_id})
+                elif rtype == "skill_loaded":
+                    sspan = tracer.start("skill.load", {"aop.skill": skill_id})
+                else:
+                    sspan = agent_span
+                self._emit(ledger, seq, run_id, attempt.attempt_id, bundle.digest,
+                           native_source, EventAuthority.HARNESS_OBSERVATION,
+                           skill_map[rtype],
+                           {"skill_id": skill_id, "skill_version": skill_version,
+                            "skill_digest": skill_digest,
+                            "resources": raw.get("resources", []),
+                            "status": raw.get("status", "")},
+                           trace_id=tracer.trace_id, span_id=sspan.span_id,
+                           parent_span_id=agent_span.span_id,
+                           skill_id=skill_id, skill_version=skill_version,
+                           skill_digest=skill_digest,
+                           **{k: v for k, v in ident_kw.items()
+                               if k not in ("trace_id", "span_id")})
+                if rtype in ("skill_selected", "skill_loaded"):
+                    tracer.finish(sspan)
             if harness == "pi" and rtype in ("message_update", "message_end") \
                     and not first_token_seen:
                 first_token_seen = True
@@ -511,7 +549,7 @@ class Runner:
                            parent_span_id=agent_span.span_id,
                            **{k: v for k, v in ident_kw.items()
                                if k not in ("trace_id", "span_id")})
-            if harness == "pi" and rtype == "tool_execution_start":
+            if rtype == "tool_execution_start":
                 call_id = str(raw.get("toolCallId", raw.get("tool_call_id", "")))
                 tool_name = str(raw.get("toolName", raw.get("tool_name", "unknown")))
                 args = raw.get("args", {})
@@ -521,12 +559,12 @@ class Runner:
                 tsp = tracer.start("tool.execute",
                                    {"aop.tool": tool_name, "aop.invocation": call_id})
                 tool_spans[call_id] = tsp
-                call = normalize_tool_call(tool_name, "pi-native", call_id,
+                call = normalize_tool_call(tool_name, native_source, call_id,
                                            "agent-1", args, {},
                                            tool_starts[call_id],
                                            tool_starts[call_id])
                 self._emit(ledger, seq, run_id, attempt.attempt_id, bundle.digest,
-                           "pi-native", EventAuthority.HARNESS_OBSERVATION,
+                           native_source, EventAuthority.HARNESS_OBSERVATION,
                            "tool.request",
                            {"tool_name": call.tool_name,
                             "invocation_id": call.invocation_id,
@@ -534,19 +572,19 @@ class Runner:
                             "args_summary": call.args_summary},
                            trace_id=tracer.trace_id, span_id=tsp.span_id,
                            parent_span_id=agent_span.span_id,
-                           tool_id=tool_name, tool_version="pi-native",
+                           tool_id=tool_name, tool_version=native_source,
                            **{k: v for k, v in ident_kw.items()
                                if k not in ("trace_id", "span_id")})
                 self._emit(ledger, seq, run_id, attempt.attempt_id, bundle.digest,
-                           "pi-native", EventAuthority.HARNESS_OBSERVATION,
+                           native_source, EventAuthority.HARNESS_OBSERVATION,
                            "tool.started",
                            {"tool_name": tool_name, "invocation_id": call_id},
                            trace_id=tracer.trace_id, span_id=tsp.span_id,
                            parent_span_id=agent_span.span_id,
-                           tool_id=tool_name, tool_version="pi-native",
+                           tool_id=tool_name, tool_version=native_source,
                            **{k: v for k, v in ident_kw.items()
                                if k not in ("trace_id", "span_id")})
-            elif harness == "pi" and rtype in ("tool_execution_end",):
+            elif rtype in ("tool_execution_end",):
                 call_id = str(raw.get("toolCallId", raw.get("tool_call_id", "")))
                 tool_name = str(raw.get("toolName", raw.get("tool_name", "unknown")))
                 result = raw.get("result", raw.get("output", {}))
@@ -554,7 +592,7 @@ class Runner:
                     result = {"raw": str(result)[:2000]}
                 start = tool_starts.get(call_id, time.time())
                 tsp = tool_spans.pop(call_id, None)
-                call = normalize_tool_call(tool_name, "pi-native", call_id,
+                call = normalize_tool_call(tool_name, native_source, call_id,
                                            "agent-1", {}, result, start, time.time(),
                                            exit_status=str(raw.get("status", "ok")))
                 payload_refs = []
@@ -567,7 +605,7 @@ class Runner:
                 except Exception:
                     pass
                 self._emit(ledger, seq, run_id, attempt.attempt_id, bundle.digest,
-                           "pi-native", EventAuthority.HARNESS_OBSERVATION,
+                           native_source, EventAuthority.HARNESS_OBSERVATION,
                            "tool.completed",
                            {"tool_name": call.tool_name,
                             "invocation_id": call.invocation_id,
@@ -577,7 +615,7 @@ class Runner:
                            trace_id=tracer.trace_id,
                            span_id=(tsp.span_id if tsp else infer_span.span_id),
                            parent_span_id=agent_span.span_id,
-                           tool_id=tool_name, tool_version="pi-native",
+                           tool_id=tool_name, tool_version=native_source,
                            payload_refs=payload_refs,
                            **{k: v for k, v in ident_kw.items()
                                if k not in ("trace_id", "span_id")})

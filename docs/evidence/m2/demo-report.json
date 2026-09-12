@@ -1,0 +1,867 @@
+{
+  "arms": {
+    "A_success": {
+      "artifacts": [
+        "evaluation.json",
+        "manifest.json",
+        "report.json",
+        "resources.json",
+        "scope.json",
+        "trace-otel.json",
+        "trace.json",
+        "verify/verify/out/report.json",
+        "verify/verify/out/verification.json",
+        "verify/verify/out/verifier-stderr.log",
+        "verify/verify/out/verifier-stdout.log"
+      ],
+      "authorities": {
+        "agent_claim": 1,
+        "platform_observation": 17,
+        "verifier_fact": 12
+      },
+      "bundle_digest": "sha256:d13da30ecb8fa2bdc1373bb73fa290f665d13c67eca945690ddb1fc34d32144f",
+      "completeness_policy": {
+        "complete": true,
+        "gaps": {},
+        "missing_required": [],
+        "policy": "pass",
+        "sources": [
+          "aop-runner",
+          "scripted",
+          "verifier"
+        ],
+        "telemetry_incomplete": false
+      },
+      "event_trace_ids": [
+        "d86807bf461035f84932b35cc0f866d5"
+      ],
+      "event_types": {
+        "agent.claim": 1,
+        "agent.completed": 1,
+        "agent.started": 1,
+        "context.prepared": 1,
+        "diff.frozen": 1,
+        "evaluation.recorded": 1,
+        "harness.accepted": 1,
+        "harness.exited": 1,
+        "inference.completed": 1,
+        "inference.request": 1,
+        "output.frozen": 1,
+        "patch.generated": 1,
+        "run.admitted": 1,
+        "run.completed": 1,
+        "run.started": 1,
+        "skill.catalog_exposed": 1,
+        "telemetry.recovered": 1,
+        "verifier.completed": 1,
+        "verifier.started": 1,
+        "verifier.test_passed": 9,
+        "workspace.prepared": 1,
+        "workspace.snapshot": 1
+      },
+      "model_deployment_id": "qwen-flash-next-IQ2_S_-_2.5_bpw",
+      "outcome": "pass",
+      "replay": {
+        "bundle_digest": "sha256:d13da30ecb8fa2bdc1373bb73fa290f665d13c67eca945690ddb1fc34d32144f",
+        "environment_digest": "sha256:ed392dd8c8e111ab0a36ceef67e5e2530a72e51630072076f640f42e1d1343d6",
+        "harness_digest": "sha256:7ede832c9170290dfd78804f276ccd8aea00762b1ce235ee9bd89c8b63c4b597",
+        "model_deployment_digest": "sha256:8ff6a90b6fddfb9c11ef5bc3f75570a6ed27fcaa75f515bf7b072181737378d1",
+        "note": "identity metadata for future replay; stochastic model generation is not claimed deterministic",
+        "repo_snapshot_digest": "sha256:7affcb2596e1aa4a6187d09477ae588175b1b714ddb9f54e9d51bb95b40cca29",
+        "skill_versions": [],
+        "tool_versions": [
+          "pi-native"
+        ],
+        "verifier_id": "verifier:debug-offbyone",
+        "verifier_version": "debug-verifier-v2"
+      },
+      "resources": {
+        "cpu_time_s": 0.135,
+        "gpu_memory_bytes": -1,
+        "gpu_utilization": null,
+        "harness_tool_seconds": 0.0,
+        "model_seconds": 0.0,
+        "note": "queue/model/harness/verification kept separate; no combined latency metric",
+        "peak_rss_bytes": 43102208,
+        "provenance": {
+          "cpu_time_s": "measured",
+          "gpu_memory_bytes": "estimated",
+          "gpu_utilization": "estimated",
+          "harness_tool_seconds": "measured",
+          "model_seconds": "measured",
+          "peak_rss_bytes": "measured",
+          "queue_delay_s": "measured",
+          "server_decode_s": "unavailable",
+          "server_prefill_s": "unavailable",
+          "tokens_per_sec": "derived",
+          "ttft_s": "unavailable",
+          "verifier_seconds": "measured",
+          "wall_time_s": "measured"
+        },
+        "queue_delay_s": 0.0,
+        "verifier_seconds": 0.169,
+        "wall_time_s": 1.965
+      },
+      "run_dir": "/home/mitko/dev/harness-opt/runs/run-3a67a3bffcc0",
+      "run_id": "run-3a67a3bffcc0",
+      "spool": {
+        "collector": "recovered",
+        "flushed": 6,
+        "pending": 0
+      },
+      "telemetry_incomplete": false,
+      "trace_id": "d86807bf461035f84932b35cc0f866d5",
+      "trace_spans": [
+        "workflow.run",
+        "admission.resolve",
+        "workspace.prepare",
+        "agent.execute",
+        "inference.request",
+        "verifier.execute"
+      ],
+      "verdict": "pass"
+    },
+    "B_verifier_failure": {
+      "artifacts": [
+        "evaluation.json",
+        "manifest.json",
+        "report.json",
+        "resources.json",
+        "scope.json",
+        "trace-otel.json",
+        "trace.json",
+        "verify/verify/out/report.json",
+        "verify/verify/out/verification.json",
+        "verify/verify/out/verifier-stderr.log",
+        "verify/verify/out/verifier-stdout.log"
+      ],
+      "authorities": {
+        "agent_claim": 1,
+        "platform_observation": 16,
+        "verifier_fact": 12
+      },
+      "bundle_digest": "sha256:d13da30ecb8fa2bdc1373bb73fa290f665d13c67eca945690ddb1fc34d32144f",
+      "completeness_policy": {
+        "complete": true,
+        "gaps": {},
+        "missing_required": [],
+        "policy": "fail",
+        "sources": [
+          "aop-runner",
+          "scripted",
+          "verifier"
+        ],
+        "telemetry_incomplete": false
+      },
+      "event_trace_ids": [
+        "2dc0c3b79377a126af7b9d9d06f05764"
+      ],
+      "event_types": {
+        "agent.claim": 1,
+        "agent.completed": 1,
+        "agent.started": 1,
+        "context.prepared": 1,
+        "diff.frozen": 1,
+        "evaluation.recorded": 1,
+        "harness.accepted": 1,
+        "harness.exited": 1,
+        "inference.completed": 1,
+        "inference.request": 1,
+        "output.frozen": 1,
+        "run.admitted": 1,
+        "run.failed": 1,
+        "run.started": 1,
+        "skill.catalog_exposed": 1,
+        "telemetry.recovered": 1,
+        "verifier.completed": 1,
+        "verifier.started": 1,
+        "verifier.test_failed": 5,
+        "verifier.test_passed": 4,
+        "workspace.prepared": 1,
+        "workspace.snapshot": 1
+      },
+      "model_deployment_id": "qwen-flash-next-IQ2_S_-_2.5_bpw",
+      "outcome": "fail",
+      "replay": {
+        "bundle_digest": "sha256:d13da30ecb8fa2bdc1373bb73fa290f665d13c67eca945690ddb1fc34d32144f",
+        "environment_digest": "sha256:ed392dd8c8e111ab0a36ceef67e5e2530a72e51630072076f640f42e1d1343d6",
+        "harness_digest": "sha256:7ede832c9170290dfd78804f276ccd8aea00762b1ce235ee9bd89c8b63c4b597",
+        "model_deployment_digest": "sha256:8ff6a90b6fddfb9c11ef5bc3f75570a6ed27fcaa75f515bf7b072181737378d1",
+        "note": "identity metadata for future replay; stochastic model generation is not claimed deterministic",
+        "repo_snapshot_digest": "sha256:7affcb2596e1aa4a6187d09477ae588175b1b714ddb9f54e9d51bb95b40cca29",
+        "skill_versions": [],
+        "tool_versions": [
+          "pi-native"
+        ],
+        "verifier_id": "verifier:debug-offbyone",
+        "verifier_version": "debug-verifier-v2"
+      },
+      "resources": {
+        "cpu_time_s": 0.153,
+        "gpu_memory_bytes": -1,
+        "gpu_utilization": null,
+        "harness_tool_seconds": 0.0,
+        "model_seconds": 0.0,
+        "note": "queue/model/harness/verification kept separate; no combined latency metric",
+        "peak_rss_bytes": 43364352,
+        "provenance": {
+          "cpu_time_s": "measured",
+          "gpu_memory_bytes": "estimated",
+          "gpu_utilization": "estimated",
+          "harness_tool_seconds": "measured",
+          "model_seconds": "measured",
+          "peak_rss_bytes": "measured",
+          "queue_delay_s": "measured",
+          "server_decode_s": "unavailable",
+          "server_prefill_s": "unavailable",
+          "tokens_per_sec": "derived",
+          "ttft_s": "unavailable",
+          "verifier_seconds": "measured",
+          "wall_time_s": "measured"
+        },
+        "queue_delay_s": 0.0,
+        "verifier_seconds": 0.168,
+        "wall_time_s": 0.567
+      },
+      "run_dir": "/home/mitko/dev/harness-opt/runs/run-de4dc6385f81",
+      "run_id": "run-de4dc6385f81",
+      "spool": {
+        "collector": "recovered",
+        "flushed": 6,
+        "pending": 0
+      },
+      "telemetry_incomplete": false,
+      "trace_id": "2dc0c3b79377a126af7b9d9d06f05764",
+      "trace_spans": [
+        "workflow.run",
+        "admission.resolve",
+        "workspace.prepare",
+        "agent.execute",
+        "inference.request",
+        "verifier.execute"
+      ],
+      "verdict": "fail"
+    },
+    "C_timeout": {
+      "artifacts": [
+        "manifest.json",
+        "report.json",
+        "resources.json",
+        "trace-otel.json",
+        "trace.json"
+      ],
+      "authorities": {
+        "agent_claim": 1,
+        "platform_observation": 13
+      },
+      "bundle_digest": "sha256:d13da30ecb8fa2bdc1373bb73fa290f665d13c67eca945690ddb1fc34d32144f",
+      "completeness_policy": {
+        "complete": true,
+        "gaps": {},
+        "missing_required": [],
+        "policy": "timeout",
+        "sources": [
+          "aop-runner",
+          "scripted"
+        ],
+        "telemetry_incomplete": false
+      },
+      "event_trace_ids": [
+        "2780da42b11f73dadd74a2353d38830a"
+      ],
+      "event_types": {
+        "agent.claim": 1,
+        "agent.completed": 1,
+        "agent.started": 1,
+        "context.prepared": 1,
+        "harness.accepted": 1,
+        "harness.timeout": 1,
+        "inference.failed": 1,
+        "inference.request": 1,
+        "run.admitted": 1,
+        "run.started": 1,
+        "run.timeout": 1,
+        "skill.catalog_exposed": 1,
+        "telemetry.recovered": 1,
+        "workspace.prepared": 1
+      },
+      "model_deployment_id": "qwen-flash-next-IQ2_S_-_2.5_bpw",
+      "outcome": "timeout",
+      "replay": {
+        "bundle_digest": "sha256:d13da30ecb8fa2bdc1373bb73fa290f665d13c67eca945690ddb1fc34d32144f",
+        "environment_digest": "sha256:ed392dd8c8e111ab0a36ceef67e5e2530a72e51630072076f640f42e1d1343d6",
+        "harness_digest": "sha256:7ede832c9170290dfd78804f276ccd8aea00762b1ce235ee9bd89c8b63c4b597",
+        "model_deployment_digest": "sha256:8ff6a90b6fddfb9c11ef5bc3f75570a6ed27fcaa75f515bf7b072181737378d1",
+        "note": "identity metadata for future replay; stochastic model generation is not claimed deterministic",
+        "repo_snapshot_digest": "sha256:7affcb2596e1aa4a6187d09477ae588175b1b714ddb9f54e9d51bb95b40cca29",
+        "skill_versions": [],
+        "tool_versions": [
+          "pi-native"
+        ],
+        "verifier_id": "verifier:debug-offbyone",
+        "verifier_version": "debug-verifier-v2"
+      },
+      "resources": {
+        "cpu_time_s": 0.164,
+        "gpu_memory_bytes": -1,
+        "gpu_utilization": null,
+        "harness_tool_seconds": 2.003,
+        "model_seconds": 2.003,
+        "note": "queue/model/harness/verification kept separate; no combined latency metric",
+        "peak_rss_bytes": 43364352,
+        "provenance": {
+          "cpu_time_s": "measured",
+          "gpu_memory_bytes": "estimated",
+          "gpu_utilization": "estimated",
+          "harness_tool_seconds": "measured",
+          "model_seconds": "measured",
+          "peak_rss_bytes": "measured",
+          "queue_delay_s": "measured",
+          "server_decode_s": "unavailable",
+          "server_prefill_s": "unavailable",
+          "tokens_per_sec": "derived",
+          "ttft_s": "unavailable",
+          "verifier_seconds": "measured",
+          "wall_time_s": "measured"
+        },
+        "queue_delay_s": 0.0,
+        "verifier_seconds": 0.0,
+        "wall_time_s": 2.202
+      },
+      "run_dir": "/home/mitko/dev/harness-opt/runs/run-4e6dd5d07d00",
+      "run_id": "run-4e6dd5d07d00",
+      "spool": {
+        "collector": "recovered",
+        "flushed": 5,
+        "pending": 0
+      },
+      "telemetry_incomplete": false,
+      "trace_id": "2780da42b11f73dadd74a2353d38830a",
+      "trace_spans": [
+        "workflow.run",
+        "admission.resolve",
+        "workspace.prepare",
+        "agent.execute",
+        "inference.request"
+      ],
+      "verdict": "inconclusive"
+    },
+    "D_cancelled": {
+      "artifacts": [
+        "cancellation.json",
+        "manifest.json",
+        "report.json",
+        "resources.json",
+        "trace-otel.json",
+        "trace.json"
+      ],
+      "authorities": {
+        "agent_claim": 1,
+        "platform_observation": 15
+      },
+      "bundle_digest": "sha256:d13da30ecb8fa2bdc1373bb73fa290f665d13c67eca945690ddb1fc34d32144f",
+      "completeness_policy": {
+        "complete": true,
+        "gaps": {},
+        "missing_required": [],
+        "policy": "cancelled",
+        "sources": [
+          "aop-runner",
+          "scripted"
+        ],
+        "telemetry_incomplete": false
+      },
+      "event_trace_ids": [
+        "2c652b0e9ed3ed95c688c155f600228d"
+      ],
+      "event_types": {
+        "agent.claim": 1,
+        "agent.completed": 1,
+        "agent.started": 1,
+        "cancel.requested": 1,
+        "context.prepared": 1,
+        "harness.accepted": 1,
+        "harness.cancelled": 1,
+        "inference.failed": 1,
+        "inference.request": 1,
+        "run.admitted": 1,
+        "run.cancel_requested": 1,
+        "run.cancelled": 1,
+        "run.started": 1,
+        "skill.catalog_exposed": 1,
+        "telemetry.recovered": 1,
+        "workspace.prepared": 1
+      },
+      "model_deployment_id": "qwen-flash-next-IQ2_S_-_2.5_bpw",
+      "outcome": "cancelled",
+      "replay": {
+        "bundle_digest": "sha256:d13da30ecb8fa2bdc1373bb73fa290f665d13c67eca945690ddb1fc34d32144f",
+        "environment_digest": "sha256:ed392dd8c8e111ab0a36ceef67e5e2530a72e51630072076f640f42e1d1343d6",
+        "harness_digest": "sha256:7ede832c9170290dfd78804f276ccd8aea00762b1ce235ee9bd89c8b63c4b597",
+        "model_deployment_digest": "sha256:8ff6a90b6fddfb9c11ef5bc3f75570a6ed27fcaa75f515bf7b072181737378d1",
+        "note": "identity metadata for future replay; stochastic model generation is not claimed deterministic",
+        "repo_snapshot_digest": "sha256:7affcb2596e1aa4a6187d09477ae588175b1b714ddb9f54e9d51bb95b40cca29",
+        "skill_versions": [],
+        "tool_versions": [
+          "pi-native"
+        ],
+        "verifier_id": "verifier:debug-offbyone",
+        "verifier_version": "debug-verifier-v2"
+      },
+      "resources": {
+        "cpu_time_s": 0.204,
+        "gpu_memory_bytes": -1,
+        "gpu_utilization": null,
+        "harness_tool_seconds": 0.701,
+        "model_seconds": 0.701,
+        "note": "queue/model/harness/verification kept separate; no combined latency metric",
+        "peak_rss_bytes": 43626496,
+        "provenance": {
+          "cpu_time_s": "measured",
+          "gpu_memory_bytes": "estimated",
+          "gpu_utilization": "estimated",
+          "harness_tool_seconds": "measured",
+          "model_seconds": "measured",
+          "peak_rss_bytes": "measured",
+          "queue_delay_s": "measured",
+          "server_decode_s": "unavailable",
+          "server_prefill_s": "unavailable",
+          "tokens_per_sec": "derived",
+          "ttft_s": "unavailable",
+          "verifier_seconds": "measured",
+          "wall_time_s": "measured"
+        },
+        "queue_delay_s": 0.0,
+        "verifier_seconds": 0.0,
+        "wall_time_s": 0.934
+      },
+      "run_dir": "/home/mitko/dev/harness-opt/runs/run-d1baf78111fb",
+      "run_id": "run-d1baf78111fb",
+      "spool": {
+        "collector": "recovered",
+        "flushed": 5,
+        "pending": 0
+      },
+      "telemetry_incomplete": false,
+      "trace_id": "2c652b0e9ed3ed95c688c155f600228d",
+      "trace_spans": [
+        "workflow.run",
+        "admission.resolve",
+        "workspace.prepare",
+        "agent.execute",
+        "inference.request"
+      ],
+      "verdict": "inconclusive"
+    },
+    "E_collector_outage": {
+      "artifacts": [
+        "evaluation.json",
+        "manifest.json",
+        "report.json",
+        "resources.json",
+        "scope.json",
+        "trace-otel.json",
+        "trace.json",
+        "verify/verify/out/report.json",
+        "verify/verify/out/verification.json",
+        "verify/verify/out/verifier-stderr.log",
+        "verify/verify/out/verifier-stdout.log"
+      ],
+      "authorities": {
+        "agent_claim": 1,
+        "platform_observation": 16,
+        "verifier_fact": 12
+      },
+      "bundle_digest": "sha256:d13da30ecb8fa2bdc1373bb73fa290f665d13c67eca945690ddb1fc34d32144f",
+      "completeness_policy": {
+        "complete": true,
+        "gaps": {},
+        "missing_required": [],
+        "policy": "pass",
+        "sources": [
+          "aop-runner",
+          "scripted",
+          "verifier"
+        ],
+        "telemetry_incomplete": false
+      },
+      "event_trace_ids": [
+        "6819206e2eb3482175b567e5de120f77"
+      ],
+      "event_types": {
+        "agent.claim": 1,
+        "agent.completed": 1,
+        "agent.started": 1,
+        "context.prepared": 1,
+        "diff.frozen": 1,
+        "evaluation.recorded": 1,
+        "harness.accepted": 1,
+        "harness.exited": 1,
+        "inference.completed": 1,
+        "inference.request": 1,
+        "output.frozen": 1,
+        "patch.generated": 1,
+        "run.admitted": 1,
+        "run.completed": 1,
+        "run.started": 1,
+        "skill.catalog_exposed": 1,
+        "verifier.completed": 1,
+        "verifier.started": 1,
+        "verifier.test_passed": 9,
+        "workspace.prepared": 1,
+        "workspace.snapshot": 1
+      },
+      "model_deployment_id": "qwen-flash-next-IQ2_S_-_2.5_bpw",
+      "outcome": "pass",
+      "replay": {
+        "bundle_digest": "sha256:d13da30ecb8fa2bdc1373bb73fa290f665d13c67eca945690ddb1fc34d32144f",
+        "environment_digest": "sha256:ed392dd8c8e111ab0a36ceef67e5e2530a72e51630072076f640f42e1d1343d6",
+        "harness_digest": "sha256:7ede832c9170290dfd78804f276ccd8aea00762b1ce235ee9bd89c8b63c4b597",
+        "model_deployment_digest": "sha256:8ff6a90b6fddfb9c11ef5bc3f75570a6ed27fcaa75f515bf7b072181737378d1",
+        "note": "identity metadata for future replay; stochastic model generation is not claimed deterministic",
+        "repo_snapshot_digest": "sha256:7affcb2596e1aa4a6187d09477ae588175b1b714ddb9f54e9d51bb95b40cca29",
+        "skill_versions": [],
+        "tool_versions": [
+          "pi-native"
+        ],
+        "verifier_id": "verifier:debug-offbyone",
+        "verifier_version": "debug-verifier-v2"
+      },
+      "resources": {
+        "cpu_time_s": 0.225,
+        "gpu_memory_bytes": -1,
+        "gpu_utilization": null,
+        "harness_tool_seconds": 0.0,
+        "model_seconds": 0.0,
+        "note": "queue/model/harness/verification kept separate; no combined latency metric",
+        "peak_rss_bytes": 43626496,
+        "provenance": {
+          "cpu_time_s": "measured",
+          "gpu_memory_bytes": "estimated",
+          "gpu_utilization": "estimated",
+          "harness_tool_seconds": "measured",
+          "model_seconds": "measured",
+          "peak_rss_bytes": "measured",
+          "queue_delay_s": "measured",
+          "server_decode_s": "unavailable",
+          "server_prefill_s": "unavailable",
+          "tokens_per_sec": "derived",
+          "ttft_s": "unavailable",
+          "verifier_seconds": "measured",
+          "wall_time_s": "measured"
+        },
+        "queue_delay_s": 0.0,
+        "verifier_seconds": 0.136,
+        "wall_time_s": 0.539
+      },
+      "run_dir": "/home/mitko/dev/harness-opt/runs/run-af357cb426cc",
+      "run_id": "run-af357cb426cc",
+      "spool": {
+        "collector": "unavailable-spooled",
+        "flushed": 0,
+        "pending": 6,
+        "telemetry_gap": true
+      },
+      "telemetry_incomplete": false,
+      "trace_id": "6819206e2eb3482175b567e5de120f77",
+      "trace_spans": [
+        "workflow.run",
+        "admission.resolve",
+        "workspace.prepare",
+        "agent.execute",
+        "inference.request",
+        "verifier.execute"
+      ],
+      "verdict": "pass"
+    },
+    "E_recovery_flush": {
+      "collector": "recovered",
+      "flushed": 6,
+      "pending": 0
+    },
+    "F_skill": {
+      "artifacts": [
+        "evaluation.json",
+        "manifest.json",
+        "report.json",
+        "resources.json",
+        "scope.json",
+        "trace-otel.json",
+        "trace.json",
+        "verify/verify/out/report.json",
+        "verify/verify/out/verification.json",
+        "verify/verify/out/verifier-stderr.log",
+        "verify/verify/out/verifier-stdout.log"
+      ],
+      "authorities": {
+        "agent_claim": 1,
+        "harness_observation": 11,
+        "platform_observation": 17,
+        "verifier_fact": 12
+      },
+      "bundle_digest": "sha256:01dac8aa6d1ce5d8fc648d7ad0b1df10dc657fcb75ef7f5df016a50080dfaad7",
+      "completeness_policy": {
+        "complete": true,
+        "gaps": {},
+        "missing_required": [],
+        "policy": "pass",
+        "sources": [
+          "aop-runner",
+          "scripted",
+          "verifier"
+        ],
+        "telemetry_incomplete": false
+      },
+      "event_trace_ids": [
+        "53f12a12f469de3f4505468399e1259e"
+      ],
+      "event_types": {
+        "agent.claim": 1,
+        "agent.completed": 1,
+        "agent.started": 1,
+        "context.prepared": 1,
+        "diff.frozen": 1,
+        "evaluation.recorded": 1,
+        "harness.accepted": 1,
+        "harness.exited": 1,
+        "harness.scripted.event": 5,
+        "inference.completed": 1,
+        "inference.request": 1,
+        "output.frozen": 1,
+        "patch.generated": 1,
+        "run.admitted": 1,
+        "run.completed": 1,
+        "run.started": 1,
+        "skill.catalog_exposed": 1,
+        "skill.executed": 1,
+        "skill.loaded": 1,
+        "skill.selected": 1,
+        "telemetry.recovered": 1,
+        "tool.completed": 1,
+        "tool.request": 1,
+        "tool.started": 1,
+        "verifier.completed": 1,
+        "verifier.started": 1,
+        "verifier.test_passed": 9,
+        "workspace.prepared": 1,
+        "workspace.snapshot": 1
+      },
+      "model_deployment_id": "qwen-flash-next-IQ2_S_-_2.5_bpw",
+      "outcome": "pass",
+      "replay": {
+        "bundle_digest": "sha256:01dac8aa6d1ce5d8fc648d7ad0b1df10dc657fcb75ef7f5df016a50080dfaad7",
+        "environment_digest": "sha256:ed392dd8c8e111ab0a36ceef67e5e2530a72e51630072076f640f42e1d1343d6",
+        "harness_digest": "sha256:7ede832c9170290dfd78804f276ccd8aea00762b1ce235ee9bd89c8b63c4b597",
+        "model_deployment_digest": "sha256:8ff6a90b6fddfb9c11ef5bc3f75570a6ed27fcaa75f515bf7b072181737378d1",
+        "note": "identity metadata for future replay; stochastic model generation is not claimed deterministic",
+        "repo_snapshot_digest": "sha256:7affcb2596e1aa4a6187d09477ae588175b1b714ddb9f54e9d51bb95b40cca29",
+        "skill_versions": [
+          "debug-helper@v3"
+        ],
+        "tool_versions": [
+          "pi-native"
+        ],
+        "verifier_id": "verifier:debug-offbyone",
+        "verifier_version": "debug-verifier-v2"
+      },
+      "resources": {
+        "cpu_time_s": 0.184,
+        "gpu_memory_bytes": -1,
+        "gpu_utilization": null,
+        "harness_tool_seconds": 0.14,
+        "model_seconds": 0.14,
+        "note": "queue/model/harness/verification kept separate; no combined latency metric",
+        "peak_rss_bytes": 43364352,
+        "provenance": {
+          "cpu_time_s": "measured",
+          "gpu_memory_bytes": "estimated",
+          "gpu_utilization": "estimated",
+          "harness_tool_seconds": "measured",
+          "model_seconds": "measured",
+          "peak_rss_bytes": "measured",
+          "queue_delay_s": "measured",
+          "server_decode_s": "unavailable",
+          "server_prefill_s": "unavailable",
+          "tokens_per_sec": "derived",
+          "ttft_s": "unavailable",
+          "verifier_seconds": "measured",
+          "wall_time_s": "measured"
+        },
+        "queue_delay_s": 0.0,
+        "verifier_seconds": 0.168,
+        "wall_time_s": 0.707
+      },
+      "run_dir": "/home/mitko/dev/harness-opt/runs/run-3d3deb535732",
+      "run_id": "run-3d3deb535732",
+      "spool": {
+        "collector": "recovered",
+        "flushed": 9,
+        "pending": 0
+      },
+      "telemetry_incomplete": false,
+      "trace_id": "53f12a12f469de3f4505468399e1259e",
+      "trace_spans": [
+        "workflow.run",
+        "admission.resolve",
+        "workspace.prepare",
+        "agent.execute",
+        "inference.request",
+        "skill.select",
+        "skill.load",
+        "tool.execute",
+        "verifier.execute"
+      ],
+      "verdict": "pass"
+    },
+    "G_real_pi": {
+      "artifacts": [
+        "evaluation.json",
+        "harness-stderr.log",
+        "harness-stdout.log",
+        "manifest.json",
+        "report.json",
+        "resources.json",
+        "scope.json",
+        "trace-otel.json",
+        "trace.json",
+        "verify/verify/out/report.json",
+        "verify/verify/out/verification.json",
+        "verify/verify/out/verifier-stderr.log",
+        "verify/verify/out/verifier-stdout.log",
+        "worker/pi-config/auth.json",
+        "worker/pi-config/models-store.json",
+        "worker/pi-config/models.json",
+        "worker/pi-config/settings.json"
+      ],
+      "authorities": {
+        "agent_claim": 315,
+        "harness_observation": 40,
+        "platform_observation": 19,
+        "verifier_fact": 12
+      },
+      "bundle_digest": "sha256:d13da30ecb8fa2bdc1373bb73fa290f665d13c67eca945690ddb1fc34d32144f",
+      "completeness_policy": {
+        "complete": true,
+        "gaps": {},
+        "missing_required": [],
+        "policy": "pass",
+        "sources": [
+          "aop-runner",
+          "harness-report",
+          "pi-native",
+          "verifier"
+        ],
+        "telemetry_incomplete": false
+      },
+      "event_trace_ids": [
+        "9833e27e1d19a6884823b293508d2e22"
+      ],
+      "event_types": {
+        "agent.claim": 1,
+        "agent.completed": 1,
+        "agent.started": 1,
+        "context.prepared": 1,
+        "diff.frozen": 1,
+        "evaluation.recorded": 1,
+        "harness.accepted": 1,
+        "harness.exited": 1,
+        "harness.pi.agent_end": 1,
+        "harness.pi.agent_settled": 1,
+        "harness.pi.agent_start": 1,
+        "harness.pi.message_end": 8,
+        "harness.pi.message_start": 8,
+        "harness.pi.message_update": 306,
+        "harness.pi.session": 1,
+        "harness.pi.tool_execution_end": 3,
+        "harness.pi.tool_execution_start": 3,
+        "harness.pi.tool_execution_update": 5,
+        "harness.pi.turn_end": 4,
+        "harness.pi.turn_start": 4,
+        "inference.completed": 1,
+        "inference.first_token": 1,
+        "inference.request": 1,
+        "model.attested": 1,
+        "output.frozen": 1,
+        "patch.generated": 1,
+        "run.admitted": 1,
+        "run.completed": 1,
+        "run.started": 1,
+        "skill.catalog_exposed": 1,
+        "telemetry.recovered": 1,
+        "tool.completed": 3,
+        "tool.request": 3,
+        "tool.started": 3,
+        "verifier.completed": 1,
+        "verifier.started": 1,
+        "verifier.test_passed": 9,
+        "workspace.prepared": 1,
+        "workspace.snapshot": 1
+      },
+      "model_deployment_id": "qwen-flash-next-IQ2_S_-_2.5_bpw",
+      "outcome": "pass",
+      "replay": {
+        "bundle_digest": "sha256:d13da30ecb8fa2bdc1373bb73fa290f665d13c67eca945690ddb1fc34d32144f",
+        "environment_digest": "sha256:ed392dd8c8e111ab0a36ceef67e5e2530a72e51630072076f640f42e1d1343d6",
+        "harness_digest": "sha256:7ede832c9170290dfd78804f276ccd8aea00762b1ce235ee9bd89c8b63c4b597",
+        "model_deployment_digest": "sha256:8ff6a90b6fddfb9c11ef5bc3f75570a6ed27fcaa75f515bf7b072181737378d1",
+        "note": "identity metadata for future replay; stochastic model generation is not claimed deterministic",
+        "repo_snapshot_digest": "sha256:7affcb2596e1aa4a6187d09477ae588175b1b714ddb9f54e9d51bb95b40cca29",
+        "skill_versions": [],
+        "tool_versions": [
+          "pi-native"
+        ],
+        "verifier_id": "verifier:debug-offbyone",
+        "verifier_version": "debug-verifier-v2"
+      },
+      "resources": {
+        "cpu_time_s": 0.35,
+        "gpu_memory_bytes": -1,
+        "gpu_utilization": null,
+        "harness_tool_seconds": 25.943,
+        "model_seconds": 25.943,
+        "note": "queue/model/harness/verification kept separate; no combined latency metric",
+        "peak_rss_bytes": 45985792,
+        "provenance": {
+          "cpu_time_s": "measured",
+          "gpu_memory_bytes": "estimated",
+          "gpu_utilization": "estimated",
+          "harness_tool_seconds": "measured",
+          "model_seconds": "measured",
+          "peak_rss_bytes": "measured",
+          "queue_delay_s": "measured",
+          "server_decode_s": "unavailable",
+          "server_prefill_s": "unavailable",
+          "tokens_per_sec": "derived",
+          "ttft_s": "unavailable",
+          "verifier_seconds": "measured",
+          "wall_time_s": "measured"
+        },
+        "queue_delay_s": 0.0,
+        "verifier_seconds": 0.168,
+        "wall_time_s": 26.548
+      },
+      "run_dir": "/home/mitko/dev/harness-opt/runs/run-e3019e65a703",
+      "run_id": "run-e3019e65a703",
+      "spool": {
+        "collector": "recovered",
+        "flushed": 9,
+        "pending": 0
+      },
+      "telemetry_incomplete": false,
+      "trace_id": "9833e27e1d19a6884823b293508d2e22",
+      "trace_spans": [
+        "workflow.run",
+        "admission.resolve",
+        "workspace.prepare",
+        "agent.execute",
+        "inference.request",
+        "tool.execute",
+        "tool.execute",
+        "tool.execute",
+        "verifier.execute"
+      ],
+      "verdict": "pass"
+    }
+  },
+  "notes": []
+}
