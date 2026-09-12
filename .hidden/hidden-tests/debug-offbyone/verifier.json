@@ -1,0 +1,28 @@
+{
+  "verifier_id": "verifier:debug-offbyone",
+  "version": "debug-verifier-v2",
+  "test_files": ["test_hidden_median.py"],
+  "expected_tests": [
+    "test_hidden_median.py::test_even_length",
+    "test_hidden_median.py::test_even_length_unsorted",
+    "test_hidden_median.py::test_odd_length",
+    "test_hidden_median.py::test_single",
+    "test_hidden_median.py::test_two_elements",
+    "test_hidden_median.py::test_floats_and_negatives",
+    "test_hidden_median.py::test_large_even",
+    "test_hidden_median.py::test_empty_raises",
+    "test_hidden_median.py::test_does_not_mutate_input"
+  ],
+  "mandatory_tests": [
+    "test_hidden_median.py::test_even_length",
+    "test_hidden_median.py::test_even_length_unsorted",
+    "test_hidden_median.py::test_odd_length",
+    "test_hidden_median.py::test_single",
+    "test_hidden_median.py::test_two_elements",
+    "test_hidden_median.py::test_floats_and_negatives",
+    "test_hidden_median.py::test_large_even",
+    "test_hidden_median.py::test_empty_raises",
+    "test_hidden_median.py::test_does_not_mutate_input"
+  ],
+  "minimum_test_count": 9
+}

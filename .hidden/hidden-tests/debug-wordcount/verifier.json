@@ -1,0 +1,24 @@
+{
+  "verifier_id": "verifier:debug-wordcount",
+  "version": "debug-verifier-v2",
+  "test_files": ["test_hidden_counter.py"],
+  "expected_tests": [
+    "test_hidden_counter.py::test_basic",
+    "test_hidden_counter.py::test_tabs_and_newlines",
+    "test_hidden_counter.py::test_whitespace_runs",
+    "test_hidden_counter.py::test_empty_and_blank",
+    "test_hidden_counter.py::test_single_word",
+    "test_hidden_counter.py::test_punctuation_kept_simple",
+    "test_hidden_counter.py::test_mixed_whitespace"
+  ],
+  "mandatory_tests": [
+    "test_hidden_counter.py::test_basic",
+    "test_hidden_counter.py::test_tabs_and_newlines",
+    "test_hidden_counter.py::test_whitespace_runs",
+    "test_hidden_counter.py::test_empty_and_blank",
+    "test_hidden_counter.py::test_single_word",
+    "test_hidden_counter.py::test_punctuation_kept_simple",
+    "test_hidden_counter.py::test_mixed_whitespace"
+  ],
+  "minimum_test_count": 7
+}
