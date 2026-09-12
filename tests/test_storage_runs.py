@@ -1,7 +1,13 @@
 """Storage / ledger / runstore tests (AOP-005, AOP-006). Hermetic."""
 import pytest
 
-from aop.contracts.records import AttemptRecord, RunOutcome, RunRecord, TrajectoryEvent
+from aop.contracts.records import (
+    AttemptRecord,
+    EventSource,
+    RunOutcome,
+    RunRecord,
+    TrajectoryEvent,
+)
 from aop.runstore import RunStore
 from aop.storage import ArtifactStore
 from aop.trajectories import EventLedger
@@ -9,10 +15,14 @@ from aop.trajectories import EventLedger
 DIGEST = "sha256:" + "ab" * 32
 
 
+def _uid(n):
+    return f"00000000-0000-4000-8000-{n:012d}"
+
+
 def _evt(eid, source, seq, run="r1"):
     return TrajectoryEvent(
         event_id=eid, event_type="test.event", run_id=run, attempt_id="a1",
-        source_id=source, authority="trusted_observer", source_sequence=seq,
+        source=EventSource(id=source, authority="synthetic_fixture"), source_sequence=seq,
         observed_at="2026-09-12T00:00:00Z", bundle_digest=DIGEST,
         trace_id="1" * 32, span_id="2" * 16)
 
@@ -47,31 +57,47 @@ def test_interrupted_write_not_complete(tmp_path):
 
 def test_ledger_dedup_and_reconnect(tmp_path):
     ledger = EventLedger(str(tmp_path / "events.jsonl"))
-    assert ledger.append(_evt("e1", "pi", 0)) is True
-    assert ledger.append(_evt("e1", "pi", 0)) is False  # at-least-once duplicate
-    assert ledger.append(_evt("e2", "pi", 1)) is True
+    assert ledger.append(_evt(_uid(1), "pi", 0)) is True
+    assert ledger.append(_evt(_uid(1), "pi", 0)) is False  # at-least-once duplicate
+    assert ledger.append(_evt(_uid(2), "pi", 1)) is True
     with pytest.raises(ValueError):
-        ledger.append(_evt("e3", "pi", 1))  # regression / duplicate seq
+        ledger.append(_evt(_uid(3), "pi", 1))  # regression / duplicate seq
     # observer reconnect from cursor
     batch, cursor = ledger.read_from_cursor(0)
     assert len(batch) == 2 and cursor == 2
     ledger2 = EventLedger(str(tmp_path / "events.jsonl"))  # restart recovery
     batch2, _ = ledger2.read_from_cursor(cursor)
     assert batch2 == []
-    ledger2.append(_evt("e3", "pi", 2))
+    ledger2.append(_evt(_uid(3), "pi", 2))
     batch3, cursor3 = ledger2.read_from_cursor(cursor)
     assert len(batch3) == 1 and cursor3 == 3
-    assert ledger2.completeness()["complete"] is True
+    assert ledger2.completeness()["gaps"] == {}
+
+
+def test_ledger_missing_terminal_event_is_incomplete(tmp_path):
+    """Contiguous sequences alone are not complete; required terminal events count."""
+    ledger = EventLedger(str(tmp_path / "events.jsonl"))
+    for i, etype in enumerate(("run.admitted", "workspace.prepared", "harness.accepted")):
+        evt = _evt(_uid(10 + i), "aop-runner", i)
+        evt.event_type = etype
+        ledger.append(evt)
+    comp = ledger.completeness()
+    assert comp["gaps"] == {} and comp["complete"] is False
+    assert "terminal_harness_event" in comp["missing_required"]
+    terminal = _evt(_uid(20), "aop-runner", 3)
+    terminal.event_type = "harness.exited"
+    ledger.append(terminal)
+    comp2 = ledger.completeness()
+    assert comp2["complete"] is True and comp2["missing_required"] == []
 
 
 def test_ledger_gap_detected(tmp_path):
-    import json
     path = str(tmp_path / "events.jsonl")
     ledger = EventLedger(path)
-    ledger.append(_evt("e1", "pi", 0))
-    ledger.append(_evt("e2", "pi", 1))
-    # simulate lost event: rewrite file skipping seq 2 of 0..3 by direct append
-    ledger.append(_evt("e3b", "pi", 3))
+    ledger.append(_evt(_uid(1), "pi", 0))
+    ledger.append(_evt(_uid(2), "pi", 1))
+    # simulate lost event: append a later sequence, leaving a gap at 2
+    ledger.append(_evt(_uid(4), "pi", 3))
     comp = ledger.completeness()
     assert comp["complete"] is False
     assert comp["gaps"] == {"pi": [2]}

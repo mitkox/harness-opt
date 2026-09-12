@@ -4,9 +4,17 @@ from pydantic import ValidationError
 
 from aop.contracts.base import sha256_hex
 from aop.contracts.harness import HarnessBuild, HarnessName
-from aop.contracts.model import LocalEndpoint, ModelDeployment, ModelFamily, ModelStatus
+from aop.contracts.model import (
+    LocalEndpoint,
+    ModelDeployment,
+    ModelFamily,
+    ModelStatus,
+    WeightShard,
+)
 from aop.contracts.records import (
     EvaluationResult,
+    EventAuthority,
+    EventSource,
     ExecutionBundle,
     RunOutcome,
     RunRecord,
@@ -16,6 +24,10 @@ from aop.contracts.records import (
 )
 
 DIGEST = "sha256:" + "ab" * 32
+
+
+def _shard(path="w.gguf", digest="a" * 16):
+    return WeightShard(path=path, size_bytes=10, partial_sha256_head_tail_4m=digest)
 
 
 def test_rejects_invalid_fields():
@@ -50,6 +62,9 @@ def test_qualified_requires_endpoint():
     with pytest.raises(ValueError):
         dep.require_qualified()
     dep.endpoint = LocalEndpoint(alias="q", base_url="http://127.0.0.1:8000/v1", model_id="m")
+    with pytest.raises(ValueError):
+        dep.require_qualified()  # no weight-shard manifest -> identity unavailable
+    dep.weight_shards = [_shard()]
     dep.require_qualified()
 
 
@@ -100,13 +115,14 @@ def test_qualified_model_target_requires_deployment_id():
 
 def test_event_claim_vs_fact_separation():
     evt = TrajectoryEvent(
-        event_id="e1", event_type="agent.message", run_id="r", attempt_id="a",
-        source_id="pi-adapter", authority="agent_report", source_sequence=3,
-        observed_at="2026-09-12T00:00:00Z", bundle_digest=DIGEST,
-        trace_id="1" * 32, span_id="2" * 16,
+        event_id="11111111-2222-4333-8444-555555555555", event_type="agent.message",
+        run_id="r", attempt_id="a",
+        source=EventSource(id="pi-adapter", authority=EventAuthority.AGENT_CLAIM),
+        source_sequence=3, observed_at="2026-09-12T00:00:00Z", bundle_digest=DIGEST,
         attributes={"text": "I fixed it"},
     )
-    assert evt.authority.value == "agent_report"
+    assert evt.source.authority == EventAuthority.AGENT_CLAIM
+    assert evt.source.id == "pi-adapter"
     assert evt.source_sequence == 3
 
 
