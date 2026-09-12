@@ -1,0 +1,7 @@
+component_type: system_prompt
+name: security-system
+version: 1.0.0
+description: Authorized defensive security review prompt.
+compatibility:
+  harnesses:
+  - pi

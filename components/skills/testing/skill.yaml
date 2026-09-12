@@ -1,0 +1,32 @@
+component_type: skill
+name: testing
+version: 1.0.0
+description: Add or repair tests without weakening existing checks.
+purpose: Produce tests that fail on the baseline and pass on the repair.
+triggers:
+  positive:
+  - Add a regression test for this bug.
+  - Repair this flaky test.
+  negative:
+  - Delete the failing test.
+dependencies:
+- repo-navigation@^1.0.0
+tool_requirements:
+- read
+- write
+- edit
+- bash
+- grep
+permission_requirements:
+- Modify task-scoped tests
+resources: []
+scripts: []
+compatibility:
+  harnesses:
+  - pi
+model_family_hints: []
+harness_hints:
+- pi
+provenance:
+  origin: hop-m3-example
+  license: Apache-2.0

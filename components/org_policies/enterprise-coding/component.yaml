@@ -1,0 +1,20 @@
+component_type: org_policy
+name: enterprise-coding
+version: 1.0.0
+description: Mandatory enterprise safety policy for coding workflows.
+compatibility:
+  harnesses:
+  - pi
+rules:
+  network.egress:
+    value: deny
+    class: mandatory
+  secrets.exfiltration:
+    value: deny
+    class: forbidden_override
+  telemetry.external:
+    value: deny
+    class: mandatory
+  audit.trajectory:
+    value: required
+    class: mandatory

@@ -1,0 +1,4 @@
+name: glm
+selectors:
+- dimension: model_family
+  value: glm

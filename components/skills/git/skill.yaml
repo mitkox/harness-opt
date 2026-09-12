@@ -1,0 +1,27 @@
+component_type: skill
+name: git
+version: 1.0.0
+description: Inspect repository state safely; never rewrite shared history.
+purpose: Understand VCS state without destructive operations.
+triggers:
+  positive:
+  - What changed on this branch?
+  negative:
+  - Force-push main.
+dependencies: []
+tool_requirements:
+- bash
+- read
+permission_requirements:
+- Read-only git inspection
+resources: []
+scripts: []
+compatibility:
+  harnesses:
+  - pi
+model_family_hints: []
+harness_hints:
+- pi
+provenance:
+  origin: hop-m3-example
+  license: Apache-2.0

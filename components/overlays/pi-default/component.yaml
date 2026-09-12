@@ -1,0 +1,14 @@
+component_type: harness_overlay
+name: pi-default
+version: 1.0.0
+description: Default Pi harness overlay.
+compatibility:
+  harnesses:
+  - pi
+rules:
+  harness.model_selection:
+    value: explicit
+    class: overridable
+  harness.network:
+    value: loopback-only
+    class: mandatory

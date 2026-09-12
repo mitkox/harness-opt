@@ -1,0 +1,7 @@
+component_type: mcp
+name: docs-mcp
+version: 1.0.0
+description: Example local MCP definition.
+compatibility:
+  harnesses:
+  - pi

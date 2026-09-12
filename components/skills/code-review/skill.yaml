@@ -1,0 +1,37 @@
+component_type: skill
+name: code-review
+version: 1.0.0
+description: Produce evidence-backed, deduplicated review findings.
+purpose: Find real defects and abstain on clean changes.
+triggers:
+  positive:
+  - Review this diff for correctness.
+  negative:
+  - Rewrite this code to be cleaner.
+dependencies:
+- repo-navigation@^1.0.0
+tool_requirements:
+- read
+- grep
+- glob
+permission_requirements:
+- Read-only repository access
+resources:
+- resources/review-rubric.md
+scripts: []
+compatibility:
+  harnesses:
+  - pi
+  model_families:
+  - qwen
+  - deepseek
+  - glm
+model_family_hints:
+- qwen
+- deepseek
+- glm
+harness_hints:
+- pi
+provenance:
+  origin: hop-m3-example
+  license: Apache-2.0

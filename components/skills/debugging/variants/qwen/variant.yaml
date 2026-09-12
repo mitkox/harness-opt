@@ -1,0 +1,4 @@
+name: qwen
+selectors:
+- dimension: model_family
+  value: qwen
