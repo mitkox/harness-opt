@@ -1,0 +1,1 @@
+{"case": "debug-wordcount", "origin": "synthetic-seed-for-M1", "created": "2026-09-12", "baseline": "split(' ') mishandles tabs and whitespace runs"}

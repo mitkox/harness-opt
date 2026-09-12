@@ -1,0 +1,10 @@
+task_id: debug-wordcount-t1
+case_id: debug-wordcount
+workflow: debugging
+split: development
+time_budget_s: 600
+verifier_ref: verifier:debug-wordcount:v1
+repo_subdir: repo
+acceptance:
+  - Visible reproducer passes on the patched snapshot.
+  - Hidden behavioral and regression tests pass.

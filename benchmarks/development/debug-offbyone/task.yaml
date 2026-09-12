@@ -1,0 +1,10 @@
+task_id: debug-offbyone-t1
+case_id: debug-offbyone
+workflow: debugging
+split: development
+time_budget_s: 600
+verifier_ref: verifier:debug-offbyone:v1
+repo_subdir: repo
+acceptance:
+  - Visible reproducer passes on the patched snapshot.
+  - Hidden behavioral and regression tests pass.
