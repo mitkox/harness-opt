@@ -1,0 +1,1142 @@
+schema_version: '0.1'
+project: Local Agent Optimization Platform
+status: implementation_plan_not_implemented
+initial_assignment:
+- M0
+- M1
+rules:
+  inference: registered_local_deployments_only
+  release: approved_immutable_bundles_only
+  grading: trusted_independent_verification
+  parallelism: respect_dependencies_and_local_capacity
+work_items:
+- id: AOP-001
+  milestone: M0
+  area: contracts
+  title: Define versioned domain contracts
+  status: planned
+  priority: P0
+  depends_on: []
+  outputs:
+  - Contracts for models, harnesses, skills, tasks, bundles, runs, evaluations and releases
+  - Schema migration and compatibility ADR
+  acceptance_criteria:
+  - Reject invalid fields and unresolved production identities
+  - Round-trip fixture serialization preserves identity
+  - A draft target is distinguishable from a deployable profile
+  evidence_required:
+  - Reviewable diff or commit
+  - Exact validation commands and observed outcomes
+  - Explicit unexecuted tests and compatibility limits
+- id: AOP-002
+  milestone: M0
+  area: integrations
+  title: Discover actual local models and harness builds
+  status: planned
+  priority: P0
+  depends_on: []
+  outputs:
+  - Pinned integration inventory
+  - Supported/blocked capability matrix
+  acceptance_criteria:
+  - Record actual binary/source/build and model artifact identities
+  - No unavailable target is replaced with hosted inference
+  - Document OpenCode v2 executable and DeepSeek preview integration surfaces
+  evidence_required:
+  - Reviewable diff or commit
+  - Exact validation commands and observed outcomes
+  - Explicit unexecuted tests and compatibility limits
+- id: AOP-003
+  milestone: M0
+  area: security
+  title: Define trust boundaries and local-only policy
+  status: planned
+  priority: P0
+  depends_on: []
+  outputs:
+  - Threat model
+  - Worker/verifier/publisher identity and network policy
+  acceptance_criteria:
+  - Hidden evaluators and release keys are outside worker access
+  - Policy covers child processes and auxiliary model calls
+  - Security reviewer approves the boundary design
+  evidence_required:
+  - Reviewable diff or commit
+  - Exact validation commands and observed outcomes
+  - Explicit unexecuted tests and compatibility limits
+- id: AOP-004
+  milestone: M0
+  area: foundation
+  title: Create pinned repository and test infrastructure
+  status: planned
+  priority: P0
+  depends_on: []
+  outputs:
+  - Application skeleton and dependency locks
+  - Unit/contract/integration test entry points
+  acceptance_criteria:
+  - Fresh local build is reproducible from pinned artifacts
+  - No floating dependencies in executable release paths
+  - Lint, type checks and baseline tests run without hosted inference
+  evidence_required:
+  - Reviewable diff or commit
+  - Exact validation commands and observed outcomes
+  - Explicit unexecuted tests and compatibility limits
+- id: AOP-005
+  milestone: M1
+  area: storage
+  title: Implement content-addressed artifact storage
+  status: planned
+  priority: P0
+  depends_on:
+  - AOP-001
+  - AOP-004
+  outputs:
+  - Local artifact store interface
+  - Atomic staging, hashing and metadata references
+  acceptance_criteria:
+  - Tampered artifacts fail verification
+  - Interrupted writes cannot appear complete
+  - Access checks prevent cross-repository reads
+  evidence_required:
+  - Reviewable diff or commit
+  - Exact validation commands and observed outcomes
+  - Explicit unexecuted tests and compatibility limits
+- id: AOP-006
+  milestone: M1
+  area: execution
+  title: Implement durable run state and worker leases
+  status: planned
+  priority: P0
+  depends_on:
+  - AOP-001
+  - AOP-003
+  - AOP-004
+  - AOP-005
+  outputs:
+  - Run/attempt state machines
+  - PostgreSQL jobs, outbox, leases and fencing
+  acceptance_criteria:
+  - Duplicate admission is idempotent
+  - A stale worker cannot finalize a newer attempt
+  - Restart preserves all prior attempts and terminal states
+  evidence_required:
+  - Reviewable diff or commit
+  - Exact validation commands and observed outcomes
+  - Explicit unexecuted tests and compatibility limits
+- id: AOP-007
+  milestone: M1
+  area: models
+  title: Implement local inference transport
+  status: planned
+  priority: P0
+  depends_on:
+  - AOP-002
+  - AOP-003
+  - AOP-004
+  outputs:
+  - Registered local endpoint client
+  - Streaming, cancellation and request recording
+  acceptance_criteria:
+  - Cloud fallback and redirects outside policy fail closed
+  - Actual tool-call streaming and Unicode pass fixtures
+  - Unsupported parameters return explicit errors
+  evidence_required:
+  - Reviewable diff or commit
+  - Exact validation commands and observed outcomes
+  - Explicit unexecuted tests and compatibility limits
+- id: AOP-008
+  milestone: M1
+  area: security
+  title: Implement external worker sandbox
+  status: planned
+  priority: P0
+  depends_on:
+  - AOP-003
+  - AOP-004
+  - AOP-005
+  outputs:
+  - Isolated workspace/home/session/cache runner
+  - CPU, memory, process, disk and egress controls
+  acceptance_criteria:
+  - No host credentials or container socket are inherited
+  - Child processes respect quotas and cancellation
+  - Agent cannot read hidden verifier or another workspace
+  evidence_required:
+  - Reviewable diff or commit
+  - Exact validation commands and observed outcomes
+  - Explicit unexecuted tests and compatibility limits
+- id: AOP-009
+  milestone: M1
+  area: adapters
+  title: Implement the Pi adapter
+  status: planned
+  priority: P0
+  depends_on:
+  - AOP-002
+  - AOP-006
+  - AOP-007
+  - AOP-008
+  outputs:
+  - Pinned Pi RPC adapter
+  - Native event fixtures and clean session lifecycle
+  acceptance_criteria:
+  - Prompt acceptance is not classified as completion
+  - Tool execution, cancellation and session export work locally
+  - Global home/config state does not contaminate the run
+  evidence_required:
+  - Reviewable diff or commit
+  - Exact validation commands and observed outcomes
+  - Explicit unexecuted tests and compatibility limits
+- id: AOP-010
+  milestone: M1
+  area: verification
+  title: Implement independent frozen-patch verification
+  status: planned
+  priority: P0
+  depends_on:
+  - AOP-005
+  - AOP-008
+  outputs:
+  - Trusted verifier worker
+  - Baseline and patched snapshot evaluation
+  acceptance_criteria:
+  - Known bug fails on baseline and passes only for a valid repair
+  - Agent cannot modify or inspect hidden verifier tests
+  - Malformed/oversized output cannot bypass collection
+  evidence_required:
+  - Reviewable diff or commit
+  - Exact validation commands and observed outcomes
+  - Explicit unexecuted tests and compatibility limits
+- id: AOP-011
+  milestone: M1
+  area: integration
+  title: Complete first end-to-end debugging slice
+  status: planned
+  priority: P0
+  depends_on:
+  - AOP-006
+  - AOP-009
+  - AOP-010
+  outputs:
+  - Small controlled debugging corpus
+  - Run report with patch and verifier evidence
+  acceptance_criteria:
+  - Demonstrate pass, fail, timeout and cancellation outcomes
+  - Every run identifies model, harness and input snapshot
+  - No success decision relies only on agent narration
+  evidence_required:
+  - Reviewable diff or commit
+  - Exact validation commands and observed outcomes
+  - Explicit unexecuted tests and compatibility limits
+- id: AOP-012
+  milestone: M2
+  area: telemetry
+  title: Implement reliable trajectory event ingestion
+  status: planned
+  priority: P1
+  depends_on:
+  - AOP-001
+  - AOP-005
+  - AOP-006
+  - AOP-011
+  outputs:
+  - Versioned event envelopes
+  - Disk spool, cursor recovery and deduplication
+  acceptance_criteria:
+  - Duplicate and out-of-order fixtures are reconciled
+  - Unrecoverable sequence gaps prevent promotion eligibility
+  - Disk-full produces explicit pause/stop behavior
+  evidence_required:
+  - Reviewable diff or commit
+  - Exact validation commands and observed outcomes
+  - Explicit unexecuted tests and compatibility limits
+- id: AOP-013
+  milestone: M2
+  area: telemetry
+  title: Map events into OpenTelemetry traces
+  status: planned
+  priority: P1
+  depends_on:
+  - AOP-012
+  outputs:
+  - Pinned GenAI semantic mapper
+  - Model/tool/skill/subagent/verifier correlation
+  acceptance_criteria:
+  - Trace IDs link to authoritative run artifacts
+  - Unavailable server timing is not fabricated
+  - Long-running child agents preserve explicit causal links
+  evidence_required:
+  - Reviewable diff or commit
+  - Exact validation commands and observed outcomes
+  - Explicit unexecuted tests and compatibility limits
+- id: AOP-014
+  milestone: M2
+  area: security
+  title: Implement telemetry redaction and retention
+  status: planned
+  priority: P1
+  depends_on:
+  - AOP-003
+  - AOP-005
+  - AOP-012
+  outputs:
+  - Artifact sensitivity tiers
+  - Redaction, encryption/access hooks and retention rules
+  acceptance_criteria:
+  - Seed secrets do not appear in ordinary logs, metrics or traces
+  - Redaction limitations mark replay eligibility accurately
+  - Tenant/repository access applies to payload artifacts
+  evidence_required:
+  - Reviewable diff or commit
+  - Exact validation commands and observed outcomes
+  - Explicit unexecuted tests and compatibility limits
+- id: AOP-015
+  milestone: M2
+  area: reporting
+  title: Build trajectory viewer and paired comparisons
+  status: planned
+  priority: P1
+  depends_on:
+  - AOP-013
+  - AOP-014
+  outputs:
+  - Run and diff report UI
+  - Grafana provisioning and bounded metrics labels
+  acceptance_criteria:
+  - One investigation links skill load through tool result to verifier evidence
+  - All attempts and infra errors remain visible
+  - Synthetic data is clearly separated from measured runs
+  evidence_required:
+  - Reviewable diff or commit
+  - Exact validation commands and observed outcomes
+  - Explicit unexecuted tests and compatibility limits
+- id: AOP-016
+  milestone: M3
+  area: skills
+  title: Implement canonical skill and agent registries
+  status: planned
+  priority: P1
+  depends_on:
+  - AOP-001
+  - AOP-005
+  outputs:
+  - Semantic skill contracts
+  - Variant ancestry and asset dependency graph
+  acceptance_criteria:
+  - Executable and reference changes invalidate affected hashes
+  - Mandatory constraints cannot be marked mutable
+  - Trigger positive and negative cases are versioned
+  evidence_required:
+  - Reviewable diff or commit
+  - Exact validation commands and observed outcomes
+  - Explicit unexecuted tests and compatibility limits
+- id: AOP-017
+  milestone: M3
+  area: compiler
+  title: Implement deterministic bundle compiler
+  status: planned
+  priority: P1
+  depends_on:
+  - AOP-002
+  - AOP-016
+  outputs:
+  - Effective prompt/skill source maps
+  - Harness-native immutable output directories
+  acceptance_criteria:
+  - Identical inputs compile to identical bytes
+  - Two model profiles cannot overwrite each other
+  - Release compilation never makes LLM calls
+  evidence_required:
+  - Reviewable diff or commit
+  - Exact validation commands and observed outcomes
+  - Explicit unexecuted tests and compatibility limits
+- id: AOP-018
+  milestone: M3
+  area: packaging
+  title: Integrate APM and native exporters
+  status: planned
+  priority: P1
+  depends_on:
+  - AOP-017
+  outputs:
+  - Pinned APM packaging adapter
+  - Exporters for unsupported harness targets
+  acceptance_criteria:
+  - Frozen install passes offline with populated local mirrors
+  - OpenCode v2 output is independently qualified
+  - Packaging never modifies active developer directories
+  evidence_required:
+  - Reviewable diff or commit
+  - Exact validation commands and observed outcomes
+  - Explicit unexecuted tests and compatibility limits
+- id: AOP-019
+  milestone: M3
+  area: release
+  title: Implement bundle integrity and staging
+  status: planned
+  priority: P1
+  depends_on:
+  - AOP-005
+  - AOP-017
+  - AOP-018
+  outputs:
+  - Content digest manifest and signature verification
+  - Read-only staged execution bundles
+  acceptance_criteria:
+  - Any modified script or prompt is rejected
+  - A valid signature cannot override capability checks
+  - Active runs keep their original bundle identity
+  evidence_required:
+  - Reviewable diff or commit
+  - Exact validation commands and observed outcomes
+  - Explicit unexecuted tests and compatibility limits
+- id: AOP-020
+  milestone: M4
+  area: datasets
+  title: Implement task provenance and protected splits
+  status: planned
+  priority: P1
+  depends_on:
+  - AOP-010
+  - AOP-011
+  - AOP-014
+  outputs:
+  - Snapshot importer and deduplication
+  - Development/validation/sealed-evaluator access separation
+  acceptance_criteria:
+  - Related commits remain in one data group
+  - Optimizer cannot access sealed tests or transcripts
+  - Holdout access ledger detects repeated exposure
+  evidence_required:
+  - Reviewable diff or commit
+  - Exact validation commands and observed outcomes
+  - Explicit unexecuted tests and compatibility limits
+- id: AOP-021
+  milestone: M4
+  area: workflows
+  title: Build coding and debugging workflow packs
+  status: planned
+  priority: P1
+  depends_on:
+  - AOP-020
+  outputs:
+  - Feature/refactor/reproducer tasks
+  - Behavioral, regression and scope verifiers
+  acceptance_criteria:
+  - Visible-test overfitting fails hidden checks
+  - Baseline build failures are distinguished from candidate failures
+  - Patches are validated on a frozen trusted snapshot
+  evidence_required:
+  - Reviewable diff or commit
+  - Exact validation commands and observed outcomes
+  - Explicit unexecuted tests and compatibility limits
+- id: AOP-022
+  milestone: M4
+  area: workflows
+  title: Build PR and MR review workflow pack
+  status: planned
+  priority: P1
+  depends_on:
+  - AOP-020
+  outputs:
+  - Read-only review execution
+  - Structured finding matcher and clean-change cases
+  acceptance_criteria:
+  - Correct abstention is supported
+  - Duplicate and non-reproducible findings are penalized
+  - File/line evidence is bound to the reviewed revision
+  evidence_required:
+  - Reviewable diff or commit
+  - Exact validation commands and observed outcomes
+  - Explicit unexecuted tests and compatibility limits
+- id: AOP-023
+  milestone: M4
+  area: workflows
+  title: Build CI and build engineering pack
+  status: planned
+  priority: P1
+  depends_on:
+  - AOP-020
+  outputs:
+  - Local pipeline fixtures and logs
+  - Stage-integrity and flaky/infra classification
+  acceptance_criteria:
+  - Removing checks cannot count as success
+  - Network-free toolchain reproduction is demonstrated
+  - Retries and inherited baseline failures stay visible
+  evidence_required:
+  - Reviewable diff or commit
+  - Exact validation commands and observed outcomes
+  - Explicit unexecuted tests and compatibility limits
+- id: AOP-024
+  milestone: M4
+  area: workflows
+  title: Build defensive security pack
+  status: planned
+  priority: P1
+  depends_on:
+  - AOP-003
+  - AOP-020
+  outputs:
+  - Authorized security fixtures
+  - Local scanner interfaces and pinned rule/database manifests
+  acceptance_criteria:
+  - No public target scanning or external exploitation occurs
+  - False positives require independent evidence
+  - Suppressing rules or tests cannot satisfy the repair verifier
+  evidence_required:
+  - Reviewable diff or commit
+  - Exact validation commands and observed outcomes
+  - Explicit unexecuted tests and compatibility limits
+- id: AOP-025
+  milestone: M4
+  area: workflows
+  title: Build test and dependency maintenance pack
+  status: planned
+  priority: P1
+  depends_on:
+  - AOP-020
+  outputs:
+  - Test-generation, mutation and upgrade cases
+  - Compatibility verifiers
+  acceptance_criteria:
+  - Tests detect the injected behavioral faults
+  - Trivial coverage increases do not prove quality
+  - Dependency changes preserve intended compatibility
+  evidence_required:
+  - Reviewable diff or commit
+  - Exact validation commands and observed outcomes
+  - Explicit unexecuted tests and compatibility limits
+- id: AOP-026
+  milestone: M4
+  area: evaluation
+  title: Implement calibrated local judges
+  status: planned
+  priority: P1
+  depends_on:
+  - AOP-007
+  - AOP-014
+  - AOP-020
+  outputs:
+  - Structured rubric judge interface
+  - Blinding, pairwise order and calibration reports
+  acceptance_criteria:
+  - All judge calls stay local with no tools enabled
+  - Judge cannot override deterministic failure
+  - Disagreements and insufficient evidence are exposed
+  evidence_required:
+  - Reviewable diff or commit
+  - Exact validation commands and observed outcomes
+  - Explicit unexecuted tests and compatibility limits
+- id: AOP-027
+  milestone: M5
+  area: adapters
+  title: Integrate Prime Agent with controlled state
+  status: planned
+  priority: P1
+  depends_on:
+  - AOP-012
+  - AOP-014
+  - AOP-017
+  - AOP-019
+  outputs:
+  - Pinned Prime RPC adapter
+  - REPL/subagent/skill/refinement event integration
+  acceptance_criteria:
+  - Independent eval cases start from clean writable state
+  - Refinement emits candidate changes, not shared releases
+  - Executable Python skills stay inside the external sandbox
+  evidence_required:
+  - Reviewable diff or commit
+  - Exact validation commands and observed outcomes
+  - Explicit unexecuted tests and compatibility limits
+- id: AOP-028
+  milestone: M5
+  area: adapters
+  title: Integrate OpenCode v2 with durable event recovery
+  status: planned
+  priority: P1
+  depends_on:
+  - AOP-012
+  - AOP-014
+  - AOP-017
+  - AOP-019
+  outputs:
+  - V2 API/provider adapter
+  - Durable log cursor and reconnect reconciliation
+  acceptance_criteria:
+  - Volatile stream disconnect cannot silently lose evidence
+  - Unsupported tool discovery requires explicit qualification
+  - Auto-reloading plugins cannot change an active evaluated bundle
+  evidence_required:
+  - Reviewable diff or commit
+  - Exact validation commands and observed outcomes
+  - Explicit unexecuted tests and compatibility limits
+- id: AOP-029
+  milestone: M5
+  area: adapters
+  title: Integrate DeepSeek Harness preview
+  status: planned
+  priority: P1
+  depends_on:
+  - AOP-012
+  - AOP-014
+  - AOP-017
+  - AOP-019
+  outputs:
+  - Pinned preview interface spike
+  - Local provider and observation integration
+  acceptance_criteria:
+  - Documentation and contract fixtures identify actual supported APIs
+  - No default DeepSeek hosted endpoint is used
+  - Unsupported preview capabilities remain blocked with a reason
+  evidence_required:
+  - Reviewable diff or commit
+  - Exact validation commands and observed outcomes
+  - Explicit unexecuted tests and compatibility limits
+- id: AOP-030
+  milestone: M5
+  area: integrations
+  title: Run cross-harness adapter conformance
+  status: planned
+  priority: P1
+  depends_on:
+  - AOP-009
+  - AOP-027
+  - AOP-028
+  - AOP-029
+  outputs:
+  - Shared harness capability suite
+  - Subagent quota and permission inheritance tests
+  acceptance_criteria:
+  - Every supported adapter passes lifecycle/error/cancellation fixtures
+  - Model/harness compatibility is recorded separately
+  - Nested agents cannot increase privilege or evade budgets
+  evidence_required:
+  - Reviewable diff or commit
+  - Exact validation commands and observed outcomes
+  - Explicit unexecuted tests and compatibility limits
+- id: AOP-031
+  milestone: M6
+  area: models
+  title: Implement complete deployment fingerprints
+  status: planned
+  priority: P1
+  depends_on:
+  - AOP-002
+  - AOP-007
+  - AOP-019
+  outputs:
+  - Weights/template/tokenizer/quant/server identity
+  - Runtime management attestation
+  acceptance_criteria:
+  - Aliased model names cannot silently switch loaded artifacts
+  - Quantization/template/parser changes create new identities
+  - Unavailable local checkpoints are explicitly blocked
+  evidence_required:
+  - Reviewable diff or commit
+  - Exact validation commands and observed outcomes
+  - Explicit unexecuted tests and compatibility limits
+- id: AOP-032
+  milestone: M6
+  area: models
+  title: Build serving capability qualification suite
+  status: planned
+  priority: P1
+  depends_on:
+  - AOP-030
+  - AOP-031
+  outputs:
+  - Tool, streaming, context, reasoning and schema probes
+  - Requested-versus-effective setting report
+  acceptance_criteria:
+  - Silently ignored capabilities cannot be declared supported
+  - Multiturn tool-result association passes
+  - Qualification is tied to exact runtime hashes
+  evidence_required:
+  - Reviewable diff or commit
+  - Exact validation commands and observed outcomes
+  - Explicit unexecuted tests and compatibility limits
+- id: AOP-033
+  milestone: M6
+  area: scheduler
+  title: Implement capacity-aware local scheduling
+  status: planned
+  priority: P1
+  depends_on:
+  - AOP-006
+  - AOP-031
+  - AOP-032
+  outputs:
+  - Residency-aware worker admission
+  - Interactive/eval/judge/optimizer resource pools
+  acceptance_criteria:
+  - Oversized jobs are capacity-blocked rather than cloud-routed
+  - Judge and optimizer cannot starve interactive serving
+  - Queue, load and execution timing remain separate
+  evidence_required:
+  - Reviewable diff or commit
+  - Exact validation commands and observed outcomes
+  - Explicit unexecuted tests and compatibility limits
+- id: AOP-034
+  milestone: M6
+  area: benchmarking
+  title: Establish the measured model/harness matrix
+  status: planned
+  priority: P1
+  depends_on:
+  - AOP-021
+  - AOP-022
+  - AOP-023
+  - AOP-024
+  - AOP-025
+  - AOP-026
+  - AOP-030
+  - AOP-033
+  outputs:
+  - Qualified local pair baseline reports
+  - Cold/warm cache and fixed-envelope comparisons
+  acceptance_criteria:
+  - No optional-skill baseline retains mandatory policy
+  - All assigned tasks and attempts appear in results
+  - No model-family preference is inferred without measurements
+  evidence_required:
+  - Reviewable diff or commit
+  - Exact validation commands and observed outcomes
+  - Explicit unexecuted tests and compatibility limits
+- id: AOP-035
+  milestone: M7
+  area: optimization
+  title: Implement skill discovery and ablation experiments
+  status: planned
+  priority: P1
+  depends_on:
+  - AOP-016
+  - AOP-034
+  outputs:
+  - No-catalog/forced/auto/canonical/incumbent arms
+  - Conditional utility and interaction reports
+  acceptance_criteria:
+  - Selection failures are separated from execution failures
+  - Ablation keeps fixed policies and tool capabilities unchanged
+  - Skill read events are not treated as causal proof
+  evidence_required:
+  - Reviewable diff or commit
+  - Exact validation commands and observed outcomes
+  - Explicit unexecuted tests and compatibility limits
+- id: AOP-036
+  milestone: M7
+  area: optimization
+  title: Implement bounded local candidate generation
+  status: planned
+  priority: P1
+  depends_on:
+  - AOP-007
+  - AOP-014
+  - AOP-016
+  - AOP-020
+  - AOP-035
+  outputs:
+  - Allowlisted mutation engine and lineage
+  - Static/schema/script/security preflight gates
+  acceptance_criteria:
+  - Candidate can only alter approved surfaces
+  - Optimizer cannot read sealed evaluation material
+  - Every proposal records model, source cases, parents and budget
+  evidence_required:
+  - Reviewable diff or commit
+  - Exact validation commands and observed outcomes
+  - Explicit unexecuted tests and compatibility limits
+- id: AOP-037
+  milestone: M7
+  area: optimization
+  title: Add optional GEPA backend
+  status: planned
+  priority: P1
+  depends_on:
+  - AOP-026
+  - AOP-036
+  outputs:
+  - OptimizerBackend implementation
+  - Local reflection/evaluation integration
+  acceptance_criteria:
+  - Hosted tutorial defaults are not inherited
+  - The platform retains authority over scoring and access
+  - Invalid code/resource mutations fail before expensive runs
+  evidence_required:
+  - Reviewable diff or commit
+  - Exact validation commands and observed outcomes
+  - Explicit unexecuted tests and compatibility limits
+- id: AOP-038
+  milestone: M7
+  area: evaluation
+  title: Implement statistical comparison and selection
+  status: planned
+  priority: P1
+  depends_on:
+  - AOP-020
+  - AOP-034
+  - AOP-035
+  outputs:
+  - Paired clustered comparison
+  - Preregistered margins, budget and Pareto decisions
+  acceptance_criteria:
+  - Repeated attempts are not independent task samples
+  - Underpowered results are inconclusive
+  - Search winners require separate confirmatory evaluation
+  evidence_required:
+  - Reviewable diff or commit
+  - Exact validation commands and observed outcomes
+  - Explicit unexecuted tests and compatibility limits
+- id: AOP-039
+  milestone: M7
+  area: integration
+  title: Demonstrate the complete optimization experiment
+  status: planned
+  priority: P1
+  depends_on:
+  - AOP-036
+  - AOP-037
+  - AOP-038
+  outputs:
+  - Candidate-versus-baseline report
+  - Improve/retain/inconclusive decision artifact
+  acceptance_criteria:
+  - Invalid mutation is rejected
+  - A neutral/harmful optional skill can be removed when evidenced
+  - No improvement claim uses only development-set performance
+  evidence_required:
+  - Reviewable diff or commit
+  - Exact validation commands and observed outcomes
+  - Explicit unexecuted tests and compatibility limits
+- id: AOP-040
+  milestone: M8
+  area: promotion
+  title: Implement sealed evaluation and release approval
+  status: planned
+  priority: P1
+  depends_on:
+  - AOP-019
+  - AOP-020
+  - AOP-038
+  - AOP-039
+  outputs:
+  - Protected promotion runner
+  - Evidence and human approval gates
+  acceptance_criteria:
+  - Verifier failure cannot be overruled by a judge
+  - Missing required trajectory data prevents promotion
+  - Proposer processes cannot access signing keys
+  evidence_required:
+  - Reviewable diff or commit
+  - Exact validation commands and observed outcomes
+  - Explicit unexecuted tests and compatibility limits
+- id: AOP-041
+  milestone: M8
+  area: deployment
+  title: Implement desired-state channels and drift control
+  status: planned
+  priority: P1
+  depends_on:
+  - AOP-018
+  - AOP-019
+  - AOP-040
+  outputs:
+  - Signed channel manifests
+  - Pull, stage, activate and drift reporting
+  acceptance_criteria:
+  - New releases apply only to new sessions
+  - Developer edits are not silently overwritten
+  - Offline nodes reconcile safely from locally mirrored artifacts
+  evidence_required:
+  - Reviewable diff or commit
+  - Exact validation commands and observed outcomes
+  - Explicit unexecuted tests and compatibility limits
+- id: AOP-042
+  milestone: M8
+  area: enterprise
+  title: Implement Git and CI read/write brokers
+  status: planned
+  priority: P1
+  depends_on:
+  - AOP-003
+  - AOP-020
+  - AOP-040
+  outputs:
+  - Provider-neutral snapshot/read integration
+  - Scoped approved publisher and deduplication
+  acceptance_criteria:
+  - Evaluation and shadow modes cannot write to real providers
+  - Repeated webhook events cannot duplicate comments/pushes
+  - Write scope matches authorized repository and task
+  evidence_required:
+  - Reviewable diff or commit
+  - Exact validation commands and observed outcomes
+  - Explicit unexecuted tests and compatibility limits
+- id: AOP-043
+  milestone: M8
+  area: reliability
+  title: Implement shadow, canary and rollback
+  status: planned
+  priority: P1
+  depends_on:
+  - AOP-041
+  - AOP-042
+  outputs:
+  - Side-effect-free shadow execution
+  - Supervised cohort and rollback controller
+  acceptance_criteria:
+  - A regressed candidate is stopped by gates
+  - Rollback preserves incumbent artifacts and active sessions
+  - Delayed failures can trigger revocation with evidence
+  evidence_required:
+  - Reviewable diff or commit
+  - Exact validation commands and observed outcomes
+  - Explicit unexecuted tests and compatibility limits
+- id: AOP-044
+  milestone: M9
+  area: lifecycle
+  title: Implement new-model and dependency requalification
+  status: planned
+  priority: P1
+  depends_on:
+  - AOP-031
+  - AOP-032
+  - AOP-034
+  - AOP-040
+  - AOP-043
+  outputs:
+  - Local artifact onboarding state machine
+  - Dependency-to-approval invalidation graph
+  acceptance_criteria:
+  - A new model does not inherit prior approval
+  - Changed quantization/server/template triggers affected probes
+  - Partial workflow/harness qualification is visible
+  evidence_required:
+  - Reviewable diff or commit
+  - Exact validation commands and observed outcomes
+  - Explicit unexecuted tests and compatibility limits
+- id: AOP-045
+  milestone: M9
+  area: feedback
+  title: Turn production feedback into curated cases
+  status: planned
+  priority: P1
+  depends_on:
+  - AOP-014
+  - AOP-020
+  - AOP-039
+  - AOP-043
+  outputs:
+  - Redacted provenance-aware feedback intake
+  - Deduplicated failure clusters and development case proposals
+  acceptance_criteria:
+  - Human acceptance is not automatic correctness labeling
+  - Confidential content respects repository access
+  - Feedback cannot migrate sealed examples into optimizer-visible stores
+  evidence_required:
+  - Reviewable diff or commit
+  - Exact validation commands and observed outcomes
+  - Explicit unexecuted tests and compatibility limits
+- id: AOP-046
+  milestone: M9
+  area: routing
+  title: Implement approved-bundle dynamic task routing
+  status: planned
+  priority: P1
+  depends_on:
+  - AOP-033
+  - AOP-034
+  - AOP-041
+  outputs:
+  - Explainable workflow/capacity router
+  - Fallback and routing audit report
+  acceptance_criteria:
+  - Only approved compatible profiles are eligible
+  - No eligible local profile causes pause or declared fallback
+  - Routing quality is compared with a fixed baseline
+  evidence_required:
+  - Reviewable diff or commit
+  - Exact validation commands and observed outcomes
+  - Explicit unexecuted tests and compatibility limits
+- id: AOP-047
+  milestone: M9
+  area: adaptation
+  title: Implement bounded session adaptation and memory
+  status: planned
+  priority: P1
+  depends_on:
+  - AOP-027
+  - AOP-030
+  - AOP-046
+  outputs:
+  - Session-local learning overlay
+  - Explicit escalation handoff and child-run accounting
+  acceptance_criteria:
+  - Shared skill/policy state stays immutable
+  - Independent benchmark cases do not inherit writable memory
+  - Model switches retain distinct deployment identities and attempts
+  evidence_required:
+  - Reviewable diff or commit
+  - Exact validation commands and observed outcomes
+  - Explicit unexecuted tests and compatibility limits
+- id: AOP-048
+  milestone: M9
+  area: lifecycle
+  title: Implement maintenance budgets and retirement
+  status: planned
+  priority: P1
+  depends_on:
+  - AOP-044
+  - AOP-045
+  - AOP-046
+  - AOP-047
+  outputs:
+  - Budgeted trigger scheduler
+  - Deprecation, quarantine and artifact retention rules
+  acceptance_criteria:
+  - Optimization stops at compute and iteration limits
+  - Retired skills retain provenance and rollback references
+  - Maintenance does not evict active interactive model capacity
+  evidence_required:
+  - Reviewable diff or commit
+  - Exact validation commands and observed outcomes
+  - Explicit unexecuted tests and compatibility limits
+- id: AOP-049
+  milestone: M10
+  area: security
+  title: Complete enterprise authorization and audit
+  status: planned
+  priority: P1
+  depends_on:
+  - AOP-014
+  - AOP-040
+  - AOP-042
+  outputs:
+  - Tenant/repository RBAC
+  - Approval/audit/retention enforcement
+  acceptance_criteria:
+  - Cross-tenant artifacts and traces are denied
+  - Read permissions do not imply release or write permission
+  - Revoked credentials cannot complete pending publications
+  evidence_required:
+  - Reviewable diff or commit
+  - Exact validation commands and observed outcomes
+  - Explicit unexecuted tests and compatibility limits
+- id: AOP-050
+  milestone: M10
+  area: security
+  title: Run adversarial boundary and reward-hacking suite
+  status: planned
+  priority: P1
+  depends_on:
+  - AOP-024
+  - AOP-030
+  - AOP-040
+  - AOP-049
+  outputs:
+  - Repository/log/skill injection fixtures
+  - Verifier, telemetry and package-abuse tests
+  acceptance_criteria:
+  - Unauthorized network and filesystem operations are denied
+  - Forged test logs cannot create a pass
+  - Agent cannot weaken policy or read hidden tests
+  evidence_required:
+  - Reviewable diff or commit
+  - Exact validation commands and observed outcomes
+  - Explicit unexecuted tests and compatibility limits
+- id: AOP-051
+  milestone: M10
+  area: recovery
+  title: Test backup and restore of the full evidence chain
+  status: planned
+  priority: P1
+  depends_on:
+  - AOP-005
+  - AOP-006
+  - AOP-019
+  - AOP-041
+  - AOP-049
+  outputs:
+  - Database/artifact/model-manifest recovery runbook
+  - Restored frozen evaluation demonstration
+  acceptance_criteria:
+  - Restored records resolve all required artifacts
+  - Lost workers are fenced and reconciled
+  - Recovery does not require hosted inference
+  evidence_required:
+  - Reviewable diff or commit
+  - Exact validation commands and observed outcomes
+  - Explicit unexecuted tests and compatibility limits
+- id: AOP-052
+  milestone: M10
+  area: deployment
+  title: Qualify disconnected installation and execution
+  status: planned
+  priority: P1
+  depends_on:
+  - AOP-018
+  - AOP-024
+  - AOP-030
+  - AOP-044
+  - AOP-051
+  outputs:
+  - Local mirrors and air-gap import manifests
+  - Compose and optional Kubernetes deployment tests
+  acceptance_criteria:
+  - All dependencies resolve with external egress denied
+  - Scanner database freshness is shown
+  - Auxiliary titles/compaction/embedding/judge calls remain local
+  evidence_required:
+  - Reviewable diff or commit
+  - Exact validation commands and observed outcomes
+  - Explicit unexecuted tests and compatibility limits
+- id: AOP-053
+  milestone: M10
+  area: operations
+  title: Measure overhead and resource fairness
+  status: planned
+  priority: P1
+  depends_on:
+  - AOP-015
+  - AOP-033
+  - AOP-048
+  - AOP-052
+  outputs:
+  - Tracing overhead and load test report
+  - Operational SLOs and capacity runbooks
+  acceptance_criteria:
+  - Instrumented versus reference measurements use matched conditions
+  - Metric labels stay bounded under many runs
+  - Interactive workload is protected from optimization contention
+  evidence_required:
+  - Reviewable diff or commit
+  - Exact validation commands and observed outcomes
+  - Explicit unexecuted tests and compatibility limits
+- id: AOP-054
+  milestone: M10
+  area: release
+  title: Complete end-to-end lifecycle acceptance demonstration
+  status: planned
+  priority: P1
+  depends_on:
+  - AOP-043
+  - AOP-044
+  - AOP-045
+  - AOP-047
+  - AOP-050
+  - AOP-051
+  - AOP-052
+  - AOP-053
+  outputs:
+  - Release evidence pack and operating manual
+  - Full lifecycle demonstration on available qualified local models
+  acceptance_criteria:
+  - Demonstrate task, eval, candidate, confirm, deploy, feedback and rollback
+  - All six workflow packs have independent verifiers
+  - All requested models/harnesses have truthful qualified or blocked status
+  evidence_required:
+  - Reviewable diff or commit
+  - Exact validation commands and observed outcomes
+  - Explicit unexecuted tests and compatibility limits

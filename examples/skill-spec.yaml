@@ -1,0 +1,38 @@
+schema_version: '0.1'
+kind: SkillSpec
+id: repo-debugging
+version: 0.1.0
+status: draft
+description: Diagnose and repair a reproducible repository defect with independently verifiable evidence.
+immutable_contract:
+  goal: Repair the requested behavior without weakening required checks.
+  required_evidence:
+  - Baseline reproducer result
+  - Candidate behavioral and regression results
+  - Final patch scope
+  permission_ceiling:
+  - Read authorized repository
+  - Modify task-scoped workspace
+  - Run approved local tools
+  forbidden_behaviors:
+  - Access sealed verifier data
+  - Disable mandatory tests or policies
+  - Publish external changes without approval
+optimization_surfaces:
+- description
+- instructions
+- examples
+- scripts
+- resources
+- selection_policy
+trigger_cases:
+  positive:
+  - Reproduce and fix this regression in the local service.
+  - Diagnose the failing test and implement a repair.
+  negative:
+  - Explain what debugging means.
+  - Review this PR without modifying its files.
+assets: []
+notes:
+- Design example only; instructions, assets, tests and variants remain to be implemented.
+- No approval or measured model-specific advantage is implied.

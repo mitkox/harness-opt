@@ -1,0 +1,104 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "AOP draft trajectory event envelope",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "event_id",
+    "event_type",
+    "run_id",
+    "attempt_id",
+    "agent_id",
+    "source",
+    "source_sequence",
+    "observed_at",
+    "bundle_digest",
+    "trace_id",
+    "span_id",
+    "synthetic_fixture",
+    "payload_refs",
+    "attributes"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "0.1"
+    },
+    "event_id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "event_type": {
+      "type": "string",
+      "minLength": 1
+    },
+    "run_id": {
+      "type": "string"
+    },
+    "attempt_id": {
+      "type": "string"
+    },
+    "agent_id": {
+      "type": "string"
+    },
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "authority"
+      ],
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "authority": {
+          "enum": [
+            "trusted_observer",
+            "agent_report",
+            "synthetic_fixture"
+          ]
+        }
+      }
+    },
+    "source_sequence": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "observed_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "bundle_digest": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    },
+    "trace_id": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{32}$"
+    },
+    "span_id": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{16}$"
+    },
+    "synthetic_fixture": {
+      "type": "boolean"
+    },
+    "payload_refs": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "attributes": {
+      "type": "object"
+    },
+    "parent_event_ids": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "format": "uuid"
+      }
+    }
+  }
+}

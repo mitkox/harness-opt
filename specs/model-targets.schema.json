@@ -1,0 +1,88 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "AOP draft target model declarations",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "kind",
+    "inference_policy",
+    "targets"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "0.1"
+    },
+    "kind": {
+      "const": "ModelTargetList"
+    },
+    "inference_policy": {
+      "const": "local_only"
+    },
+    "targets": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "family",
+          "source_label",
+          "status",
+          "qualified_deployment_ids"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "family": {
+            "enum": [
+              "deepseek",
+              "qwen",
+              "glm"
+            ]
+          },
+          "source_label": {
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "pending_local_discovery",
+              "capacity_blocked",
+              "not_available_locally",
+              "qualified",
+              "quarantined",
+              "retired"
+            ]
+          },
+          "qualified_deployment_ids": {
+            "type": "array",
+            "uniqueItems": true,
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "status": {
+                  "const": "qualified"
+                }
+              }
+            },
+            "then": {
+              "properties": {
+                "qualified_deployment_ids": {
+                  "minItems": 1
+                }
+              }
+            }
+          }
+        ]
+      }
+    }
+  }
+}

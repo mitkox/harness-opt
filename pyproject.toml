@@ -1,0 +1,28 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "aop"
+version = "0.1.0"
+description = "Local-only enterprise agent optimization platform (M0/M1 vertical slice)"
+requires-python = ">=3.11"
+dependencies = [
+  "pydantic>=2.0",
+  "PyYAML>=6.0",
+]
+optional-dependencies = {}
+
+[project.scripts]
+aop = "aop.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"

@@ -1,0 +1,26 @@
+{
+  "schema_version": "0.1",
+  "event_id": "22d23a6f-5c2e-4acb-a655-5653025be7ba",
+  "event_type": "skill.catalog.exposed",
+  "run_id": "synthetic-run-not-executed",
+  "attempt_id": "synthetic-attempt-1",
+  "agent_id": "fixture-agent",
+  "source": {
+    "id": "schema-fixture",
+    "authority": "synthetic_fixture"
+  },
+  "source_sequence": 1,
+  "observed_at": "2026-09-12T00:00:00Z",
+  "bundle_digest": "sha256:e803493c40771ba03c4e8e19ac2236940c0d5aa883bb539b8167cdfb4ef6596f",
+  "trace_id": "11111111111111111111111111111111",
+  "span_id": "2222222222222222",
+  "synthetic_fixture": true,
+  "payload_refs": [],
+  "attributes": {
+    "skill_ids": [
+      "repo-debugging"
+    ],
+    "content_loaded": false,
+    "note": "Synthetic contract fixture, not execution evidence."
+  }
+}
