@@ -4,8 +4,8 @@ import os
 
 import pytest
 
-from aop.contracts.records import EventSource, TrajectoryEvent
-from aop.trajectories import EventLedger
+from hop.contracts.records import EventSource, TrajectoryEvent
+from hop.trajectories import EventLedger
 
 DIGEST = "sha256:" + "ab" * 32
 

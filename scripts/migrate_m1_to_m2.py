@@ -29,7 +29,7 @@ def main() -> int:
     parser.add_argument("--runs-dir", default="runs")
     args = parser.parse_args()
     import jsonschema
-    from aop.trajectories import EventLedger
+    from hop.trajectories import EventLedger
 
     schema = json.load(open("specs/trajectory-event.schema.json"))
     checker = jsonschema.FormatChecker()

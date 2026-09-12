@@ -5,9 +5,9 @@ from http.server import BaseHTTPRequestHandler, HTTPServer
 
 import pytest
 
-from aop import discovery
-from aop.contracts.model import ModelFamily, ModelStatus
-from aop import policy
+from hop import discovery
+from hop.contracts.model import ModelFamily, ModelStatus
+from hop import policy
 
 
 class StubHandler(BaseHTTPRequestHandler):

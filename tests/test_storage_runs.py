@@ -1,16 +1,16 @@
 """Storage / ledger / runstore tests (AOP-005, AOP-006). Hermetic."""
 import pytest
 
-from aop.contracts.records import (
+from hop.contracts.records import (
     AttemptRecord,
     EventSource,
     RunOutcome,
     RunRecord,
     TrajectoryEvent,
 )
-from aop.runstore import RunStore
-from aop.storage import ArtifactStore
-from aop.trajectories import EventLedger
+from hop.runstore import RunStore
+from hop.storage import ArtifactStore
+from hop.trajectories import EventLedger
 
 DIGEST = "sha256:" + "ab" * 32
 

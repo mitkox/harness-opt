@@ -4,8 +4,8 @@ import os
 
 import pytest
 
-from aop import investigate as inv
-from aop.runner import Runner
+from hop import investigate as inv
+from hop.runner import Runner
 
 
 @pytest.fixture()
@@ -18,7 +18,7 @@ def repair_run(tmp_path):
 
 
 def test_cli_show_trajectory_completeness(repair_run, capsys):
-    from aop.cli import main
+    from hop.cli import main
     import os as _os
     runner, rep = repair_run
     _os.environ["AOP_RUNS_DIR"] = runner.runs_dir
@@ -31,7 +31,7 @@ def test_cli_show_trajectory_completeness(repair_run, capsys):
 
 
 def test_cli_skills_tools_trace_verify_artifacts_replay(repair_run, capsys):
-    from aop.cli import main
+    from hop.cli import main
     import os as _os
     runner, rep = repair_run
     _os.environ["AOP_RUNS_DIR"] = runner.runs_dir
@@ -47,7 +47,7 @@ def test_cli_skills_tools_trace_verify_artifacts_replay(repair_run, capsys):
 
 
 def test_fresh_process_reopens_trajectory(repair_run):
-    from aop.trajectories import EventLedger
+    from hop.trajectories import EventLedger
     _, rep = repair_run
     ledger = EventLedger(os.path.join(rep["run_dir"], "events.jsonl"))
     assert len(ledger.read_all()) > 10
@@ -56,7 +56,7 @@ def test_fresh_process_reopens_trajectory(repair_run):
 
 
 def test_corrupted_artifact_and_dangling_ref_visible(tmp_path):
-    from aop.storage import ArtifactStore
+    from hop.storage import ArtifactStore
     store = ArtifactStore(str(tmp_path / "artifacts"))
     ref = store.put(b"secret-free-payload", "run1")
     blob = os.path.join(str(tmp_path / "artifacts", ), "blobs",

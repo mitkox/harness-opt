@@ -11,12 +11,12 @@ from http.server import BaseHTTPRequestHandler, HTTPServer
 
 import pytest
 
-from aop.contracts.base import new_id
-from aop.contracts.model import LocalEndpoint, ModelDeployment, ModelFamily, ModelStatus
-from aop.harnesses.pi_adapter import PiJsonAdapter, native_to_trajectory_kind
-from aop.harnesses.scripted import ScriptedHarness
-from aop.inference import ModelIdentityError, verify_served_model
-from aop.policy import scrub_worker_env
+from hop.contracts.base import new_id
+from hop.contracts.model import LocalEndpoint, ModelDeployment, ModelFamily, ModelStatus
+from hop.harnesses.pi_adapter import PiJsonAdapter, native_to_trajectory_kind
+from hop.harnesses.scripted import ScriptedHarness
+from hop.inference import ModelIdentityError, verify_served_model
+from hop.policy import scrub_worker_env
 
 FAKE_PI = """#!/bin/bash
 echo '{"type":"session","version":3,"id":"s1"}'

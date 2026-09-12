@@ -34,7 +34,7 @@ def test_lock_pins_every_direct_dependency_with_hashes():
 
 def test_runtime_has_no_unlocked_third_party_imports():
     imported = set()
-    for base in ("src/aop", "tests"):
+    for base in ("src/hop", "tests"):
         for dirpath, _, filenames in os.walk(os.path.join(ROOT, base)):
             for name in filenames:
                 if not name.endswith(".py"):
@@ -47,7 +47,7 @@ def test_runtime_has_no_unlocked_third_party_imports():
                         imported.add(node.module.split(".")[0])
     stdlib = set(sys.stdlib_module_names)
     unlocked = {m for m in imported
-                if m not in stdlib and m not in ("aop", "conftest")}
+                if m not in stdlib and m not in ("hop", "conftest")}
     assert unlocked <= KNOWN_THIRD_PARTY, f"unlocked imports: {sorted(unlocked)}"
 
 

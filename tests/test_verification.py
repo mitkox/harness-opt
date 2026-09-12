@@ -9,8 +9,8 @@ import os
 
 import pytest
 
-from aop import verification
-from aop.contracts.records import Verdict
+from hop import verification
+from hop.contracts.records import Verdict
 
 HIDDEN = ".hidden/hidden-tests"
 OFFBYONE = "debug-offbyone"
@@ -124,7 +124,7 @@ def test_missing_hidden_fixture_is_infra_error(tmp_path):
     os.makedirs(empty)
     res = _run(snap, tmp_path=tmp_path)  # sanity: normal run works
     assert res.verdict in (Verdict.FAIL, Verdict.PASS)
-    from aop.verification import VerifierSetupError, load_verifier_manifest
+    from hop.verification import VerifierSetupError, load_verifier_manifest
     with pytest.raises(VerifierSetupError) as exc:
         load_verifier_manifest(empty)
     assert exc.value.error_class == "missing_verifier_fixture"

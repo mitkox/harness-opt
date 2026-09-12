@@ -4,9 +4,9 @@ import json
 import jsonschema
 import pytest
 
-from aop.contracts.records import EventSource, TrajectoryEvent
-from aop.telemetry import taxonomy
-from aop.telemetry.redaction import redact_text, sanitize_attributes
+from hop.contracts.records import EventSource, TrajectoryEvent
+from hop.telemetry import taxonomy
+from hop.telemetry.redaction import redact_text, sanitize_attributes
 
 DIGEST = "sha256:" + "ab" * 32
 

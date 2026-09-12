@@ -10,13 +10,13 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", "src"))
 
 
 def _runs_dir() -> str:
-    from aop.runner import RUNS_DIR
+    from hop.runner import RUNS_DIR
     return os.environ.get("AOP_RUNS_DIR", RUNS_DIR)
 
 
 def cmd_validate_profile(args) -> int:
-    from aop.bundle import compile_bundle
-    from aop.runner import load_deployment, qualify_pi_for_m1
+    from hop.bundle import compile_bundle
+    from hop.runner import load_deployment, qualify_pi_for_m1
     try:
         deployment = load_deployment(args.model)
     except KeyError as exc:
@@ -54,7 +54,7 @@ def cmd_discover(_args) -> int:
 
 
 def cmd_run(args) -> int:
-    from aop.runner import Runner
+    from hop.runner import Runner
     runner = Runner()
     report = runner.execute(args.case, model_alias=args.model, harness=args.harness,
                             timeout_s=args.timeout,
@@ -73,7 +73,7 @@ def cmd_report(args) -> int:
 
 
 def cmd_run_investigate(args) -> int:
-    from aop import investigate as inv
+    from hop import investigate as inv
     runs_dir = _runs_dir()
     run_dir = inv.find_run_dir(runs_dir, args.run_id)
     report = inv.show(run_dir)

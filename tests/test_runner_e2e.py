@@ -11,8 +11,8 @@ import time
 import jsonschema
 import pytest
 
-from aop.runner import Runner
-from aop.runstore import RunStore
+from hop.runner import Runner
+from hop.runstore import RunStore
 
 
 def _runner(tmp_path, artifacts=None):
@@ -81,7 +81,7 @@ def test_cancellation_has_durable_artifact(tmp_path):
     run_dir = rep["run_dir"]
     cancel = json.load(open(f"{run_dir}/cancellation.json"))
     assert cancel["requested"] is True and cancel["terminal_status"] == "cancelled"
-    from aop.trajectories import EventLedger
+    from hop.trajectories import EventLedger
     ledger = EventLedger(f"{run_dir}/events.jsonl")
     events = ledger.read_all()
     assert any(e.event_type == "cancel.requested" for e in events)
@@ -140,7 +140,7 @@ def test_emitted_events_validate_against_published_schema(tmp_path):
 def test_missing_verifier_fixture_is_infra_error(tmp_path, monkeypatch):
     empty_root = tmp_path / "verifier-root"
     os.makedirs(empty_root / "hidden-tests")
-    monkeypatch.setattr("aop.runner.HIDDEN_ROOT", str(empty_root / "hidden-tests"))
+    monkeypatch.setattr("hop.runner.HIDDEN_ROOT", str(empty_root / "hidden-tests"))
     rep = _runner(tmp_path).execute("debug-offbyone", harness="scripted:succeed",
                                     idempotency_key="e2e-nofix")
     assert rep["outcome"] == "infra_error" and rep["verdict"] == "error"
@@ -153,7 +153,7 @@ def test_invalid_verifier_fixture_is_infra_error(tmp_path, monkeypatch):
     root = tmp_path / "verifier-root" / "hidden-tests" / "debug-offbyone"
     os.makedirs(root)
     (root / "verifier.json").write_text('{"verifier_id": "x"}')
-    monkeypatch.setattr("aop.runner.HIDDEN_ROOT", str(tmp_path / "verifier-root" / "hidden-tests"))
+    monkeypatch.setattr("hop.runner.HIDDEN_ROOT", str(tmp_path / "verifier-root" / "hidden-tests"))
     rep = _runner(tmp_path).execute("debug-offbyone", harness="scripted:succeed",
                                     idempotency_key="e2e-badfix")
     assert rep["outcome"] == "infra_error"
@@ -179,7 +179,7 @@ def test_adapter_prepare_failure_is_infra_error(tmp_path, monkeypatch):
     def boom(self, *a, **k):
         raise RuntimeError("prepare failed")
 
-    monkeypatch.setattr("aop.harnesses.scripted.ScriptedHarness.prepare", boom)
+    monkeypatch.setattr("hop.harnesses.scripted.ScriptedHarness.prepare", boom)
     rep = _runner(tmp_path).execute("debug-offbyone", harness="scripted:succeed",
                                     idempotency_key="e2e-prepare")
     assert rep["outcome"] == "infra_error"

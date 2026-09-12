@@ -20,15 +20,15 @@ import time
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.join(ROOT, "src"))
 
-from aop import sandbox, verification  # noqa: E402
-from aop.bundle import compile_bundle, model_deployment_digest  # noqa: E402
-from aop.contracts.harness import HarnessBuild, HarnessName, HarnessStatus  # noqa: E402
-from aop.contracts.model import (  # noqa: E402
+from hop import sandbox, verification  # noqa: E402
+from hop.bundle import compile_bundle, model_deployment_digest  # noqa: E402
+from hop.contracts.harness import HarnessBuild, HarnessName, HarnessStatus  # noqa: E402
+from hop.contracts.model import (  # noqa: E402
     LocalEndpoint, ModelDeployment, ModelFamily, ModelStatus, WeightShard)
-from aop.contracts.records import Verdict  # noqa: E402
-from aop.inference import LocalEndpointClient, verify_served_model  # noqa: E402
-from aop.runner import Runner, load_deployment  # noqa: E402
-from aop.trajectories import EventLedger  # noqa: E402
+from hop.contracts.records import Verdict  # noqa: E402
+from hop.inference import LocalEndpointClient, verify_served_model  # noqa: E402
+from hop.runner import Runner, load_deployment  # noqa: E402
+from hop.trajectories import EventLedger  # noqa: E402
 
 HIDDEN = os.path.join(ROOT, ".hidden", "hidden-tests")
 OFF = "debug-offbyone"
@@ -44,7 +44,7 @@ def record(requirement: str, probe: str, passed: bool, evidence: str,
 
 
 def _snapshot(case=OFF, mutate=None):
-    root = tempfile.mkdtemp(prefix="aop-acc-")
+    root = tempfile.mkdtemp(prefix="hop-acc-")
     snap = os.path.join(root, "snap")
     verification.freeze_workspace(os.path.join(ROOT, "benchmarks", "development", case, "repo"),
                                   snap)
@@ -137,8 +137,8 @@ def probe_boundaries() -> None:
                "sandbox.spawn_isolated", False, "n/a", "bwrap unavailable")
         return
     hidden = os.path.join(ROOT, ".hidden", "hidden-tests", OFF, "test_hidden_median.py")
-    verifier = os.path.join(ROOT, "src", "aop", "verification.py")
-    parent = tempfile.mkdtemp(prefix="aop-bound-")
+    verifier = os.path.join(ROOT, "src", "hop", "verification.py")
+    parent = tempfile.mkdtemp(prefix="hop-bound-")
     other = os.path.join(parent, "run-other", "workspace")
     os.makedirs(other)
     open(os.path.join(other, "secret.txt"), "w").write("other run secret")
@@ -165,7 +165,7 @@ def probe_boundaries() -> None:
 
 
 def probe_pi_local_only() -> None:
-    from aop.policy import assert_local_url, scrub_worker_env
+    from hop.policy import assert_local_url, scrub_worker_env
     remote_refused = False
     try:
         assert_local_url("http://10.1.2.3:8000/v1")
@@ -216,7 +216,7 @@ def probe_identity() -> None:
 
 
 def _runner(tmp=None):
-    runs = tmp or tempfile.mkdtemp(prefix="aop-acc-runs-")
+    runs = tmp or tempfile.mkdtemp(prefix="hop-acc-runs-")
     return Runner(runs_dir=runs), runs
 
 
@@ -230,9 +230,9 @@ def probe_lifecycle() -> None:
            first["run_dir"], f"replay={second.get('idempotent_replay')}")
 
     # infra failure: missing verifier fixture
-    import aop.runner as runner_mod
+    import hop.runner as runner_mod
     old = runner_mod.HIDDEN_ROOT
-    empty = tempfile.mkdtemp(prefix="aop-empty-")
+    empty = tempfile.mkdtemp(prefix="hop-empty-")
     runner_mod.HIDDEN_ROOT = empty
     try:
         inf = runner.execute(OFF, harness="scripted:succeed", idempotency_key="acc-infra")
@@ -254,7 +254,7 @@ def probe_lifecycle() -> None:
            "jsonschema.validate(events.jsonl)", valid, f"{first['run_dir']}/events.jsonl",
            "all emitted events valid")
 
-    from aop.contracts.records import EventSource, TrajectoryEvent
+    from hop.contracts.records import EventSource, TrajectoryEvent
     led = EventLedger(os.path.join(first["run_dir"], "alt-events.jsonl"))
     for i, etype in enumerate(("run.admitted", "workspace.prepared", "harness.accepted")):
         led.append(TrajectoryEvent(event_id=f"00000000-0000-4000-8000-{i:012d}",

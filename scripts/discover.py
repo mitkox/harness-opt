@@ -11,9 +11,9 @@ import sys
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 
-from aop.contracts.harness import HarnessBuild, HarnessName, HarnessStatus  # noqa: E402
-from aop.contracts.model import ModelFamily, WeightShard  # noqa: E402
-from aop.discovery import (  # noqa: E402
+from hop.contracts.harness import HarnessBuild, HarnessName, HarnessStatus  # noqa: E402
+from hop.contracts.model import ModelFamily, WeightShard  # noqa: E402
+from hop.discovery import (  # noqa: E402
     HARNESS_PROBES,
     build_model_deployment,
     fingerprint_model_file,

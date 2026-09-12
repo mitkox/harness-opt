@@ -15,7 +15,7 @@ import time
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 
-from aop.runner import Runner  # noqa: E402
+from hop.runner import Runner  # noqa: E402
 
 
 def _summarize(rep: dict) -> dict:
@@ -117,7 +117,7 @@ def main() -> int:
     report["arms"]["E_collector_outage"] = _summarize(rep_e)
     print(f"E_collector_outage: {rep_e['outcome']} spool={rep_e['spool']}",
           flush=True)
-    from aop.telemetry.spool import SpoolQueue
+    from hop.telemetry.spool import SpoolQueue
     spool = SpoolQueue(os.path.join(runner.runs_dir, "_spool"),
                        os.path.join(runner.runs_dir, "_collector"))
     report["arms"]["E_recovery_flush"] = spool.flush(rep_e["run_id"])

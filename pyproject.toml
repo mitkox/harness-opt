@@ -3,9 +3,9 @@ requires = ["setuptools>=68"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "aop"
+name = "hop"
 version = "0.1.0"
-description = "Local-only enterprise agent optimization platform (M0/M1 vertical slice)"
+description = "HOP — Harness Optimization Platform: continuous evaluation, optimization, qualification, and distribution of models, skills, prompts, tools, and agent configurations for local coding harnesses"
 requires-python = ">=3.11"
 dependencies = [
   "pydantic>=2.0",
@@ -19,7 +19,8 @@ test = [
 ]
 
 [project.scripts]
-aop = "aop.cli:main"
+hop = "hop.cli:main"
+aop = "hop.cli:legacy_main"
 
 [tool.setuptools.packages.find]
 where = ["src"]

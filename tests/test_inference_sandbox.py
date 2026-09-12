@@ -6,14 +6,14 @@ from http.server import BaseHTTPRequestHandler, HTTPServer
 
 import pytest
 
-from aop import sandbox
-from aop.inference import (
+from hop import sandbox
+from hop.inference import (
     ChatRequest,
     LocalEndpointClient,
     LocalEndpointError,
     UnsupportedParameterError,
 )
-from aop import policy
+from hop import policy
 
 
 class StubHandler(BaseHTTPRequestHandler):

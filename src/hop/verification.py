@@ -305,7 +305,7 @@ def run_verification(run_id: str, attempt_id: str, snapshot_dir: str,
                              contamination, "contamination", {"contamination": contamination})
 
     owns_root = work_root is None
-    work_root = work_root or tempfile.mkdtemp(prefix="aop-verify-")
+    work_root = work_root or tempfile.mkdtemp(prefix="hop-verify-")
     verify_root = os.path.join(work_root, "verify")
     if os.path.exists(verify_root):
         shutil.rmtree(verify_root)

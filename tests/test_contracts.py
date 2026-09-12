@@ -2,16 +2,16 @@
 import pytest
 from pydantic import ValidationError
 
-from aop.contracts.base import sha256_hex
-from aop.contracts.harness import HarnessBuild, HarnessName
-from aop.contracts.model import (
+from hop.contracts.base import sha256_hex
+from hop.contracts.harness import HarnessBuild, HarnessName
+from hop.contracts.model import (
     LocalEndpoint,
     ModelDeployment,
     ModelFamily,
     ModelStatus,
     WeightShard,
 )
-from aop.contracts.records import (
+from hop.contracts.records import (
     EvaluationResult,
     EventAuthority,
     EventSource,

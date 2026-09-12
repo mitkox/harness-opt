@@ -6,9 +6,9 @@ covers the executable digest and probe evidence, not just a version string.
 """
 from copy import deepcopy
 
-from aop.bundle import compile_bundle, harness_build_digest, model_deployment_digest
-from aop.contracts.harness import HarnessBuild, HarnessName, HarnessStatus
-from aop.contracts.model import LocalEndpoint, ModelDeployment, ModelFamily, ModelStatus, WeightShard
+from hop.bundle import compile_bundle, harness_build_digest, model_deployment_digest
+from hop.contracts.harness import HarnessBuild, HarnessName, HarnessStatus
+from hop.contracts.model import LocalEndpoint, ModelDeployment, ModelFamily, ModelStatus, WeightShard
 
 
 def _deployment(shards):

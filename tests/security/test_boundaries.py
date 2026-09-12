@@ -8,8 +8,8 @@ import os
 
 import pytest
 
-from aop import sandbox, verification
-from aop.policy import assert_local_url
+from hop import sandbox, verification
+from hop.policy import assert_local_url
 
 requires_bwrap = pytest.mark.skipif(not sandbox.bwrap_available(),
                                     reason="bwrap unavailable")
@@ -63,7 +63,7 @@ def test_agent_cannot_write_hidden_verifier_material(tmp_path):
 
 @requires_bwrap
 def test_agent_cannot_modify_verifier_code(tmp_path):
-    target = os.path.abspath("src/aop/verification.py")
+    target = os.path.abspath("src/hop/verification.py")
     cmd = ["bash", "-c", f"echo pwn >> {target!r} 2>&1 || echo WRITE_DENIED"]
     res, _ = _sandbox_result(cmd, tmp_path)
     assert "WRITE_DENIED" in open(res.stdout_path).read()
@@ -119,8 +119,8 @@ def test_verifier_child_has_no_credentials(tmp_path):
 
 
 def test_no_cloud_inference_path_exists():
-    import aop.inference as inf
-    import aop.runner as runner
+    import hop.inference as inf
+    import hop.runner as runner
     src = open(inf.__file__).read() + open(runner.__file__).read()
     assert "api.openai.com" not in src
 

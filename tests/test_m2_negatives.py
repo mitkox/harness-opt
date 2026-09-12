@@ -4,9 +4,9 @@ import os
 
 import pytest
 
-from aop.contracts.records import EventSource, TrajectoryEvent
-from aop.telemetry.spool import SpoolQueue
-from aop.trajectories import EventLedger
+from hop.contracts.records import EventSource, TrajectoryEvent
+from hop.telemetry.spool import SpoolQueue
+from hop.trajectories import EventLedger
 
 DIGEST = "sha256:" + "ab" * 32
 
@@ -109,7 +109,7 @@ def test_agent_claim_cannot_become_verifier_evidence(tmp_path):
 
 def test_tempo_outage_cannot_erase_authoritative_evidence(tmp_path, monkeypatch):
     """Collector/Tempo down: ledger stays durable, spool holds projections."""
-    from aop.runner import Runner
+    from hop.runner import Runner
     monkeypatch.setenv("AOP_COLLECTOR_DOWN", "1")
     runner = Runner(runs_dir=str(tmp_path / "runs"))
     rep = runner.execute("debug-offbyone", harness="scripted:repair",
@@ -140,8 +140,8 @@ def test_spool_restart_recovers_pending_telemetry(tmp_path, monkeypatch):
 
 
 def test_oversized_and_secret_payloads_never_inline(tmp_path):
-    from aop.telemetry.observe import MAX_TOOL_OUTPUT_BYTES, normalize_tool_call
-    from aop.telemetry.redaction import sanitize_attributes
+    from hop.telemetry.observe import MAX_TOOL_OUTPUT_BYTES, normalize_tool_call
+    from hop.telemetry.redaction import sanitize_attributes
     big = {"blob": "z" * (MAX_TOOL_OUTPUT_BYTES + 10)}
     call = normalize_tool_call("t", "v1", "i", "a",
                                {"api_key": "sk-9999999999999999secret"}, big,

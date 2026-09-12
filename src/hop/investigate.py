@@ -62,7 +62,7 @@ def show(run_dir: str) -> dict:
 
 
 def trajectory(run_dir: str, event_type: str = "") -> list[dict]:
-    from aop.trajectories import EventLedger
+    from hop.trajectories import EventLedger
     ledger = EventLedger(os.path.join(run_dir, "events.jsonl"))
     out = []
     for evt in ledger.read_all():
@@ -82,7 +82,7 @@ def trajectory(run_dir: str, event_type: str = "") -> list[dict]:
 
 
 def artifacts(run_dir: str, runs_dir: str, run_id: str) -> list[dict]:
-    from aop.storage import ArtifactStore
+    from hop.storage import ArtifactStore
     store = ArtifactStore(os.path.join(runs_dir, "artifacts"))
     try:
         refs = store.list_refs(run_id)
@@ -123,7 +123,7 @@ def tools_view(run_dir: str) -> list[dict]:
 
 
 def completeness_view(run_dir: str, outcome: str = "") -> dict:
-    from aop.trajectories import EventLedger
+    from hop.trajectories import EventLedger
     ledger = EventLedger(os.path.join(run_dir, "events.jsonl"))
     rep = {}
     if os.path.exists(os.path.join(run_dir, "report.json")):
@@ -142,7 +142,7 @@ def replay_check(run_dir: str, runs_dir: str, run_id: str) -> dict:
     """
     rep = _load_json(os.path.join(run_dir, "report.json"))
     replay = rep.get("replay", {})
-    from aop.storage import ArtifactStore
+    from hop.storage import ArtifactStore
     store = ArtifactStore(os.path.join(runs_dir, "artifacts"))
     artifact_status = []
     try:

@@ -2,8 +2,8 @@
 import json
 import os
 
-from aop.telemetry.spool import SpoolQueue, collector_available
-from aop.telemetry.tracing import RunTracer
+from hop.telemetry.spool import SpoolQueue, collector_available
+from hop.telemetry.tracing import RunTracer
 
 
 def test_trace_span_correlation_bidirectional(tmp_path):

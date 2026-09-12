@@ -12,7 +12,7 @@ from datetime import datetime, timezone
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from aop import SCHEMA_VERSION
+from hop import SCHEMA_VERSION
 
 
 class AopBase(BaseModel):

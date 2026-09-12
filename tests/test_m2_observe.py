@@ -1,15 +1,15 @@
 """M2 commit 4: redaction, tool/inference/skill observation, resources."""
 import json
 
-from aop.telemetry.observe import (
+from hop.telemetry.observe import (
     MAX_TOOL_OUTPUT_BYTES,
     SkillCatalogEntry,
     normalize_tool_call,
     sample_resources,
     skill_catalog_digest,
 )
-from aop.telemetry.observe import InferenceRecord
-from aop.telemetry.redaction import contains_secret, redact_text, sanitize_attributes
+from hop.telemetry.observe import InferenceRecord
+from hop.telemetry.redaction import contains_secret, redact_text, sanitize_attributes
 
 
 def test_secret_in_model_prompt_redacted():
@@ -50,7 +50,7 @@ def test_skill_states_represented_separately():
     digest = skill_catalog_digest(entries)
     assert digest.startswith("sha256:")
     # exposure != selection != load != execute: distinct event types exist
-    from aop.telemetry.taxonomy import EVENT_TAXONOMY
+    from hop.telemetry.taxonomy import EVENT_TAXONOMY
     for etype in ("skill.catalog_exposed", "skill.considered", "skill.selected",
                   "skill.loaded", "skill.executed", "skill.failed"):
         assert etype in EVENT_TAXONOMY
