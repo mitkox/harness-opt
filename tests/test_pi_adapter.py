@@ -95,10 +95,10 @@ def test_env_endpoint_injection_is_scrubbed_and_ignored(tmp_path, monkeypatch):
     adapter = PiJsonAdapter(deployment=_deployment(), executable=_fake_pi(tmp_path))
     session = adapter.prepare("sha256:" + "ab" * 32, str(tmp_path / "run"), "w1")
     cfg = json.load(open(os.path.join(session.extra_env["PI_CODING_AGENT_DIR"], "models.json")))
-    base = cfg["providers"]["aop_local"]["baseUrl"]
+    base = cfg["providers"]["hop_local"]["baseUrl"]
     assert base == "http://127.0.0.1:8000/v1"
     assert "evil.example" not in json.dumps(cfg)
-    model = cfg["providers"]["aop_local"]["models"][0]
+    model = cfg["providers"]["hop_local"]["models"][0]
     assert model["contextWindow"] == 262144 and model["maxTokens"] == 4096
 
 

@@ -77,7 +77,7 @@ class PiJsonAdapter:
     adapter_revision = ADAPTER_REVISION
 
     def __init__(self, deployment: ModelDeployment | None = None,
-                 executable: str = "pi", provider: str = "aop_local",
+                 executable: str = "pi", provider: str = "hop_local",
                  spec: SandboxSpec | None = None):
         self.deployment = deployment
         self.executable = executable

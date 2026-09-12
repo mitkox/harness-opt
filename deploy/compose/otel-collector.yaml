@@ -16,7 +16,7 @@ exporters:
     tls:
       insecure: true
   file/span-backup:
-    path: /var/spool/aop-spans.jsonl
+    path: /var/spool/hop-spans.jsonl
 
 service:
   pipelines:
