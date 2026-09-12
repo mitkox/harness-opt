@@ -56,6 +56,7 @@ def show(run_dir: str) -> dict:
         "spool": rep.get("spool", {}),
         "verifier": rep.get("verifier", {}),
         "inputs": rep.get("inputs", {}),
+        "profile": rep.get("profile", {}),
         "run_dir": run_dir,
         "harness_version": (manifest.get("harness", {}) or {}).get("version", ""),
     }
@@ -166,13 +167,71 @@ def replay_check(run_dir: str, runs_dir: str, run_id: str) -> dict:
     }
     for ref in sorted(available):
         artifact_status.append({"digest": ref, "available": True})
+    # M3: profile availability (only for profile-aware runs; legacy runs skip).
+    profile = rep.get("profile", {}) or replay.get("profile_digest")
+    profile_report = {"present": False}
+    if isinstance(profile, dict) and profile.get("profile_digest"):
+        profile_report = _profile_availability(profile)
+        checks["profile_store"] = profile_report.get("stored", False)
     missing = [k for k, v in checks.items()
                if k not in ("artifacts_available",) and not v]
     return {
         "reproducible_identities": checks,
         "missing": missing,
         "artifacts": artifact_status,
+        "profile": profile_report,
         "replayable": not missing,
         "note": "identities are pinned; stochastic model generation is not "
                 "claimed deterministic",
     }
+
+
+def _profile_availability(profile: dict) -> dict:
+    """Can the exact locked agent configuration be materialized locally?"""
+    digest = profile.get("profile_digest", "")
+    report = {"present": True, "profile_digest": digest,
+              "lock_digest": profile.get("lock_digest", ""),
+              "compiled_target": profile.get("compiled_target", ""),
+              "compiled_target_digest": profile.get("compiled_target_digest", "")}
+    # The registry root is recorded in the run's profile identity so replay
+    # verification uses the same store/catalog as the original run.
+    registry_root = profile.get("registry_root", "")
+    home = os.path.dirname(registry_root) if registry_root else None
+    try:
+        from hop import profiles as P
+
+        # Prefer the exact lock digest; fall back to the source profile digest.
+        lock_digest = profile.get("lock_digest", "")
+        try:
+            stored = (P.load_persisted(lock_digest, home=home) if lock_digest
+                      else P.load_persisted(digest, home=home))
+        except Exception:
+            stored = P.load_persisted(digest, home=home)
+        resolved = stored.get("resolved", {})
+        lock = stored.get("lock", {})
+        report["stored"] = True
+        report["materialized_lock_digest"] = lock.get("lock_digest", "")
+        report["components"] = len(resolved.get("components", []))
+        report["materializable"] = _components_available(lock, registry_root)
+    except Exception as exc:  # noqa: BLE001
+        report["stored"] = False
+        report["materializable"] = False
+        report["reason"] = str(exc)
+    return report
+
+
+def _components_available(lock: dict, registry_root: str) -> bool:
+    """Every locked component must still exist with the same digest."""
+    if not registry_root or not os.path.isdir(registry_root):
+        return False
+    try:
+        from hop.registry import ComponentRegistry
+
+        registry = ComponentRegistry(registry_root)
+        for comp in lock.get("components", []):
+            record, _ = registry.get(comp["name"], comp["version"], comp["type"])
+            if record.record_digest != comp["digest"]:
+                return False
+        return True
+    except Exception:  # noqa: BLE001
+        return False
