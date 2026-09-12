@@ -22,6 +22,8 @@ SCRUB_ENV_EXACT = {
     "HTTP_PROXY", "HTTPS_PROXY", "http_proxy", "https_proxy",
     "ALL_PROXY", "all_proxy", "NO_PROXY", "no_proxy",
     "SSH_AUTH_SOCK", "GIT_ASKPASS",
+    # Endpoint redirection for Pi is controlled by the deployment record only.
+    "AOP_PI_BASE_URL",
 }
 
 ALLOWED_HOSTS = {"127.0.0.1", "localhost", "::1"}

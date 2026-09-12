@@ -26,6 +26,10 @@ class LocalEndpointError(RuntimeError):
     pass
 
 
+class ModelIdentityError(RuntimeError):
+    """The endpoint does not serve the model the deployment record claims."""
+
+
 class _NoRedirect(urllib.request.HTTPRedirectHandler):
     def redirect_request(self, req, fp, code, msg, headers, newurl):
         raise LocalEndpointError(f"refusing redirect to {newurl} (fail closed)")
@@ -112,3 +116,52 @@ class LocalEndpointClient:
                     if on_chunk is not None:
                         on_chunk(chunk)
         return chunks
+
+
+def verify_served_model(deployment) -> dict:
+    """Attest that the registered endpoint serves the deployment's model id.
+
+    Fails closed on off-host URLs, redirects, transport errors, a missing model
+    id, or a served weight path that contradicts the deployment record.
+    """
+    from .contracts.model import ModelDeployment
+    if not isinstance(deployment, ModelDeployment):
+        raise TypeError("verify_served_model requires a ModelDeployment")
+    if deployment.endpoint is None:
+        raise ModelIdentityError(f"{deployment.deployment_id} has no endpoint")
+    base = assert_local_url(deployment.endpoint.base_url).rstrip("/")
+    expected_id = deployment.endpoint.model_id
+    # The registered endpoint may include the OpenAI-compatible /v1 suffix.
+    root = base[:-3].rstrip("/") if base.endswith("/v1") else base
+
+    def _get(url: str) -> dict:
+        assert_local_url(url)
+        req = urllib.request.Request(url, headers={"Accept": "application/json"})
+        try:
+            with _OPENER.open(req, timeout=10.0) as resp:  # noqa: S310 loopback-only
+                if resp.status != 200:
+                    raise ModelIdentityError(f"GET {url} -> HTTP {resp.status}")
+                return json.loads(resp.read().decode("utf-8"))
+        except ModelIdentityError:
+            raise
+        except Exception as exc:
+            raise ModelIdentityError(
+                f"cannot attest local endpoint {url} (no fallback): {exc}") from exc
+
+    models = _get(f"{root}/v1/models")
+    ids = [m.get("id") for m in models.get("data", []) if isinstance(m, dict)]
+    if expected_id not in ids:
+        raise ModelIdentityError(
+            f"endpoint serves {ids!r}, deployment claims model_id={expected_id!r}")
+    evidence = {"base_url": base, "expected_model_id": expected_id, "served_ids": ids}
+    try:
+        props = _get(f"{root}/props")
+    except ModelIdentityError:
+        props = {}
+    if props.get("model_path"):
+        evidence["served_model_path"] = props["model_path"]
+        if deployment.weight_path and props["model_path"] != deployment.weight_path:
+            raise ModelIdentityError(
+                "served weight path does not match deployment record: "
+                f"{props['model_path']!r} != {deployment.weight_path!r}")
+    return evidence
