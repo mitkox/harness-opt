@@ -47,11 +47,16 @@ class EventLedger:
     def _replay(self) -> None:
         chain = "0" * 64
         with open(self.path) as fh:
-            for line in fh:
+            for lineno, line in enumerate(fh, start=1):
                 line = line.strip()
                 if not line:
                     continue
-                evt = TrajectoryEvent.model_validate(json.loads(line))
+                try:
+                    evt = TrajectoryEvent.model_validate(json.loads(line))
+                except Exception as exc:
+                    raise ValueError(
+                        f"malformed trajectory event at line {lineno}: {exc}"
+                    ) from exc
                 assert_known_event(evt.event_type)
                 self._seen.add(evt.event_id)
                 prev = self._last_seq.get(evt.source.id, -1)
