@@ -18,8 +18,8 @@ test --generate-hashes`. If the wheelhouse is absent, regenerate it with
 
 ```
 PYTHONPATH=src python3 scripts/discover.py   # rewrites profiles/*/local-inventory.json
-PYTHONPATH=src python3 -m aop.cli discover
-PYTHONPATH=src python3 -m aop.cli validate-profile --model qwen-flash-next
+PYTHONPATH=src python3 -m hop.cli discover
+PYTHONPATH=src python3 -m hop.cli validate-profile --model qwen-flash-next
 ```
 
 `validate-profile` exits 2 (REFUSED) for unknown/unqualified models.
@@ -30,13 +30,13 @@ execution-bundle digest.
 ## 2. Run the debugging slice
 
 ```
-PYTHONPATH=src python3 -m aop.cli run --case debug-offbyone --harness pi --timeout 900
-PYTHONPATH=src python3 -m aop.cli run --case debug-wordcount --harness pi --timeout 900
+PYTHONPATH=src python3 -m hop.cli run --case debug-offbyone --harness pi --timeout 900
+PYTHONPATH=src python3 -m hop.cli run --case debug-wordcount --harness pi --timeout 900
 # deterministic arms (no GPU):
-PYTHONPATH=src python3 -m aop.cli run --case debug-offbyone --harness scripted:repair
-PYTHONPATH=src python3 -m aop.cli run --case debug-offbyone --harness scripted:fail
-PYTHONPATH=src python3 -m aop.cli run --case debug-offbyone --harness scripted:hang --timeout 5
-PYTHONPATH=src python3 -m aop.cli run --case debug-offbyone --harness scripted:scope_violation
+PYTHONPATH=src python3 -m hop.cli run --case debug-offbyone --harness scripted:repair
+PYTHONPATH=src python3 -m hop.cli run --case debug-offbyone --harness scripted:fail
+PYTHONPATH=src python3 -m hop.cli run --case debug-offbyone --harness scripted:hang --timeout 5
+PYTHONPATH=src python3 -m hop.cli run --case debug-offbyone --harness scripted:scope_violation
 ```
 
 Exit code 0 means verifier PASS; 1 means any other outcome (see report).
@@ -46,7 +46,7 @@ of executing twice.
 ## 3. Inspect a run
 
 ```
-PYTHONPATH=src python3 -m aop.cli report --run-dir runs/<run-id>
+PYTHONPATH=src python3 -m hop.cli report --run-dir runs/<run-id>
 # events:        runs/<run-id>/events.jsonl   (durable trajectory, schema-valid)
 # manifest:      runs/<run-id>/manifest.json  (bundle + model/harness/verifier/input pins)
 # evaluation:    runs/<run-id>/evaluation.json (machine-readable verifier evidence)

@@ -31,3 +31,9 @@ from real `--version`/`--help`/termination probes stored as
 `probe_evidence`, not from parsing a version string. See ADR-005 for the
 verifier boundary.
 
+
+## Rename note (AOP → HOP, M2→M3 boundary)
+
+The product is now HOP; `HOP_PI_BASE_URL` joins `AOP_PI_BASE_URL` in the
+worker-env scrub set and neither is ever honored. The decision above is
+otherwise unchanged; see ADR-008.

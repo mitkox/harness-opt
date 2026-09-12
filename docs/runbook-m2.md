@@ -3,19 +3,19 @@
 ## Investigate a failed run (no DB spelunking)
 
 ```
-PYTHONPATH=src python3 -m aop.cli run show <run-id>         # identity, outcome, resources, trace
-PYTHONPATH=src python3 -m aop.cli run trajectory <run-id>   # chronological durable events
-PYTHONPATH=src python3 -m aop.cli run trajectory <run-id> --event-type tool.completed
-PYTHONPATH=src python3 -m aop.cli run artifacts <run-id>    # content-addressed refs + integrity
-PYTHONPATH=src python3 -m aop.cli run trace <run-id>        # OTel span projection
-PYTHONPATH=src python3 -m aop.cli run verify <run-id>       # verifier evidence / scope / error
-PYTHONPATH=src python3 -m aop.cli run skills <run-id>       # exposure -> selection -> load -> execute
-PYTHONPATH=src python3 -m aop.cli run tools <run-id>        # normalized tool records
-PYTHONPATH=src python3 -m aop.cli run completeness <run-id> # policy, gaps, integrity chain
-PYTHONPATH=src python3 -m aop.cli run replay-check <run-id> # pinned identities still available?
+PYTHONPATH=src python3 -m hop.cli run show <run-id>         # identity, outcome, resources, trace
+PYTHONPATH=src python3 -m hop.cli run trajectory <run-id>   # chronological durable events
+PYTHONPATH=src python3 -m hop.cli run trajectory <run-id> --event-type tool.completed
+PYTHONPATH=src python3 -m hop.cli run artifacts <run-id>    # content-addressed refs + integrity
+PYTHONPATH=src python3 -m hop.cli run trace <run-id>        # OTel span projection
+PYTHONPATH=src python3 -m hop.cli run verify <run-id>       # verifier evidence / scope / error
+PYTHONPATH=src python3 -m hop.cli run skills <run-id>       # exposure -> selection -> load -> execute
+PYTHONPATH=src python3 -m hop.cli run tools <run-id>        # normalized tool records
+PYTHONPATH=src python3 -m hop.cli run completeness <run-id> # policy, gaps, integrity chain
+PYTHONPATH=src python3 -m hop.cli run replay-check <run-id> # pinned identities still available?
 ```
 
-`AOP_RUNS_DIR` overrides the run root (default `./runs`).
+`HOP_RUNS_DIR` overrides the run root (default `./runs`).
 
 ## End-to-end demo (A–G)
 
@@ -42,7 +42,7 @@ Pre-UUID M1 dev runs are flagged `legacy:true`, not claimed readable.
 
 ## Collector outage recovery
 
-Spans spool to `runs/_spool/<run-id>.jsonl` while `AOP_COLLECTOR_DOWN=1` or
+Spans spool to `runs/_spool/<run-id>.jsonl` while `HOP_COLLECTOR_DOWN=1` or
 the collector directory is down. On return, the runner flushes
 automatically (`telemetry.recovered` event); pending spool can be inspected
 via the `spool` section of `run show`. The ledger under

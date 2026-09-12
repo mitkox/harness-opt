@@ -41,3 +41,9 @@ during evaluation (pinned offline lock).
   passes with full verifier evidence while the collector is down).
 - Secrets never enter spans/metrics/labels (`telemetry/redaction.py`;
   key-name and pattern redaction, truncation with artifact digests).
+
+## Rename note (AOP → HOP, M2→M3 boundary)
+
+The `aop.*` span/attribute namespace named above is frozen as the stable
+v1 wire identifier for compatibility with persisted M1/M2 trajectories;
+see ADR-008. No `hop.*` duplicate was introduced.

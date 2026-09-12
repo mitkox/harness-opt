@@ -1,26 +1,47 @@
-# Local Agent Optimization Platform — implementation handoff
+# HOP — Harness Optimization Platform
 
-This bundle is a coding-agent plan and draft contract pack. It contains no implemented platform, installed `aop` executable, measured model rankings, or production-qualified profiles.
+Continuous evaluation, optimization, qualification, and distribution of
+models, skills, prompts, tools, and agent configurations for local coding
+harnesses.
 
-Start with `BUILD_PLAN.md`, then supply `AGENTS.md` to the coding agent and assign the dependency-ready items in `BACKLOG.yaml`. The first implementation target is M0/M1: one local model, Pi, an isolated debugging task, durable trajectories, and independent verification.
+HOP optimizes more than the harness binary itself. HOP owns local model
+qualification, harness integration, execution bundles, trajectories and
+traces, evaluations, skill/prompt/agent optimization, profile
+qualification, and promotion/rollback. APM remains the downstream
+package/distribution layer introduced in M3.
 
-Contents:
-
-- `BUILD_PLAN.md`: complete architecture, lifecycle, trust boundaries, evaluation design, observability, implementation milestones, and primary-source references.
-- `AGENTS.md`: build-agent constraints and work protocol.
-- `BACKLOG.yaml`: dependency-ordered implementation work items with outputs and acceptance criteria.
-- `specs/`: draft JSON Schemas for skill specifications, model target declarations, and trajectory-event envelopes.
-- `examples/`: non-deployable design examples that validate against those draft schemas; the target model entries deliberately have no qualified local deployments.
-- `VALIDATION_REPORT.md`: structural validation performed on this handoff, not platform tests.
-
-All schema names, `aop` interfaces, milestone gates, and example policies are project-specific proposals. Upstream runtime settings and interfaces must be probed against pinned builds. The plan is local-only across inference, evaluation, optimization, and observability.
+This repository was renamed from AOP / Agent Optimization Platform to HOP /
+Harness Optimization Platform at the M2→M3 boundary (see
+`docs/adr/ADR-008-rename-aop-to-hop.md`). The canonical Python package is
+`hop`, the canonical CLI is `hop`, and the canonical environment prefix is
+`HOP_*`. A deprecated `aop` CLI alias and `AOP_*` environment fallback are
+retained until M4; persisted M0–M2 run/artifact data was not migrated and
+remains readable as-is.
 
 ## Implementation status
 
-M0/M1 are implemented in `src/aop/` with the Pi headless adapter, local-only
-inference, `bwrap`-isolated agent and verifier processes, a trusted positive
-verifier, durable run/artifact storage, schema-valid trajectories, scoped
-candidate changes, and a pinned dependency lock. Evidence and the full
-requirement-to-probe matrix are in `docs/evidence/m1/` and
-`docs/acceptance-m1.md`; operating instructions are in `docs/runbook-m1.md`.
-M2 and later are not implemented.
+M0/M1/M2 are implemented in `src/hop/` with the Pi headless adapter,
+local-only inference, `bwrap`-isolated agent and verifier processes, a
+trusted positive verifier, durable run/artifact storage, schema-valid
+trajectories, scoped candidate changes, a pinned dependency lock, local
+OTel tracing with spool/recovery, redaction, and outcome-aware telemetry
+completeness. Evidence and the full requirement-to-probe matrix are in
+`docs/evidence/m1/`, `docs/evidence/m2/`, `docs/acceptance-m1.md`, and
+`docs/acceptance-m2.md`; operating instructions are in `docs/runbook-m1.md`
+and `docs/runbook-m2.md`. M3 and later are not implemented.
+
+## Quick start
+
+```bash
+PYTHONPATH=src python3 -m hop.cli discover
+PYTHONPATH=src python3 -m hop.cli run --case debug-offbyone --harness pi
+hop run show <run-id>
+hop run trajectory <run-id>
+hop run artifacts <run-id>
+hop run trace <run-id>
+hop run verify <run-id>
+hop run skills <run-id>
+hop run tools <run-id>
+hop run completeness <run-id>
+hop run replay-check <run-id>
+```

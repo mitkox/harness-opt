@@ -1,4 +1,4 @@
-# Local Agent Optimization Platform
+# HOP — Harness Optimization Platform
 ## Coding-agent implementation plan
 
 Version: 0.1 design handoff  
@@ -113,7 +113,7 @@ agent-optimization/
   pyproject.toml
   uv.lock
   toolchains.lock.json
-  src/aop/
+  src/hop/
     api/ cli/ contracts/ registry/ resolver/ compiler/
     admission/ scheduler/ workers/ policy/ security/
     models/ inference/ harnesses/ tools/ scm/
@@ -369,7 +369,7 @@ workflow.run
 
 Some spans such as prefill/decode require actual server instrumentation; do not fabricate them from client timestamps. Record client/server correlation IDs and distinguish measured, inferred, and unavailable values. Long sessions may use linked per-turn traces plus a run-level record to avoid oversized traces.
 
-Record supported GenAI semantic attributes through a pinned mapper; use an `aop.*` namespace for platform-specific information. Examples include bundle digest, model deployment ID, harness revision, skill ID and revision, workflow, experiment arm, verifier version, tool implementation hash, and event completeness. Store run IDs/digests on traces and indexed records, not unbounded Prometheus label dimensions.
+Record supported GenAI semantic attributes through a pinned mapper; use an `aop.*` namespace for platform-specific information (retained as the stable span namespace after the AOP→HOP rename; see ADR-008). Examples include bundle digest, model deployment ID, harness revision, skill ID and revision, workflow, experiment arm, verifier version, tool implementation hash, and event completeness. Store run IDs/digests on traces and indexed records, not unbounded Prometheus label dimensions.
 
 ### Redaction and retention
 
@@ -577,7 +577,7 @@ For every work item, the agent must inspect the relevant pinned upstream contrac
 
 Initial coding-agent instruction:
 
-> Implement M0 and M1 only. Establish the contracts, external sandbox boundary, local inference adapter, Pi adapter, durable run ledger, and one independently verified debugging workflow. Do not start prompt optimization, distributed orchestration, or automatic promotion until a clean end-to-end run is reproducible and telemetry completeness is testable. Treat all `aop` commands in this plan as interfaces to implement, not installed commands.
+> Implement M0 and M1 only. Establish the contracts, external sandbox boundary, local inference adapter, Pi adapter, durable run ledger, and one independently verified debugging workflow. Do not start prompt optimization, distributed orchestration, or automatic promotion until a clean end-to-end run is reproducible and telemetry completeness is testable. Treat all `hop` commands in this plan as interfaces to implement (`aop` remains only as a deprecated alias).
 
 ## 20. Definition of done for the complete platform
 
@@ -589,7 +589,7 @@ A release demonstration should include: one successful repair; one correctly rej
 
 ## 21. Evidence and current upstream references
 
-The architecture, thresholds, backlog, contract names, and `aop` interface are design proposals. No enterprise benchmark was executed while preparing this plan. Sources below establish current upstream capabilities; integration tests must pin the precise versions actually used.
+The architecture, thresholds, backlog, contract names, and `hop` interface are design proposals. No enterprise benchmark was executed while preparing this plan. Sources below establish current upstream capabilities; integration tests must pin the precise versions actually used.
 
 S01. APM install and frozen replay: `https://microsoft.github.io/apm/reference/cli/install/`
 

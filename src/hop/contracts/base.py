@@ -1,4 +1,4 @@
-"""Versioned domain contracts for the AOP platform (M0/M1).
+"""Versioned domain contracts for the HOP platform (M0/M1).
 
 Every record carries ``schema_version`` so stored artifacts can be migrated
 explicitly. Validation happens at admission (CLI), worker admission (runner),

@@ -14,7 +14,7 @@ PYTHONPATH=src python3 -m pytest tests/ -q                 # 84 passed
 bash scripts/build_lock_env.sh                             # fresh offline env
 PYTHONPATH=src .venv-m1/bin/python -m pytest tests/ -q     # 84 passed (lock env)
 python3 scripts/acceptance_m1.py --real-pi                 # 19/19 PASS
-PYTHONPATH=src python3 -m aop.cli run --case debug-offbyone --harness pi
+PYTHONPATH=src python3 -m hop.cli run --case debug-offbyone --harness pi
 ```
 
 | Requirement | Test/probe | Result | Evidence artifact | Commit |
@@ -40,7 +40,7 @@ PYTHONPATH=src python3 -m aop.cli run --case debug-offbyone --harness pi
 
 ## Real-model run
 
-`PYTHONPATH=src python3 -m aop.cli run --case debug-offbyone --harness pi
+`PYTHONPATH=src python3 -m hop.cli run --case debug-offbyone --harness pi
 --idempotency-key m1-accept-real-pi` -> `runs/run-c85be3744478`:
 `outcome=pass`, `verdict=pass`, `model_deployment_id=qwen-flash-next-IQ2_S_-_2.5_bpw`,
 `bundle_digest=sha256:d13da30e...`, `agent_seconds=23.14`, `total_seconds=24.78`.

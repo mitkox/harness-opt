@@ -1,5 +1,5 @@
 schema_version: '0.1'
-project: Local Agent Optimization Platform
+project: HOP - Harness Optimization Platform
 status: implementation_plan_not_implemented
 initial_assignment:
 - M0

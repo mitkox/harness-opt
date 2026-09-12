@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "title": "AOP trajectory event envelope v0.2 (M2)",
+  "title": "HOP trajectory event envelope v0.2 (M2)",
   "type": "object",
   "additionalProperties": false,
   "required": [

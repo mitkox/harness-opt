@@ -27,7 +27,7 @@ breaking stored trajectories.
 
 One primary run trace (`RunTracer`, W3C IDs). Trajectory events carry the
 trace/span IDs of their execution boundary; `trace-otel.json` holds the
-span tree; `aop run trace <id>` shows it and `aop run trajectory <id>`
+span tree; `hop run trace <id>` shows it and `hop run trajectory <id>`
 resolves the events. The ledger is authoritative; OTel is a projection.
 
 ## Metric provenance
