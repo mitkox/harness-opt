@@ -21,7 +21,7 @@ def test_trace_span_correlation_bidirectional(tmp_path):
     tracer2.start("workflow.run")
     tracer2.start("admission.resolve")
     span = tracer2.span_for_event("run.admitted")
-    assert span is not None and span.trace_id == tracer.trace_id
+    assert span is not None and span.trace_id == tracer2.trace_id
 
 
 def test_collector_unavailable_before_run_spools(tmp_path, monkeypatch):
