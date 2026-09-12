@@ -43,6 +43,12 @@ def test_timeout_and_cancel_arms(tmp_path):
     cancel.set()
     thread.join(30)
     assert box["rep"]["outcome"] == "cancelled"
+    # observer reconnect: all recorded events survive, outcome intact
+    from aop.trajectories import EventLedger
+    ledger = EventLedger(f"{box['rep']['run_dir']}/events.jsonl")
+    batch, cursor = ledger.read_from_cursor(0)
+    assert cursor == len(batch) > 3
+    assert any(e.event_type == "harness.cancelled" for e in batch)
 
 
 def test_every_run_pins_identities(tmp_path):
