@@ -47,7 +47,7 @@ def test_runtime_has_no_unlocked_third_party_imports():
                         imported.add(node.module.split(".")[0])
     stdlib = set(sys.stdlib_module_names)
     unlocked = {m for m in imported
-                if m not in stdlib and m not in ("hop", "conftest")}
+                if m not in stdlib and m not in ("hop", "conftest", "tests")}
     assert unlocked <= KNOWN_THIRD_PARTY, f"unlocked imports: {sorted(unlocked)}"
 
 

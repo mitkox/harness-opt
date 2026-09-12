@@ -41,8 +41,30 @@ Renamed AOP (Agent Optimization Platform) to HOP (Harness Optimization
 Platform); canonical CLI `hop`, Python package `hop`, env prefix `HOP_*`.
 See `docs/adr/ADR-008-rename-aop-to-hop.md`.
 
-Not implemented (planned): M3 immutable profiles + APM distribution, M4
-enterprise workflow eval packs, M5 multi-harness support, M6 model
-qualification, M7 continuous optimization, M8 promotion/rollback/release,
-M9+ dynamic routing and lifecycle hardening. Automatic optimization does not
-exist yet; HOP currently evaluates and observes.
+Implemented (M3):
+
+- First-class `Profile` / `ResolvedProfile` / `Lockfile` contracts, kept
+  separate from the `ExecutionBundle`.
+- Immutable, content-addressed component registry (prompts, skills, agents,
+  tool/context/org policies, harness overlays, hooks, MCP) with collision and
+  tamper detection.
+- Skill packages with canonical instructions, resources, executable scripts,
+  and selector-driven model/harness variants.
+- Deterministic dependency resolution, cycle/conflict detection, a lockfile
+  with no floating references, and a classified policy merge where mandatory
+  rules cannot be weakened.
+- Deterministic profile compiler with a real Pi target and fail-closed
+  extension points for Prime, OpenCode v2, and DeepSeek Harness.
+- APM export with HOP provenance plus round-trip `hop profile verify-export`
+  (real `apm lock` / `apm pack` exercised by the demo).
+- Profile-aware runs: run records, manifests, reports, and trajectory events
+  carry profile/lock/compiled digests; M1/M2 evidence stays readable.
+- CLI: `hop component|skill|registry|profile` verbs (`validate`, `resolve`,
+  `lock`, `deps`, `explain`, `diff`, `compile`, `materialize`, `export`,
+  `verify-export`).
+
+Not implemented (planned): M4 enterprise workflow eval packs, M5 multi-harness
+support, M6 model qualification, M7 continuous optimization, M8
+promotion/rollback/release, M9+ dynamic routing and lifecycle hardening.
+Automatic optimization does not exist yet; HOP currently evaluates, observes,
+and freezes configuration identity.
