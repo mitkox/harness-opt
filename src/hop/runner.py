@@ -1087,7 +1087,7 @@ def _start_cancel_watch(cancel: threading.Event, cancel_file: str | None) -> boo
                 return
             time.sleep(0.1)
 
-    threading.Thread(target=watch, name="aop-cancel-watch", daemon=True).start()
+    threading.Thread(target=watch, name="hop-cancel-watch", daemon=True).start()
     return False
 
 
