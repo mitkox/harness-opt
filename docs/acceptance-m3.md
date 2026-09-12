@@ -14,21 +14,21 @@ Status vocabulary: **PASS**, **FAIL**, **PARTIAL**, **NOT DEMONSTRATED**.
 | 8 | Same inputs → same resolved profile digest | PASS | `tests/test_m3_resolver.py`, demo | `profile_digest` equal |
 | 9 | Same inputs → deterministic compiled output | PASS | `tests/test_m3_compiler.py`, demo | `artifact_digest` equal twice |
 | 10 | Historical locked profiles remain materializable | PASS | `tests/test_m3_negatives.py` | lock-digest-keyed store; `historical_component_unavailable` |
-| 11 | Pi target compilation works on a real local run | PASS | `scripts/demo_m3.py --real` | `real_pi_run` in `docs/evidence/m3/demo-report.json` |
+| 11 | Pi target compilation works on a real local run | PASS | `scripts/demo_m3.py --real`, `docs/evidence/m3/real-run.json` | real Pi run `run-4629644fc5cb`, compiled target `sha256:30a71bbf…` |
 | 12 | Run trajectory records profile/lock/compiled identities | PASS | `tests/test_m3_run_integration.py` | report + manifest + every event |
 | 13 | Existing M1/M2 runs remain readable | PASS | `tests/test_m3_run_integration.py` | empty-default fields validate |
-| 14 | APM export works at the package-generation level | PASS | `tests/test_m3_apm.py`, demo `--apm` | package + `apm lock`/`apm pack` |
-| 15 | Exported APM artifact verifiable against HOP source | PASS | `tests/test_m3_apm.py` | `verify_export` recompilation match |
+| 14 | APM export works at the package-generation level | PASS | `tests/test_m3_apm.py`, demo `--apm` | package + real `apm lock`/`apm pack` (10 files + synthesized plugin.json) |
+| 15 | Exported APM artifact verifiable against HOP source | PASS | `tests/test_m3_apm.py`, `docs/evidence/m3/real-run.json` | `verify_export` recompilation match |
 | 16 | APM package excludes weights/secrets/hidden verifiers/evidence | PASS | `tests/test_m3_apm.py` | suffix + marker scan |
 | 17 | Tampering with profile/component/export detected | PASS | `test_m3_registry/apm/lockfile/negatives` | content, index, lock, provenance, package |
 | 18 | Profile diff works | PASS | `tests/test_m3_cli.py` | added/removed/changed + policy/variants |
 | 19 | Profile explain works | PASS | `tests/test_m3_cli.py` | variants, policy layers, transformations |
-| 20 | Replay-check accounts for profile dependencies | PASS | `tests/test_m3_run_integration.py` | `profile_store` check |
-| 21 | Full M0–M3 test suite passes | PASS | `pytest -q` | see final work report |
+| 20 | Replay-check accounts for profile dependencies | PASS | `tests/test_m3_run_integration.py`, real-run evidence | `replayable=true`, `materializable=true` for `run-4629644fc5cb` |
+| 21 | Full M0–M3 test suite passes | PASS | `pytest -q` | 241 passed |
 | 22 | M1 verifier adversarial probes still fail safely | PASS | `tests/test_verification.py`, `tests/security/` | unchanged M1 suite |
 | 23 | M1 local-only endpoint attacks still fail safely | PASS | `tests/security/test_boundaries.py` | unchanged M1 suite |
 | 24 | M2 trajectory integrity tests still pass | PASS | `tests/test_m2_ledger.py` | unchanged M2 suite |
 | 25 | M2 redaction/telemetry recovery tests still pass | PASS | `tests/test_m2_observe.py`, `test_m2_tracing_spool.py` | unchanged M2 suite |
-| 26 | One real local-model + Pi execution from a locked profile | PASS | demo `--real` | real run with profile digests |
-| 27 | One APM export from that exact locked profile | PASS | demo | same `profile_digest`/`lock_digest` |
+| 26 | One real local-model + Pi execution from a locked profile | PASS | `docs/evidence/m3/real-run.json` | `run-4629644fc5cb` pass/pass, deployment qwen-flash-next |
+| 27 | One APM export from that exact locked profile | PASS | `docs/evidence/m3/real-run.json` | export profile/lock digests equal the run's |
 | 28 | No M4+ optimizer/promotion logic introduced | PASS | code review | no optimizer/promotion modules |

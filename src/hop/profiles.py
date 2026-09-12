@@ -242,6 +242,7 @@ def lock_path_for(profile_path: str) -> str:
 
 
 def write_lock(lock: Lockfile, path: str) -> None:
+    os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
     with open(path, "w") as fh:
         json.dump(lock.model_dump(mode="json"), fh, sort_keys=True, indent=2)
         fh.write("\n")
