@@ -85,6 +85,8 @@ def test_hop_env_wins_over_legacy(monkeypatch, capsys):
 
 
 def test_historical_m1_runs_readable():
+    if not os.path.isdir("runs/run-c85be3744478"):
+        pytest.skip("needs author's local M1 acceptance run (runs/ is machine-local, not in repo)")
     rows = json.loads(subprocess.run(
         ["python3", "scripts/migrate_m1_to_m2.py", "--runs-dir", "runs"],
         capture_output=True, text=True, timeout=60,

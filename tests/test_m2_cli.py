@@ -72,6 +72,8 @@ def test_corrupted_artifact_and_dangling_ref_visible(tmp_path):
 
 
 def test_migration_keeps_m1_runs_readable():
+    if not os.path.isdir("runs/run-c85be3744478"):
+        pytest.skip("needs author's local M1 acceptance run (runs/ is machine-local, not in repo)")
     import subprocess
     proc = subprocess.run(
         ["python3", "scripts/migrate_m1_to_m2.py", "--runs-dir", "runs"],
