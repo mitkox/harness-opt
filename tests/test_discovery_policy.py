@@ -1,13 +1,13 @@
 """Discovery + policy tests (AOP-002, AOP-003). All hermetic (stub servers)."""
+
 import json
 import threading
 from http.server import BaseHTTPRequestHandler, HTTPServer
 
 import pytest
 
-from hop import discovery
+from hop import discovery, policy
 from hop.contracts.model import ModelFamily, ModelStatus
-from hop import policy
 
 
 class StubHandler(BaseHTTPRequestHandler):
@@ -18,9 +18,16 @@ class StubHandler(BaseHTTPRequestHandler):
         if self.path == "/health":
             body = {"status": "ok"}
         elif self.path == "/v1/models":
-            body = {"object": "list", "data": [{
-                "id": "stub-model", "owned_by": "llamacpp",
-                "meta": {"n_params": 1234, "n_ctx": 8192, "ftype": "Q4_K"}}]}
+            body = {
+                "object": "list",
+                "data": [
+                    {
+                        "id": "stub-model",
+                        "owned_by": "llamacpp",
+                        "meta": {"n_params": 1234, "n_ctx": 8192, "ftype": "Q4_K"},
+                    }
+                ],
+            }
         elif self.path == "/props":
             body = {"model_path": "", "n_ctx": 8192}
         else:
@@ -63,10 +70,17 @@ def test_nonlocal_endpoint_refused(stub_llama):
 
 def test_unavailable_model_never_becomes_cloud():
     dep = discovery.build_model_deployment(
-        "missing", "DeepSeek-V4-Flash", ModelFamily.DEEPSEEK,
-        {"base_url": "http://127.0.0.1:9", "server_build": "",
-         "server_command": "",
-         "models": {"data": [{"id": "x", "meta": {}}]}, "props": {}})
+        "missing",
+        "DeepSeek-V4-Flash",
+        ModelFamily.DEEPSEEK,
+        {
+            "base_url": "http://127.0.0.1:9",
+            "server_build": "",
+            "server_command": "",
+            "models": {"data": [{"id": "x", "meta": {}}]},
+            "props": {},
+        },
+    )
     # No endpoint probing happened here, but deployment without a live probe
     # must not be marked qualified in the inventory writer path.
     assert dep.weight_path == ""
@@ -89,10 +103,17 @@ def test_policy_rejects_nonlocal_and_nonhttp():
 
 
 def test_worker_env_scrubbed():
-    dirty = {"PATH": "/usr/bin", "OPENAI_API_KEY": "sk-x", "HTTP_PROXY": "http://evil:1",
-             "SSH_AUTH_SOCK": "/tmp/s", "HOME": "/h", "MY_CUSTOM": "keep"}
+    dirty = {
+        "PATH": "/usr/bin",
+        "OPENAI_API_KEY": "sk-x",
+        "HTTP_PROXY": "http://evil:1",
+        "SSH_AUTH_SOCK": "/tmp/s",
+        "HOME": "/h",
+        "MY_CUSTOM": "keep",
+    }
     clean = policy.scrub_worker_env(dirty)
-    assert clean["MY_CUSTOM"] == "keep"
+    assert "MY_CUSTOM" not in clean
+    assert clean["PATH"] == "/usr/bin"
     assert clean["PI_OFFLINE"] == "1"
     with pytest.raises(ValueError):
         policy.check_no_proxy_leak({"HTTP_PROXY": "x"})

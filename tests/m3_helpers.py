@@ -1,4 +1,5 @@
 """Shared helpers for M3 tests: hermetic registries and component fixtures."""
+
 from __future__ import annotations
 
 import os
@@ -25,25 +26,36 @@ def fresh_registry(tmp_path, populate: bool = True) -> ComponentRegistry:
     return registry
 
 
-def register(registry: ComponentRegistry, *, name: str, version: str = "1.0.0",
-             ctype: ComponentType = ComponentType.SKILL,
-             files: dict[str, bytes] | None = None,
-             dependencies: list[str] | None = None,
-             compatibility: dict | None = None,
-             policy_rules: dict | None = None,
-             variants: list[dict] | None = None,
-             skill_manifest: dict | None = None) -> RegistryComponent:
+def register(
+    registry: ComponentRegistry,
+    *,
+    name: str,
+    version: str = "1.0.0",
+    ctype: ComponentType = ComponentType.SKILL,
+    files: dict[str, bytes] | None = None,
+    dependencies: list[str] | None = None,
+    compatibility: dict | None = None,
+    policy_rules: dict | None = None,
+    variants: list[dict] | None = None,
+    skill_manifest: dict | None = None,
+) -> RegistryComponent:
     files = files if files is not None else {f"{name}.md": f"# {name}\n".encode()}
     deps = []
     for item in dependencies or []:
         joined = item if isinstance(item, ComponentRef) else _ref(item)
         deps.append(joined)
     record = RegistryComponent(
-        logical_name=name, version=version, component_type=ctype,
+        logical_name=name,
+        version=version,
+        component_type=ctype,
         content_digest=tree_digest(files),
-        dependencies=deps, compatibility=compatibility or {},
-        policy_rules=policy_rules or {}, variants=variants or [],
-        skill_manifest=skill_manifest or {}, source="test-fixture")
+        dependencies=deps,
+        compatibility=compatibility or {},
+        policy_rules=policy_rules or {},
+        variants=variants or [],
+        skill_manifest=skill_manifest or {},
+        source="test-fixture",
+    )
     record.record_digest = compute_record_digest(record)
     return registry.register(record, files)
 
@@ -64,8 +76,7 @@ def skill_files(body: str = "canonical", resource: str = "") -> dict[str, bytes]
 def variant(name: str, dimension: str, value: str, body: str = "") -> dict:
     return {
         "name": name,
-        "selectors": [VariantSelector(dimension=dimension, value=value)
-                      .model_dump(mode="json")],
+        "selectors": [VariantSelector(dimension=dimension, value=value).model_dump(mode="json")],
         "path": f"variants/{name}",
     }
 

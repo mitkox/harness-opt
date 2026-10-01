@@ -8,6 +8,7 @@ Nothing here runs a model, optimizes a skill, or promotes anything. A profile
 is a versioned, resolvable description of agent configuration; resolution
 turns floating references into exact ``version`` + ``digest`` pairs.
 """
+
 from __future__ import annotations
 
 from enum import Enum
@@ -45,10 +46,10 @@ class ComponentType(str, Enum):
 class PolicyClass(str, Enum):
     """How a policy rule participates in the merge (BUILD_PLAN §7)."""
 
-    MANDATORY = "mandatory"          # highest precedence; lower layers cannot change it
-    DEFAULT = "default"              # wins only when no higher layer sets the key
-    OVERRIDABLE = "overridable"      # a higher layer may replace it
-    ADDITIVE = "additive"            # values accumulate across layers
+    MANDATORY = "mandatory"  # highest precedence; lower layers cannot change it
+    DEFAULT = "default"  # wins only when no higher layer sets the key
+    OVERRIDABLE = "overridable"  # a higher layer may replace it
+    ADDITIVE = "additive"  # values accumulate across layers
     FORBIDDEN_OVERRIDE = "forbidden_override"  # nobody may set/change this key
 
 
@@ -229,7 +230,8 @@ class Lockfile(_ProfileBase):
         if self.lock_digest != expected:
             raise ValueError(
                 f"lockfile digest mismatch: recorded {self.lock_digest!r}, "
-                f"recomputed {expected!r} (tampered or non-canonical lock)")
+                f"recomputed {expected!r} (tampered or non-canonical lock)"
+            )
 
 
 class RegistryComponent(_ProfileBase):
@@ -299,8 +301,8 @@ def digest_payload(payload) -> str:
     import json
 
     return "sha256:" + sha256_hex(
-        json.dumps(payload, sort_keys=True, separators=(",", ":"),
-                   ensure_ascii=True).encode())
+        json.dumps(payload, sort_keys=True, separators=(",", ":"), ensure_ascii=True).encode()
+    )
 
 
 def tree_digest(files: dict[str, bytes]) -> str:

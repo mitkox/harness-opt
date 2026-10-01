@@ -5,6 +5,7 @@ EVENT_TAXONOMY. Stored trajectories never break when new types are added
 because validation is allowlist + namespaced-prefix rule, not a closed enum
 in the JSON schema.
 """
+
 from __future__ import annotations
 
 RUN_LIFECYCLE = (
@@ -91,17 +92,41 @@ TELEMETRY_EVENTS = (
 )
 
 EVENT_TAXONOMY: frozenset[str] = frozenset(
-    RUN_LIFECYCLE + MODEL_EVENTS + CONTEXT_EVENTS + SKILL_EVENTS + TOOL_EVENTS
-    + FILESYSTEM_EVENTS + AGENT_EVENTS + VERIFIER_EVENTS + TELEMETRY_EVENTS
+    RUN_LIFECYCLE
+    + MODEL_EVENTS
+    + CONTEXT_EVENTS
+    + SKILL_EVENTS
+    + TOOL_EVENTS
+    + FILESYSTEM_EVENTS
+    + AGENT_EVENTS
+    + VERIFIER_EVENTS
+    + TELEMETRY_EVENTS
 )
 
 # Namespaces that external/harness-specific events may use without breaking
 # stored trajectories (e.g. harness.pi.message_end, harness.scripted.event).
-EXTENSIBLE_PREFIXES = ("harness.", "skill.", "tool.", "agent.", "verifier.",
-                       "telemetry.", "run.", "inference.", "context.",
-                       "workspace.", "file.", "patch.", "diff.", "subagent.",
-                       "test.", "cancel.", "scope.", "model.", "output.",
-                       "evaluation.")
+EXTENSIBLE_PREFIXES = (
+    "harness.",
+    "skill.",
+    "tool.",
+    "agent.",
+    "verifier.",
+    "telemetry.",
+    "run.",
+    "inference.",
+    "context.",
+    "workspace.",
+    "file.",
+    "patch.",
+    "diff.",
+    "subagent.",
+    "test.",
+    "cancel.",
+    "scope.",
+    "model.",
+    "output.",
+    "evaluation.",
+)
 
 
 def is_known_event(event_type: str) -> bool:

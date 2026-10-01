@@ -4,11 +4,12 @@ Every record carries ``schema_version`` so stored artifacts can be migrated
 explicitly. Validation happens at admission (CLI), worker admission (runner),
 and artifact import (artifact store).
 """
+
 from __future__ import annotations
 
 import hashlib
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -22,7 +23,7 @@ class AopBase(BaseModel):
 
 
 def utcnow() -> datetime:
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 def new_id(prefix: str) -> str:

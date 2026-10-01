@@ -1,4 +1,5 @@
 """M3 committed example profiles/components stay valid and meaningfully differ."""
+
 import os
 
 import pytest
@@ -22,43 +23,45 @@ def test_example_profile_locks_compiles_and_exports(name, registry, tmp_path):
     _, resolved, lock = P.lock_profile(path, registry, home=str(tmp_path))
     assert lock.lock_digest.startswith("sha256:")
     assert all(c.version.count(".") == 2 for c in lock.components)
-    artifact, files = P.compile_resolved(P.load_profile(path), resolved, lock,
-                                         registry, target="pi")
+    artifact, files = P.compile_resolved(
+        P.load_profile(path), resolved, lock, registry, target="pi"
+    )
     assert artifact.artifact_digest.startswith("sha256:")
     assert files
-    exported = P.export(path, registry, out_dir=str(tmp_path / "apm"),
-                        home=str(tmp_path))
-    report = P.verify_exported(str(tmp_path / "apm"), registry=registry,
-                               source_profile=path)
+    exported = P.export(path, registry, out_dir=str(tmp_path / "apm"), home=str(tmp_path))
+    report = P.verify_exported(str(tmp_path / "apm"), registry=registry, source_profile=path)
     assert report["ok"] is True
     assert report["package_digest"] == exported["package_digest"]
 
 
 def test_pr_review_is_read_only(registry, tmp_path):
-    _, resolved, _ = P.lock_profile(os.path.join(PROFILE_DIR, "pr-review.yaml"),
-                                    registry, home=str(tmp_path))
+    _, resolved, _ = P.lock_profile(
+        os.path.join(PROFILE_DIR, "pr-review.yaml"), registry, home=str(tmp_path)
+    )
     assert resolved.effective_policy["writes.allowed"]["value"] is False
     tools = resolved.effective_policy["tools.allow"]["value"]
     assert "write" not in tools and "edit" not in tools
 
 
 def test_ci_repair_allows_controlled_writes(registry, tmp_path):
-    _, resolved, _ = P.lock_profile(os.path.join(PROFILE_DIR, "ci-repair.yaml"),
-                                    registry, home=str(tmp_path))
+    _, resolved, _ = P.lock_profile(
+        os.path.join(PROFILE_DIR, "ci-repair.yaml"), registry, home=str(tmp_path)
+    )
     assert resolved.effective_policy["writes.allowed"]["value"] is True
 
 
 def test_security_review_denies_network_scanning(registry, tmp_path):
     _, resolved, _ = P.lock_profile(
-        os.path.join(PROFILE_DIR, "security-review.yaml"), registry,
-        home=str(tmp_path))
+        os.path.join(PROFILE_DIR, "security-review.yaml"), registry, home=str(tmp_path)
+    )
     assert resolved.effective_policy["network.scanning"]["value"] == "deny"
     assert resolved.effective_policy["network.scanning"]["class"] == "mandatory"
 
 
 def test_coding_selects_model_family_variant(registry, tmp_path):
-    _, resolved, _ = P.lock_profile(os.path.join(PROFILE_DIR, "coding.yaml"),
-                                    registry, home=str(tmp_path))
+    _, resolved, _ = P.lock_profile(
+        os.path.join(PROFILE_DIR, "coding.yaml"), registry, home=str(tmp_path)
+    )
     assert resolved.component("debugging").variant == "qwen"
 
 

@@ -1,7 +1,10 @@
 """Shared harness adapter lifecycle (BUILD_PLAN §6)."""
+
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass, field
+from threading import Event
 from typing import Protocol
 
 from ..contracts.harness import HarnessCapabilities
@@ -29,14 +32,20 @@ class HarnessOutput:
 class HarnessAdapter(Protocol):
     adapter_revision: str
 
-    def probe(self) -> HarnessCapabilities:
-        ...
+    def probe(self) -> HarnessCapabilities: ...
 
-    def prepare(self, bundle_digest: str, layout_root: str, identity: str) -> PreparedSession:
-        ...
+    def prepare(self, bundle_digest: str, layout_root: str, identity: str) -> PreparedSession: ...
 
-    def start(self, task_prompt: str, session: PreparedSession, workspace: str,
-              stdout_path: str, stderr_path: str, timeout_s: float,
-              cancel) -> HarnessOutput:
+    def start(
+        self,
+        task_prompt: str,
+        session: PreparedSession,
+        workspace: str,
+        stdout_path: str,
+        stderr_path: str,
+        timeout_s: float,
+        cancel: Event | None,
+        on_native_event: Callable[[dict], None] | None = None,
+    ) -> HarnessOutput:
         """Blocking run. Streams native events to stdout_path incrementally."""
         ...

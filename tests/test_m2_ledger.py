@@ -1,6 +1,4 @@
 """M2 commit 2: ledger integrity + outcome-aware completeness."""
-import json
-import os
 
 import pytest
 
@@ -16,10 +14,17 @@ def _uid(n):
 
 def _evt(eid, source, seq, etype="run.admitted", run="r1", auth="platform_observation"):
     return TrajectoryEvent(
-        event_id=eid, event_type=etype, run_id=run, attempt_id="a1",
-        source=EventSource(id=source, authority=auth), source_sequence=seq,
-        observed_at="2026-09-12T00:00:00Z", bundle_digest=DIGEST,
-        trace_id="1" * 32, span_id="2" * 16)
+        event_id=eid,
+        event_type=etype,
+        run_id=run,
+        attempt_id="a1",
+        source=EventSource(id=source, authority=auth),
+        source_sequence=seq,
+        observed_at="2026-09-12T00:00:00Z",
+        bundle_digest=DIGEST,
+        trace_id="1" * 32,
+        span_id="2" * 16,
+    )
 
 
 def _full_success_ledger(tmp_path):
@@ -31,14 +36,15 @@ def _full_success_ledger(tmp_path):
         evt = _evt(_uid(100 + seq), source, seq, etype, auth=auth)
         # per-source sequences: track separately per source
         return evt
+
     # simpler: explicit per-source counters
     counters: dict[str, int] = {}
 
     def put(etype, source="aop-runner", auth="platform_observation", run="r1"):
         n = counters.get(source, 0)
         counters[source] = n + 1
-        ledger.append(_evt(_uid(len(ledger.read_all()) + 1), source, n, etype,
-                           run=run, auth=auth))
+        ledger.append(_evt(_uid(len(ledger.read_all()) + 1), source, n, etype, run=run, auth=auth))
+
     put("run.admitted")
     put("run.started")
     put("harness.exited")
@@ -62,6 +68,7 @@ def test_success_policy_complete_and_fail_policy_missing_verifier(tmp_path):
         n = counters.get(source, 0)
         counters[source] = n + 1
         ledger2.append(_evt(_uid(500 + len(ledger2.read_all())), source, n, etype))
+
     put2("run.admitted")
     put2("run.started")
     put2("harness.exited")
@@ -101,11 +108,9 @@ def test_duplicate_dedup_reorder_gap_and_malformed_visible(tmp_path):
 def test_invalid_authority_transition_rejected(tmp_path):
     ledger = EventLedger(str(tmp_path / "events.jsonl"))
     with pytest.raises(ValueError):
-        ledger.append(_evt(_uid(9), "pi", 0, "evaluation.recorded",
-                           auth="agent_claim"))
+        ledger.append(_evt(_uid(9), "pi", 0, "evaluation.recorded", auth="agent_claim"))
     with pytest.raises(ValueError):
-        ledger.append(_evt(_uid(10), "pi", 0, "verifier.completed",
-                           auth="harness_observation"))
+        ledger.append(_evt(_uid(10), "pi", 0, "verifier.completed", auth="harness_observation"))
 
 
 def test_tamper_detected_by_integrity_chain(tmp_path):

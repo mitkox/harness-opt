@@ -19,6 +19,7 @@ directory, then runs pytest under ``bwrap`` with:
 If the report is missing or malformed (for example a candidate calls
 ``os._exit(0)``), the result is a rejection -- never a PASS.
 """
+
 from __future__ import annotations
 
 import hashlib
@@ -183,18 +184,23 @@ def hash_hidden_dir(hidden_dir: str) -> str:
 def load_verifier_manifest(hidden_case_dir: str) -> dict:
     path = os.path.join(hidden_case_dir, "verifier.json")
     if not os.path.exists(path):
-        raise VerifierSetupError("missing_verifier_fixture",
-                                 f"no verifier.json in {hidden_case_dir}")
+        raise VerifierSetupError(
+            "missing_verifier_fixture", f"no verifier.json in {hidden_case_dir}"
+        )
     with open(path) as fh:
         manifest = json.load(fh)
-    for key in ("verifier_id", "version", "test_files", "expected_tests",
-                "mandatory_tests", "minimum_test_count"):
+    for key in (
+        "verifier_id",
+        "version",
+        "test_files",
+        "expected_tests",
+        "mandatory_tests",
+        "minimum_test_count",
+    ):
         if key not in manifest:
-            raise VerifierSetupError("invalid_verifier_fixture",
-                                     f"verifier.json missing {key!r}")
+            raise VerifierSetupError("invalid_verifier_fixture", f"verifier.json missing {key!r}")
     if not manifest["expected_tests"]:
-        raise VerifierSetupError("invalid_verifier_fixture",
-                                 "expected_tests must be non-empty")
+        raise VerifierSetupError("invalid_verifier_fixture", "expected_tests must be non-empty")
     return manifest
 
 
@@ -239,13 +245,17 @@ def evaluate_report(report: dict, manifest: dict) -> tuple[Verdict, RunOutcome, 
     deselected = list(report.get("deselected", []))
     outcomes = dict(report.get("outcomes", {}))
     evidence = {
-        "expected_tests": expected, "mandatory_tests": mandatory,
-        "minimum_test_count": minimum, "collected": collected,
-        "deselected": deselected, "outcomes": outcomes,
+        "expected_tests": expected,
+        "mandatory_tests": mandatory,
+        "minimum_test_count": minimum,
+        "collected": collected,
+        "deselected": deselected,
+        "outcomes": outcomes,
     }
 
-    def reject(error_class: str, outcome: RunOutcome = RunOutcome.FAIL,
-               verdict: Verdict = Verdict.ERROR):
+    def reject(
+        error_class: str, outcome: RunOutcome = RunOutcome.FAIL, verdict: Verdict = Verdict.ERROR
+    ):
         evidence["rejection"] = error_class
         return verdict, outcome, error_class, evidence
 
@@ -279,30 +289,56 @@ def evaluate_report(report: dict, manifest: dict) -> tuple[Verdict, RunOutcome, 
     return Verdict.PASS, RunOutcome.PASS, "", evidence
 
 
-def _error_result(run_id: str, attempt_id: str, verifier_version: str,
-                  hidden_test_hash: str, contamination: str, error_class: str,
-                  details: dict,
-                  outcome: RunOutcome = RunOutcome.INFRA_ERROR) -> EvaluationResult:
+def _error_result(
+    run_id: str,
+    attempt_id: str,
+    verifier_version: str,
+    hidden_test_hash: str,
+    contamination: str,
+    error_class: str,
+    details: dict,
+    outcome: RunOutcome = RunOutcome.INFRA_ERROR,
+) -> EvaluationResult:
     details = dict(details)
     details["error_class"] = error_class
     return EvaluationResult(
-        run_id=run_id, attempt_id=attempt_id, verifier_version=verifier_version,
-        verdict=Verdict.ERROR, outcome=outcome, details=details,
-        hidden_test_hash=hidden_test_hash, contamination_check=contamination,
-        error_class=error_class)
+        run_id=run_id,
+        attempt_id=attempt_id,
+        verifier_version=verifier_version,
+        verdict=Verdict.ERROR,
+        outcome=outcome,
+        details=details,
+        hidden_test_hash=hidden_test_hash,
+        contamination_check=contamination,
+        error_class=error_class,
+    )
 
 
-def run_verification(run_id: str, attempt_id: str, snapshot_dir: str,
-                     hidden_case_dir: str, *, verifier_version: str = VERIFIER_VERSION_DEFAULT,
-                     timeout_s: float = 120.0, work_root: str | None = None,
-                     manifest: dict | None = None) -> EvaluationResult:
+def run_verification(
+    run_id: str,
+    attempt_id: str,
+    snapshot_dir: str,
+    hidden_case_dir: str,
+    *,
+    verifier_version: str = VERIFIER_VERSION_DEFAULT,
+    timeout_s: float = 120.0,
+    work_root: str | None = None,
+    manifest: dict | None = None,
+) -> EvaluationResult:
     """Run hidden tests against the frozen snapshot inside a confined namespace."""
     manifest = manifest or load_verifier_manifest(hidden_case_dir)
     hidden_hash = hash_hidden_dir(hidden_case_dir)
     contamination = contamination_check(snapshot_dir, hidden_case_dir)
     if contamination != "clean":
-        return _error_result(run_id, attempt_id, verifier_version, hidden_hash,
-                             contamination, "contamination", {"contamination": contamination})
+        return _error_result(
+            run_id,
+            attempt_id,
+            verifier_version,
+            hidden_hash,
+            contamination,
+            "contamination",
+            {"contamination": contamination},
+        )
 
     owns_root = work_root is None
     work_root = work_root or tempfile.mkdtemp(prefix="hop-verify-")
@@ -319,12 +355,22 @@ def run_verification(run_id: str, attempt_id: str, snapshot_dir: str,
 
     report_path = os.path.join(out_dir, "report.json")
     bootstrap = os.path.join(vbin, "_aop_bootstrap.py")
-    cmd = [sys.executable, "-I", bootstrap, snapshot_dir, tests_dir,
-           report_path, vbin, *manifest["test_files"]]
+    cmd = [
+        sys.executable,
+        "-I",
+        bootstrap,
+        snapshot_dir,
+        tests_dir,
+        report_path,
+        vbin,
+        *manifest["test_files"],
+    ]
     env = {
         "PATH": os.environ.get("PATH", "/usr/bin:/bin"),
-        "HOME": out_dir, "TMPDIR": out_dir,
-        "PYTHONDONTWRITEBYTECODE": "1", "PYTHONNOUSERSITE": "1",
+        "HOME": out_dir,
+        "TMPDIR": out_dir,
+        "PYTHONDONTWRITEBYTECODE": "1",
+        "PYTHONNOUSERSITE": "1",
         "PYTHONHASHSEED": "0",
         "PYTEST_DISABLE_PLUGIN_AUTOLOAD": "1",
         "PI_OFFLINE": "1",
@@ -333,59 +379,102 @@ def run_verification(run_id: str, attempt_id: str, snapshot_dir: str,
     ro_binds += interpreter_ro_binds()
     ro_binds += [(snapshot_dir, snapshot_dir), (tests_dir, tests_dir), (vbin, vbin)]
     rw_binds = [(out_dir, out_dir)]
-    spec = SandboxSpec(isolate_mounts=True, share_network=False,
-                       cpu_time_s=int(timeout_s) + 30)
+    spec = SandboxSpec(isolate_mounts=True, share_network=False, cpu_time_s=int(timeout_s) + 30)
     stdout = os.path.join(out_dir, "verifier-stdout.log")
     stderr = os.path.join(out_dir, "verifier-stderr.log")
     try:
-        result = spawn_confined(cmd, cwd=tests_dir, env=env, ro_binds=ro_binds,
-                                rw_binds=rw_binds, spec=spec, timeout_s=timeout_s,
-                                stdout_path=stdout, stderr_path=stderr)
+        result = spawn_confined(
+            cmd,
+            cwd=tests_dir,
+            env=env,
+            ro_binds=ro_binds,
+            rw_binds=rw_binds,
+            spec=spec,
+            timeout_s=timeout_s,
+            stdout_path=stdout,
+            stderr_path=stderr,
+        )
     except SandboxUnavailable as exc:
-        return _error_result(run_id, attempt_id, verifier_version, hidden_hash,
-                             contamination, "verifier_sandbox_unavailable",
-                             {"error": str(exc)})
+        return _error_result(
+            run_id,
+            attempt_id,
+            verifier_version,
+            hidden_hash,
+            contamination,
+            "verifier_sandbox_unavailable",
+            {"error": str(exc)},
+        )
     details = {
-        "exit_code": result.exit_code, "timed_out": result.timed_out,
+        "exit_code": result.exit_code,
+        "timed_out": result.timed_out,
         "backend": result.backend,
-        "log_tail": _tail(stdout), "stderr_tail": _tail(stderr),
-        "report_path": report_path, "hidden_test_hash": hidden_hash,
+        "log_tail": _tail(stdout),
+        "stderr_tail": _tail(stderr),
+        "report_path": report_path,
+        "hidden_test_hash": hidden_hash,
         "contamination": contamination,
     }
     if owns_root:
         details["work_root"] = work_root
 
     if result.timed_out:
-        return _error_result(run_id, attempt_id, verifier_version, hidden_hash,
-                             contamination, "verification_timeout", details)
+        return _error_result(
+            run_id,
+            attempt_id,
+            verifier_version,
+            hidden_hash,
+            contamination,
+            "verification_timeout",
+            details,
+        )
     if not os.path.exists(report_path):
         # e.g. candidate called os._exit(0); exit status is meaningless here.
-        return _error_result(run_id, attempt_id, verifier_version, hidden_hash,
-                             contamination, "verification_no_result", details,
-                             outcome=RunOutcome.FAIL)
+        return _error_result(
+            run_id,
+            attempt_id,
+            verifier_version,
+            hidden_hash,
+            contamination,
+            "verification_no_result",
+            details,
+            outcome=RunOutcome.FAIL,
+        )
     try:
         with open(report_path) as fh:
             report = json.load(fh)
     except (OSError, json.JSONDecodeError) as exc:
         details["report_error"] = str(exc)
-        return _error_result(run_id, attempt_id, verifier_version, hidden_hash,
-                             contamination, "verification_malformed_report", details,
-                             outcome=RunOutcome.FAIL)
+        return _error_result(
+            run_id,
+            attempt_id,
+            verifier_version,
+            hidden_hash,
+            contamination,
+            "verification_malformed_report",
+            details,
+            outcome=RunOutcome.FAIL,
+        )
 
     verdict, outcome, error_class, evidence = evaluate_report(report, manifest)
     evidence["manifest"] = manifest
     evidence["report"] = report
-    evidence_digest = hashlib.sha256(
-        json.dumps(evidence, sort_keys=True).encode()).hexdigest()
+    evidence_digest = hashlib.sha256(json.dumps(evidence, sort_keys=True).encode()).hexdigest()
     with open(os.path.join(out_dir, "verification.json"), "w") as fh:
         json.dump(evidence, fh, indent=2, sort_keys=True)
     details["verification"] = evidence
     details["evidence_digest"] = evidence_digest
     return EvaluationResult(
-        run_id=run_id, attempt_id=attempt_id, verifier_version=verifier_version,
-        verdict=verdict, outcome=outcome, details=details,
-        hidden_test_hash=hidden_hash, contamination_check=contamination,
-        error_class=error_class, evidence_digest="sha256:" + evidence_digest)
+        run_id=run_id,
+        attempt_id=attempt_id,
+        verifier_version=verifier_version,
+        verdict=verdict,
+        outcome=outcome,
+        details=details,
+        hidden_test_hash=hidden_hash,
+        contamination_check=contamination,
+        error_class=error_class,
+        evidence_digest="sha256:" + evidence_digest,
+    )
 
 
 def _tail(path: str, limit: int = 3000) -> str:

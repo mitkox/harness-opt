@@ -71,6 +71,13 @@ model families are DeepSeek, Qwen, and GLM. There is no hosted API fallback.
 
 ## Status: alpha / active development
 
+The HOP 0.2 foundation review is **in progress, not release-qualified**.
+The CLI/devex and integrity changes have non-live regression evidence; open
+security findings, independent review, offline type tooling, and current live
+qualification still block advancement to M4. Start with the
+[runbook](docs/runbook.md), [review](docs/foundation-review.md), and
+[acceptance matrix](docs/acceptance-foundation.md).
+
 Implemented (M0–M3 plus the AOP → HOP rename):
 
 - local-only execution foundation (loopback enforcement, served-model
@@ -85,8 +92,9 @@ Implemented (M0–M3 plus the AOP → HOP rename):
 - telemetry completeness (outcome-aware policy; incomplete runs cannot pass)
 - secret redaction and data classification
 - replay metadata and checks
-- HOP CLI (`hop`; deprecated `aop` alias retained until M4)
-- Pi integration (headless JSONL adapter, qualified via live probes)
+- HOP CLI (`hop`; deprecated `aop` alias retained through 0.2)
+- Pi integration (headless JSONL adapter; historical probes qualified 0.85.1,
+  not the latest observed 1.0.0 build)
 - immutable versioned component registry (prompts, skills, agents, policies,
   overlays, hooks, MCP) with content-addressed identity and tamper detection
 - deterministic profile resolution, lockfiles, variant selection, and
@@ -112,7 +120,8 @@ Planned (not implemented — automatic optimization does not exist yet):
 | M2 | Trace and trajectory evaluation | ✅ done (`m2-observability`) |
 | — | AOP → HOP namespace migration | ✅ done (`hop-namespace`) |
 | M3 | Canonical skills, compiler, and APM | ✅ done (profiles/compiler/APM) |
-| M4 | Enterprise benchmark packs | ⬜ next |
+| Foundation | HOP-R01-R05 review and simplification | In progress; acceptance blocked |
+| M4 | Enterprise benchmark packs | ⬜ blocked on foundation |
 | M5 | All harness integrations | ⬜ planned |
 | M6 | Model matrix and fair benchmarking | ⬜ planned |
 | M7 | First optimization loop | ⬜ planned |
@@ -145,27 +154,32 @@ repository, or other runs. Inference endpoints must resolve to loopback.
 
 ## Local developer setup
 
-Prerequisites: Python 3.11+, `bwrap`, Node with the
-`@earendil-works/pi-coding-agent` harness (`pi` on `PATH`), and a local
-OpenAI-compatible server (for example `llama-server`) on loopback.
+The evidenced offline combination is Python 3.14 on Linux x86-64, plus an
+approved wheelhouse. Live execution additionally requires a qualified Pi
+build, `bwrap`, and a registered local model. Other combinations require
+qualification before support is claimed.
 
 ```bash
 git clone https://github.com/mitkox/harness-opt.git
 cd harness-opt
-scripts/build_lock_env.sh --run-tests
+HOP_WHEELHOUSE=/path/to/approved/wheels scripts/dev bootstrap
+./hop --help
+scripts/dev test --suite all
+scripts/dev check
 ```
 
-This builds `.venv-m1` from the pinned offline wheelhouse (`.vendor/wheels`
-plus `requirements.lock`; no network access) and runs the full suite.
-`pip install -e .` is intentionally not the workflow here: the offline lock
-environment is built with `scripts/build_lock_env.sh` instead, which does
-not require setuptools or network access.
+Bootstrap stages a versioned environment and switches `.venv` only after
+validation. Existing environments are retained. `--runtime` omits developer-only
+schema tooling but retains pytest for trusted verification; `--run-tests`
+validates a developer environment before switching.
+No manual `PYTHONPATH`, editable install, or package download is required.
+Static type checking currently reports blocked pending approved offline tools.
 
 Register the machine's real deployments and harnesses:
 
 ```bash
-PYTHONPATH=src .venv-m1/bin/python scripts/discover.py
-PYTHONPATH=src .venv-m1/bin/python -m hop.cli discover
+PYTHONPATH=src .venv/bin/python scripts/discover.py
+./hop discover
 ```
 
 `profiles/models/local-inventory.json` and
@@ -177,35 +191,38 @@ by `scripts/discover.py`. Synthetic placeholders for new contributors live in
 
 ## Usage
 
-All commands below were tested against the M2 tree:
+The current CLI has real nested command groups:
 
 ```bash
-hop --help
-hop discover
-hop validate-profile --model qwen-flash-next
+./hop doctor
+./hop init
+./hop deployment list
 
 # M3: components, profiles, compiler, APM
-hop registry import components
-hop component list --type skill
-hop profile validate examples/profiles/coding.yaml
-hop profile explain examples/profiles/debugging.yaml
-hop profile lock examples/profiles/coding.yaml
-hop profile compile examples/profiles/coding.yaml --out /tmp/pi-out
-hop run --case debug-offbyone --profile examples/profiles/debugging.yaml
-hop profile export examples/profiles/coding.yaml --target apm --out /tmp/apm
-hop profile verify-export /tmp/apm --profile examples/profiles/coding.yaml
+./hop registry import components
+./hop component list --type skill
+./hop profile validate examples/profiles/coding.yaml
+./hop profile explain examples/profiles/debugging.yaml
+./hop profile lock examples/profiles/coding.yaml --out /tmp/coding.hop.lock
+./hop profile compile examples/profiles/coding.yaml --out /tmp/pi-out
+./hop run start --case debug-offbyone --model REGISTERED_DEPLOYMENT
+./hop profile export examples/profiles/coding.yaml --target apm --out /tmp/apm
+./hop profile verify-export /tmp/apm --profile examples/profiles/coding.yaml
 
 # run investigation
-hop run show <run-id>
-hop run trajectory <run-id>
-hop run completeness <run-id>
-hop run replay-check <run-id>
+./hop run list
+./hop run show RUN_ID
+./hop run trajectory RUN_ID --cursor 0 --limit 100
+./hop run completeness RUN_ID
+./hop run replay-check RUN_ID
+./hop run compare LEFT_RUN RIGHT_RUN
 ```
 
 More investigation verbs: `artifacts`, `trace`, `verify`, `skills`, `tools`
-(for example `hop run trace <run-id>`). With an uninstalled checkout, prefix
-with `PYTHONPATH=src` (for example
-`PYTHONPATH=src python3 -m hop.cli --help`).
+(for example `./hop run trace RUN_ID`). Redirected output defaults to JSON;
+use `--format text|json` to choose. See the runbook for path precedence and
+exit codes. Legacy command forms, `aop`, and `AOP_*` remain through 0.2;
+removal is targeted for 0.3 only after M4 acceptance and migration documentation.
 
 A passing run ends with `outcome: pass` and `verdict: pass` from the trusted
 verifier; agent text claiming success never decides the result. Failing runs
@@ -246,8 +263,10 @@ tests/              unit, contract, security, and e2e tests
   production signing is deferred to the promotion milestone.
 - `.hidden/` is an interim in-repo hidden-test location enforced by mount
   namespaces, not sealed evaluator-owned storage (M4).
-- Isolation is `bwrap` user namespaces, not containers/VMs; the agent worker
-  shares host networking restricted to loopback inference.
+- Isolation uses `bwrap` namespaces. The Pi worker shares host networking;
+  inference endpoint checks do not enforce general OS-level worker egress.
+  Aggregate descendant quotas and verifier current-case protection also remain
+  open security findings. Do not treat this as hostile-workload qualification.
 - PostgreSQL, multi-node scheduling, and the release publisher are deferred
   per the ADRs.
 

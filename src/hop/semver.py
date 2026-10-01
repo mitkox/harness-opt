@@ -12,6 +12,7 @@ operators: ``^``, ``~``, ``>=``, ``>``, ``<=``, ``<``, ``=`` and the wildcard
 ``MAJOR`` or ``MAJOR.MINOR`` is treated as an exact prefix wildcard
 (``1`` == ``>=1.0.0,<2.0.0``; ``1.2`` == ``>=1.2.0,<1.3.0``).
 """
+
 from __future__ import annotations
 
 import re
@@ -36,12 +37,13 @@ class Version:
     prerelease: str = ""
 
     @classmethod
-    def parse(cls, text: str) -> "Version":
+    def parse(cls, text: str) -> Version:
         match = _VERSION_RE.match(text.strip())
         if not match:
             raise VersionError(f"invalid semantic version: {text!r}")
-        return cls(int(match.group(1)), int(match.group(2)), int(match.group(3)),
-                   match.group(4) or "")
+        return cls(
+            int(match.group(1)), int(match.group(2)), int(match.group(3)), match.group(4) or ""
+        )
 
     def __str__(self) -> str:
         base = f"{self.major}.{self.minor}.{self.patch}"
@@ -49,10 +51,9 @@ class Version:
 
     def _cmp_key(self):
         # A release outranks any prerelease of the same numeric version.
-        return (self.major, self.minor, self.patch, 0 if self.prerelease else 1,
-                self.prerelease)
+        return (self.major, self.minor, self.patch, 0 if self.prerelease else 1, self.prerelease)
 
-    def __lt__(self, other: "Version") -> bool:  # type: ignore[override]
+    def __lt__(self, other: Version) -> bool:  # type: ignore[override]
         if not isinstance(other, Version):
             return NotImplemented
         return self._cmp_key() < other._cmp_key()
@@ -103,11 +104,11 @@ class Constraint:
         self.clauses = clauses
 
     @classmethod
-    def any(cls) -> "Constraint":
+    def any(cls) -> Constraint:
         return cls("*", [])
 
     @classmethod
-    def parse(cls, text: str) -> "Constraint":
+    def parse(cls, text: str) -> Constraint:
         raw = (text or "").strip()
         if raw in ("", "*", "latest"):
             return cls.any()
@@ -127,7 +128,7 @@ class Constraint:
         for candidate in _OPERATORS:
             if token.startswith(candidate):
                 op = candidate
-                body = token[len(candidate):]
+                body = token[len(candidate) :]
                 break
         if op == "=" and body.count(".") < 2:
             # Prefix wildcard: 1 -> >=1.0.0,<2.0.0 ; 1.2 -> >=1.2.0,<1.3.0

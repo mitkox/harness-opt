@@ -3,15 +3,16 @@
 Covers local-only endpoint derivation, env-injection rejection, model-identity
 attestation, and claim-vs-fact separation.
 """
+
 import json
 import os
 import stat
 import threading
 from http.server import BaseHTTPRequestHandler, HTTPServer
+from pathlib import Path
 
 import pytest
 
-from hop.contracts.base import new_id
 from hop.contracts.model import LocalEndpoint, ModelDeployment, ModelFamily, ModelStatus
 from hop.harnesses.pi_adapter import PiJsonAdapter, native_to_trajectory_kind
 from hop.harnesses.scripted import ScriptedHarness
@@ -37,11 +38,15 @@ def _fake_pi(tmp_path):
 
 def _deployment(base_url="http://127.0.0.1:8000/v1", model_id="mitko"):
     return ModelDeployment(
-        deployment_id="d1", discovery_label="Qwen", family=ModelFamily.QWEN,
-        status=ModelStatus.QUALIFIED, quantization="Q4_K_M",
+        deployment_id="d1",
+        discovery_label="Qwen",
+        family=ModelFamily.QWEN,
+        status=ModelStatus.QUALIFIED,
+        quantization="Q4_K_M",
         context_length_configured=262144,
         serving_config={"reasoning": True, "max_tokens": 4096},
-        endpoint=LocalEndpoint(alias="qwen", base_url=base_url, model_id=model_id))
+        endpoint=LocalEndpoint(alias="qwen", base_url=base_url, model_id=model_id),
+    )
 
 
 def test_probe_real_pi():
@@ -67,17 +72,24 @@ def test_prompt_acceptance_is_not_completion(tmp_path):
     session = adapter.prepare("sha256:" + "ab" * 32, str(tmp_path / "run"), "w1")
     ws = str(tmp_path / "ws")
     os.makedirs(ws)
-    out = adapter.start("do thing", session, ws, str(tmp_path / "out.jsonl"),
-                        str(tmp_path / "err.log"), 20.0, threading.Event())
+    out = adapter.start(
+        "do thing",
+        session,
+        ws,
+        str(tmp_path / "out.jsonl"),
+        str(tmp_path / "err.log"),
+        20.0,
+        threading.Event(),
+    )
     assert out.terminal_status == "exited"
     assert out.agent_claim == "I fixed it"
     assert not hasattr(out, "verdict")
 
 
 def test_native_mapping_separates_claims():
-    etype, auth = native_to_trajectory_kind({"type": "message_end"})
+    _etype, auth = native_to_trajectory_kind({"type": "message_end"})
     assert auth == "agent_claim"
-    etype2, auth2 = native_to_trajectory_kind({"type": "agent_start"})
+    _etype2, auth2 = native_to_trajectory_kind({"type": "agent_start"})
     assert auth2 == "harness_observation"
 
 
@@ -94,7 +106,9 @@ def test_env_endpoint_injection_is_scrubbed_and_ignored(tmp_path, monkeypatch):
     assert "HOP_PI_BASE_URL" not in scrubbed and "AOP_PI_BASE_URL" not in scrubbed
     adapter = PiJsonAdapter(deployment=_deployment(), executable=_fake_pi(tmp_path))
     session = adapter.prepare("sha256:" + "ab" * 32, str(tmp_path / "run"), "w1")
-    cfg = json.load(open(os.path.join(session.extra_env["PI_CODING_AGENT_DIR"], "models.json")))
+    cfg = json.loads(
+        Path(os.path.join(session.extra_env["PI_CODING_AGENT_DIR"], "models.json")).read_text()
+    )
     base = cfg["providers"]["hop_local"]["baseUrl"]
     assert base == "http://127.0.0.1:8000/v1"
     assert "evil.example" not in json.dumps(cfg)
@@ -104,8 +118,9 @@ def test_env_endpoint_injection_is_scrubbed_and_ignored(tmp_path, monkeypatch):
 
 def test_remote_deployment_endpoint_fails_closed(tmp_path):
     with pytest.raises(ValueError):
-        PiJsonAdapter(deployment=_deployment("http://10.1.2.3:8000/v1"),
-                      executable=_fake_pi(tmp_path))
+        PiJsonAdapter(
+            deployment=_deployment("http://10.1.2.3:8000/v1"), executable=_fake_pi(tmp_path)
+        )
 
 
 class _ModelsHandler(BaseHTTPRequestHandler):
@@ -154,21 +169,29 @@ def test_served_model_identity_mismatch_fails(stub_models):
 
 def test_scripted_arms():
     import tempfile
-    for behavior, status in [("succeed", "exited"), ("fail", "exited"),
-                             ("hang", "timeout"), ("claim_success", "exited"),
-                             ("repair", "exited")]:
+
+    for behavior, status in [
+        ("succeed", "exited"),
+        ("fail", "exited"),
+        ("hang", "timeout"),
+        ("claim_success", "exited"),
+        ("repair", "exited"),
+    ]:
         h = ScriptedHarness(behavior, delay_s=0.1 if behavior != "hang" else 5.0)
         with tempfile.TemporaryDirectory() as td:
-            out = h.start("p", h.prepare("d", td, "w"), td,
-                          f"{td}/o", f"{td}/e", 0.5, threading.Event())
+            out = h.start(
+                "p", h.prepare("d", td, "w"), td, f"{td}/o", f"{td}/e", 0.5, threading.Event()
+            )
         assert out.terminal_status == status, behavior
     h = ScriptedHarness("hang", delay_s=30.0)
     cancel = threading.Event()
     box = {}
     with tempfile.TemporaryDirectory() as td:
-        t = threading.Thread(target=lambda: box.update(
-            r=h.start("p", h.prepare("d", td, "w"), td, f"{td}/o", f"{td}/e",
-                      30.0, cancel)))
+        t = threading.Thread(
+            target=lambda: box.update(
+                r=h.start("p", h.prepare("d", td, "w"), td, f"{td}/o", f"{td}/e", 30.0, cancel)
+            )
+        )
         t.start()
         cancel.set()
         t.join(10)

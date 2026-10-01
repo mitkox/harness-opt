@@ -1,8 +1,10 @@
 """Inference + sandbox tests (AOP-007, AOP-008). Hermetic stub servers/processes."""
+
 import json
 import threading
 import time
 from http.server import BaseHTTPRequestHandler, HTTPServer
+from pathlib import Path
 
 import pytest
 
@@ -13,7 +15,6 @@ from hop.inference import (
     LocalEndpointError,
     UnsupportedParameterError,
 )
-from hop import policy
 
 
 class StubHandler(BaseHTTPRequestHandler):
@@ -34,9 +35,11 @@ class StubHandler(BaseHTTPRequestHandler):
             return
         stream = payload.get("stream")
         if stream:
-            raw = ('data: {"choices": [{"delta": {"content": "héllo "}}]}\n\n'
-                   'data: {"choices": [{"delta": {"tool_calls": [{"id": "c1"}]}}]}\n\n'
-                   'data: [DONE]\n').encode("utf-8")
+            raw = (
+                'data: {"choices": [{"delta": {"content": "héllo "}}]}\n\n'
+                'data: {"choices": [{"delta": {"tool_calls": [{"id": "c1"}]}}]}\n\n'
+                "data: [DONE]\n"
+            ).encode()
             self.send_response(200)
             self.send_header("Content-Type", "text/event-stream")
             self.send_header("Content-Length", str(len(raw)))
@@ -61,8 +64,9 @@ def stub():
 
 def test_complete_and_stream_unicode_toolcall(stub):
     client = LocalEndpointClient(stub, "stub-model", timeout_s=10)
-    out = client.complete(ChatRequest(messages=[{"role": "user", "content": "hi"}],
-                                      params={"temperature": 0.3}))
+    out = client.complete(
+        ChatRequest(messages=[{"role": "user", "content": "hi"}], params={"temperature": 0.3})
+    )
     assert out["choices"][0]["message"]["content"] == "ok"
     chunks = client.stream(ChatRequest(messages=[{"role": "user", "content": "hi"}]))
     assert len(chunks) == 2
@@ -88,8 +92,7 @@ def test_stream_cancellation(stub):
     client = LocalEndpointClient(stub, "stub-model", timeout_s=10)
     cancel = threading.Event()
     cancel.set()
-    chunks = client.stream(ChatRequest(messages=[{"role": "user", "content": "hi"}]),
-                           cancel=cancel)
+    chunks = client.stream(ChatRequest(messages=[{"role": "user", "content": "hi"}]), cancel=cancel)
     assert chunks == []
 
 
@@ -99,9 +102,11 @@ def test_sandbox_isolation_and_env(tmp_path):
     spec = sandbox.SandboxSpec(cpu_time_s=30, memory_bytes=2**30)
     res = sandbox.spawn_isolated(
         ["bash", "-c", "echo $OPENAI_API_KEY/$HTTP_PROXY/$HOME; pwd"],
-        layout, spec,
-        extra_env={"OPENAI_API_KEY": "should-be-ignored", "HTTP_PROXY": "x"})
-    out = open(res.stdout_path).read()
+        layout,
+        spec,
+        extra_env={"OPENAI_API_KEY": "should-be-ignored", "HTTP_PROXY": "x"},
+    )
+    out = Path(res.stdout_path).read_text()
     assert res.exit_code == 0
     assert "should-be-ignored" not in out and "/x" not in out
     assert layout.home in out and str(layout.workspace) in out
@@ -117,7 +122,9 @@ def test_sandbox_timeout_and_cancel(tmp_path):
     result = {}
     thread = threading.Thread(
         target=lambda: result.update(
-            r=sandbox.spawn_isolated(["sleep", "30"], layout2, spec, cancel=cancel)))
+            r=sandbox.spawn_isolated(["sleep", "30"], layout2, spec, cancel=cancel)
+        )
+    )
     thread.start()
     time.sleep(0.5)
     cancel.set()
@@ -128,13 +135,14 @@ def test_sandbox_timeout_and_cancel(tmp_path):
 def test_workspace_rejects_hidden_markers_and_symlinks(tmp_path):
     ws = str(tmp_path / "ws")
     import os
+
     os.makedirs(ws)
-    open(os.path.join(ws, "code.py"), "w").write("x = 1\n")
+    Path(os.path.join(ws, "code.py")).write_text("x = 1\n")
     os.symlink("/etc/hostname", os.path.join(ws, "evil-link"))
     with pytest.raises(ValueError):
         sandbox.assert_no_hidden_material(ws, ["hidden-tests"])
     os.unlink(os.path.join(ws, "evil-link"))
     sandbox.assert_no_hidden_material(ws, ["hidden-tests"])
-    open(os.path.join(ws, "hidden-tests"), "w").write("secret")
+    Path(os.path.join(ws, "hidden-tests")).write_text("secret")
     with pytest.raises(ValueError):
         sandbox.assert_no_hidden_material(ws, ["hidden-tests"])

@@ -4,17 +4,17 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "hop"
-version = "0.1.0"
+version = "0.2.0"
 description = "HOP — Harness Optimization Platform: continuous evaluation, optimization, qualification, and distribution of models, skills, prompts, tools, and agent configurations for local coding harnesses"
 requires-python = ">=3.11"
 dependencies = [
   "pydantic>=2.0",
   "PyYAML>=6.0",
+  "pytest>=8.0",
 ]
 
 [project.optional-dependencies]
 test = [
-  "pytest>=8.0",
   "jsonschema>=4.0",
 ]
 
@@ -28,6 +28,12 @@ where = ["src"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-q"
+markers = [
+  "unit: no sandbox, sockets, installed harness, or models required",
+  "sandbox: real isolated worker/verifier execution",
+  "contract: adapter and loopback protocol fixtures",
+  "live: installed toolchain or model qualification",
+]
 
 [tool.ruff]
 line-length = 100

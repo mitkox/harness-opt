@@ -5,6 +5,7 @@ Secrets are never placed in OTel attributes, Prometheus labels, logs, or
 trajectory metadata. Raw payloads with secrets live only as
 access-controlled artifacts referenced by digest.
 """
+
 from __future__ import annotations
 
 import hashlib
@@ -32,11 +33,28 @@ _PATTERNS: list[tuple[str, re.Pattern]] = [
     ("url_credentials", re.compile(r"(https?://)([^/\s:@]+):([^/\s:@]+)@")),
 ]
 
-_ENV_SECRET_KEYS = ("TOKEN", "PASSWORD", "API_KEY", "SECRET", "PRIVATE_KEY",
-                    "AUTHORIZATION", "CREDENTIALS")
+_ENV_SECRET_KEYS = (
+    "TOKEN",
+    "PASSWORD",
+    "API_KEY",
+    "SECRET",
+    "PRIVATE_KEY",
+    "AUTHORIZATION",
+    "CREDENTIALS",
+)
 
-_SECRET_KEY_MARKERS = ("password", "passwd", "secret", "token", "api_key",
-                       "apikey", "auth", "private_key", "credential", "bearer")
+_SECRET_KEY_MARKERS = (
+    "password",
+    "passwd",
+    "secret",
+    "token",
+    "api_key",
+    "apikey",
+    "auth",
+    "private_key",
+    "credential",
+    "bearer",
+)
 
 
 def classify_environment(env: dict[str, str]) -> dict[str, str]:
@@ -56,7 +74,8 @@ def redact_text(text: str) -> tuple[str, list[str]]:
     kinds: list[str] = []
     redacted = text
     for kind, pattern in _PATTERNS:
-        def _sub(match: re.Match) -> str:
+
+        def _sub(match: re.Match, kind: str = kind) -> str:
             groups = match.groups()
             if kind == "private_key":
                 return "***REDACTED:private_key***"
@@ -67,6 +86,7 @@ def redact_text(text: str) -> tuple[str, list[str]]:
             if len(groups) >= 2 and groups[0]:
                 return f"{groups[0]}***REDACTED:{kind}***"
             return f"***REDACTED:{kind}***"
+
         new_text, count = pattern.subn(_sub, redacted)
         if count:
             kinds.append(kind)
@@ -104,8 +124,12 @@ def sanitize_attributes(attrs: dict, *, max_str: int = 2000) -> dict:
         elif isinstance(value, dict):
             clean[key] = sanitize_attributes(value, max_str=max_str)
         elif isinstance(value, list):
-            clean[key] = [sanitize_attributes({"v": v}, max_str=max_str)["v"]
-                          if isinstance(v, (dict, str)) else v for v in value][:50]
+            clean[key] = [
+                sanitize_attributes({"v": v}, max_str=max_str)["v"]
+                if isinstance(v, (dict, str))
+                else v
+                for v in value
+            ][:50]
         else:
             clean[key] = value
     return clean

@@ -1,4 +1,7 @@
 """Contract tests (AOP-001): rejection, round-trip, draft vs deployable."""
+
+from pathlib import Path
+
 import pytest
 from pydantic import ValidationError
 
@@ -56,7 +59,9 @@ def test_rejects_bad_digest():
 
 def test_qualified_requires_endpoint():
     dep = ModelDeployment(
-        deployment_id="d1", discovery_label="q", family=ModelFamily.QWEN,
+        deployment_id="d1",
+        discovery_label="q",
+        family=ModelFamily.QWEN,
         status=ModelStatus.QUALIFIED,
     )
     with pytest.raises(ValueError):
@@ -70,7 +75,9 @@ def test_qualified_requires_endpoint():
 
 def test_round_trip_preserves_identity():
     dep = ModelDeployment(
-        deployment_id="d1", discovery_label="q", family=ModelFamily.QWEN,
+        deployment_id="d1",
+        discovery_label="q",
+        family=ModelFamily.QWEN,
         status=ModelStatus.PENDING_LOCAL_DISCOVERY,
     )
     restored = ModelDeployment.model_validate(dep.model_dump())
@@ -85,9 +92,13 @@ def test_round_trip_preserves_identity():
 
 def test_draft_target_distinguishable_from_deployable():
     draft = ExecutionBundle(
-        digest=DIGEST, model_deployment_id="pending", harness="pi",
-        harness_version="0.85.1", adapter_revision="a",
-        base_prompt_sha256=sha256_hex(b"prompt"), policy_id="local-default",
+        digest=DIGEST,
+        model_deployment_id="pending",
+        harness="pi",
+        harness_version="0.85.1",
+        adapter_revision="a",
+        base_prompt_sha256=sha256_hex(b"prompt"),
+        policy_id="local-default",
         deployable=False,
     )
     assert draft.deployable is False
@@ -98,16 +109,28 @@ def test_draft_target_distinguishable_from_deployable():
 
 def test_qualified_model_target_requires_deployment_id():
     import json
+
     schema_path = "specs/model-targets.schema.json"
     try:
-        schema = json.load(open(schema_path))
+        schema = json.loads(Path(schema_path).read_text())
     except FileNotFoundError:
         pytest.skip("handoff specs not present")
-    from jsonschema import validate, ValidationError as JVE
+    from jsonschema import ValidationError as JVE
+    from jsonschema import validate
+
     bad = {
-        "schema_version": "0.1", "kind": "ModelTargetList", "inference_policy": "local_only",
-        "targets": [{"id": "q", "family": "qwen", "source_label": "Q",
-                     "status": "qualified", "qualified_deployment_ids": []}],
+        "schema_version": "0.1",
+        "kind": "ModelTargetList",
+        "inference_policy": "local_only",
+        "targets": [
+            {
+                "id": "q",
+                "family": "qwen",
+                "source_label": "Q",
+                "status": "qualified",
+                "qualified_deployment_ids": [],
+            }
+        ],
     }
     with pytest.raises(JVE):
         validate(bad, schema)
@@ -115,10 +138,14 @@ def test_qualified_model_target_requires_deployment_id():
 
 def test_event_claim_vs_fact_separation():
     evt = TrajectoryEvent(
-        event_id="11111111-2222-4333-8444-555555555555", event_type="agent.message",
-        run_id="r", attempt_id="a",
+        event_id="11111111-2222-4333-8444-555555555555",
+        event_type="agent.message",
+        run_id="r",
+        attempt_id="a",
         source=EventSource(id="pi-adapter", authority=EventAuthority.AGENT_CLAIM),
-        source_sequence=3, observed_at="2026-09-12T00:00:00Z", bundle_digest=DIGEST,
+        source_sequence=3,
+        observed_at="2026-09-12T00:00:00Z",
+        bundle_digest=DIGEST,
         attributes={"text": "I fixed it"},
     )
     assert evt.source.authority == EventAuthority.AGENT_CLAIM
@@ -128,8 +155,12 @@ def test_event_claim_vs_fact_separation():
 
 def test_evaluation_result_is_verdict_source():
     res = EvaluationResult(
-        run_id="r", attempt_id="a", verifier_version="debug-v1",
-        verdict=Verdict.PASS, outcome=RunOutcome.PASS, agent_claim="done",
+        run_id="r",
+        attempt_id="a",
+        verifier_version="debug-v1",
+        verdict=Verdict.PASS,
+        outcome=RunOutcome.PASS,
+        agent_claim="done",
     )
     assert res.verdict == Verdict.PASS
     assert res.agent_claim != res.verdict
@@ -143,6 +174,7 @@ def test_task_spec_rejects_hidden_leak():
 
 
 def test_run_record_idempotency_key_field():
-    run = RunRecord(run_id="r1", task_id="t1", case_id="c1",
-                    bundle_digest=DIGEST, idempotency_key="k1")
+    run = RunRecord(
+        run_id="r1", task_id="t1", case_id="c1", bundle_digest=DIGEST, idempotency_key="k1"
+    )
     assert RunRecord.model_validate(run.model_dump()).idempotency_key == "k1"

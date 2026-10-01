@@ -1,14 +1,15 @@
 """M2 commit 4: redaction, tool/inference/skill observation, resources."""
+
 import json
 
 from hop.telemetry.observe import (
     MAX_TOOL_OUTPUT_BYTES,
+    InferenceRecord,
     SkillCatalogEntry,
     normalize_tool_call,
     sample_resources,
     skill_catalog_digest,
 )
-from hop.telemetry.observe import InferenceRecord
 from hop.telemetry.redaction import contains_secret, redact_text, sanitize_attributes
 
 
@@ -21,10 +22,16 @@ def test_secret_in_model_prompt_redacted():
 
 
 def test_secret_in_tool_arguments_redacted_and_digested():
-    call = normalize_tool_call("shell", "v1", "inv-1", "agent-1",
-                               {"cmd": "curl -H 'Authorization: Bearer abcdef123456' x",
-                                "password": "s3cr3t-value"},
-                               {"ok": True}, 1.0, 2.0)
+    call = normalize_tool_call(
+        "shell",
+        "v1",
+        "inv-1",
+        "agent-1",
+        {"cmd": "curl -H 'Authorization: Bearer abcdef123456' x", "password": "s3cr3t-value"},
+        {"ok": True},
+        1.0,
+        2.0,
+    )
     blob = json.dumps(call.args_summary)
     assert "abcdef123456" not in blob and "s3cr3t-value" not in blob
     assert call.args_digest.startswith("sha256:")
@@ -45,20 +52,29 @@ def test_large_prompt_not_inlined_into_attributes():
 
 
 def test_skill_states_represented_separately():
-    entries = [SkillCatalogEntry("debug-helper", "v3", "sha256:" + "cd" * 32,
-                                 "trigger: stack traces")]
+    entries = [
+        SkillCatalogEntry("debug-helper", "v3", "sha256:" + "cd" * 32, "trigger: stack traces")
+    ]
     digest = skill_catalog_digest(entries)
     assert digest.startswith("sha256:")
     # exposure != selection != load != execute: distinct event types exist
     from hop.telemetry.taxonomy import EVENT_TAXONOMY
-    for etype in ("skill.catalog_exposed", "skill.considered", "skill.selected",
-                  "skill.loaded", "skill.executed", "skill.failed"):
+
+    for etype in (
+        "skill.catalog_exposed",
+        "skill.considered",
+        "skill.selected",
+        "skill.loaded",
+        "skill.executed",
+        "skill.failed",
+    ):
         assert etype in EVENT_TAXONOMY
 
 
 def test_inference_record_marks_unavailable_honestly():
-    rec = InferenceRecord(deployment_id="d", deployment_digest="sha256:" + "ab" * 32,
-                          model_id="mitko")
+    rec = InferenceRecord(
+        deployment_id="d", deployment_digest="sha256:" + "ab" * 32, model_id="mitko"
+    )
     attrs = rec.to_attributes()
     assert attrs["ttft_s"] is None
     assert attrs["provenance"]["ttft_s"] == "unavailable"
@@ -68,7 +84,13 @@ def test_inference_record_marks_unavailable_honestly():
 def test_resource_times_kept_separate():
     sample = sample_resources()
     d = sample.to_dict()
-    for key in ("wall_time_s", "cpu_time_s", "queue_delay_s", "model_seconds",
-                "harness_tool_seconds", "verifier_seconds"):
+    for key in (
+        "wall_time_s",
+        "cpu_time_s",
+        "queue_delay_s",
+        "model_seconds",
+        "harness_tool_seconds",
+        "verifier_seconds",
+    ):
         assert key in d
     assert "combined_latency" not in d

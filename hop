@@ -1,0 +1,18 @@
+#!/usr/bin/env python3
+"""Run HOP from this checkout's offline environment."""
+
+import os
+from pathlib import Path
+import sys
+
+root = Path(__file__).resolve().parent
+for name in (".venv", ".venv-m1"):
+    executable = (root / name).resolve() / "bin/python"
+    if executable.exists():
+        os.execve(
+            executable,
+            [str(executable), "-m", "hop.cli", *sys.argv[1:]],
+            {**os.environ, "PYTHONPATH": str(root / "src")},
+        )
+print("No offline environment. Run scripts/dev bootstrap.", file=sys.stderr)
+raise SystemExit(3)

@@ -5,6 +5,7 @@ contiguous. Each terminal outcome has a required-evidence policy; missing
 evidence -> telemetry_incomplete=true, usable for debugging but ineligible
 for optimization/promotion evidence.
 """
+
 from __future__ import annotations
 
 # Each policy is a list of clauses; a clause is satisfied if ANY of its
@@ -48,16 +49,32 @@ INFRA_POLICY = [
     ("run.infra_error", "harness.crashed"),
 ]
 
-EXECUTION_ACTIVITY_TYPES = frozenset({
-    "harness.exited", "harness.crashed", "harness.timeout", "harness.cancelled",
-    "agent.claim", "agent.started", "agent.completed",
-    "inference.request", "inference.completed", "inference.first_token",
-    "tool.request", "tool.started", "tool.completed",
-    "file.read", "file.write", "patch.generated", "patch.applied",
-    "workspace.snapshot", "output.frozen",
-    "harness.pi.message_end", "harness.pi.message_update",
-    "harness.scripted.event",
-})
+EXECUTION_ACTIVITY_TYPES = frozenset(
+    {
+        "harness.exited",
+        "harness.crashed",
+        "harness.timeout",
+        "harness.cancelled",
+        "agent.claim",
+        "agent.started",
+        "agent.completed",
+        "inference.request",
+        "inference.completed",
+        "inference.first_token",
+        "tool.request",
+        "tool.started",
+        "tool.completed",
+        "file.read",
+        "file.write",
+        "patch.generated",
+        "patch.applied",
+        "workspace.snapshot",
+        "output.frozen",
+        "harness.pi.message_end",
+        "harness.pi.message_update",
+        "harness.scripted.event",
+    }
+)
 
 POLICIES = {
     "pass": PASS_POLICY,
@@ -80,6 +97,9 @@ def evaluate(types: set[str], outcome: str) -> dict:
                 missing.append("execution:activity")
         elif not any(alt in types for alt in clause):
             missing.append("|".join(clause))
-    return {"complete": not missing, "missing_required": missing,
-            "telemetry_incomplete": bool(missing),
-            "policy": outcome}
+    return {
+        "complete": not missing,
+        "missing_required": missing,
+        "telemetry_incomplete": bool(missing),
+        "policy": outcome,
+    }

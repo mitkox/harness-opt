@@ -1,4 +1,5 @@
 """M3 semantic-version resolution tests."""
+
 import pytest
 
 from hop.semver import Constraint, Version, highest_satisfying, satisfies
@@ -12,24 +13,27 @@ def test_version_parse_and_order():
     assert Version.parse("1.0.0-rc1") < Version.parse("1.0.0")
 
 
-@pytest.mark.parametrize("version,constraint,expected", [
-    ("1.2.3", "1.2.3", True),
-    ("1.2.4", "1.2.3", False),
-    ("1.5.0", "^1.0.0", True),
-    ("2.0.0", "^1.0.0", False),
-    ("0.2.5", "^0.2.0", True),
-    ("0.3.0", "^0.2.0", False),
-    ("1.2.9", "~1.2.0", True),
-    ("1.3.0", "~1.2.0", False),
-    ("1.5.0", ">=1.2.0,<2.0.0", True),
-    ("2.1.0", ">=1.2.0,<2.0.0", False),
-    ("1.9.0", "1", True),
-    ("2.0.0", "1", False),
-    ("1.2.9", "1.2", True),
-    ("1.3.0", "1.2", False),
-    ("9.9.9", "*", True),
-    ("9.9.9", "", True),
-])
+@pytest.mark.parametrize(
+    "version,constraint,expected",
+    [
+        ("1.2.3", "1.2.3", True),
+        ("1.2.4", "1.2.3", False),
+        ("1.5.0", "^1.0.0", True),
+        ("2.0.0", "^1.0.0", False),
+        ("0.2.5", "^0.2.0", True),
+        ("0.3.0", "^0.2.0", False),
+        ("1.2.9", "~1.2.0", True),
+        ("1.3.0", "~1.2.0", False),
+        ("1.5.0", ">=1.2.0,<2.0.0", True),
+        ("2.1.0", ">=1.2.0,<2.0.0", False),
+        ("1.9.0", "1", True),
+        ("2.0.0", "1", False),
+        ("1.2.9", "1.2", True),
+        ("1.3.0", "1.2", False),
+        ("9.9.9", "*", True),
+        ("9.9.9", "", True),
+    ],
+)
 def test_constraint_matches(version, constraint, expected):
     assert satisfies(version, constraint) is expected
 
@@ -47,5 +51,5 @@ def test_exact_constraint_detection():
 
 @pytest.mark.parametrize("bad", ["nope", "1.x.3", "1.2.3.4", ">="])
 def test_invalid_constraints_fail_closed(bad):
-    with pytest.raises(Exception):
+    with pytest.raises(ValueError):
         Constraint.parse(bad)

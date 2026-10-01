@@ -1,20 +1,117 @@
 schema_version: '0.1'
 project: HOP - Harness Optimization Platform
-status: implementation_plan_not_implemented
+status: m0_m3_delivered_scoped_foundation_requalification_blocked
 initial_assignment:
-- M0
-- M1
+- Foundation
+current_gate:
+  milestone: Foundation
+  status: blocked
+  evidence: docs/acceptance-foundation.md
+  next_roadmap_item_after_acceptance: AOP-020
+status_definitions:
+  implemented_scoped: Delivered scope evidenced by historical acceptance matrices, not all original outputs or current release qualification.
+  partial: Implemented subset with explicit outstanding original requirements.
+  in_progress: Current implementation and review work; exit gate not passed.
+  blocked: Acceptance cannot pass until listed dependencies or evidence exist.
+  planned: Not implemented; dependency and milestone acceptance gates still apply.
+historical_acceptance:
+  M0: docs/acceptance-m1.md
+  M1: docs/acceptance-m1.md
+  M2: docs/acceptance-m2.md
+  M3: docs/acceptance-m3.md
+  note: Historical matrices remain immutable; this reconciliation does not renew qualification.
 rules:
   inference: registered_local_deployments_only
   release: approved_immutable_bundles_only
   grading: trusted_independent_verification
   parallelism: respect_dependencies_and_local_capacity
 work_items:
+- id: HOP-R01
+  milestone: Foundation
+  area: review
+  title: Establish an evidence-backed baseline and reconcile delivered scope
+  status: in_progress
+  priority: P0
+  depends_on: []
+  outputs:
+  - docs/foundation-review.md
+  - docs/acceptance-foundation.md
+  - docs/evidence/foundation/measurements.json
+  acceptance_criteria:
+  - Record review findings, reproducible regressions, and residual risks across all subsystems
+  - Measure source, runtime installation, startup, compilation, and trajectory reading separately
+  - Reconcile historical scope without declaring deferred requirements complete
+  - Obtain independent review for changed trust boundaries
+- id: HOP-R02
+  milestone: Foundation
+  area: devex
+  title: Reproducible tests and non-destructive offline setup
+  status: blocked
+  priority: P0
+  depends_on:
+  - HOP-R01
+  outputs:
+  - scripts/dev
+  - requirements-runtime.lock
+  - development-tools.lock.json
+  acceptance_criteria:
+  - Bootstrap without network and preserve the previous environment on failure
+  - Separate runtime dependencies and unit, contract, sandbox, and live suites
+  - Tests use committed evidence and synthetic identities, not machine-local runs
+  - Run pinned formatter, linter, and type checker from approved offline artifacts
+  blockers:
+  - Approved offline mypy artifacts and transitive lock unavailable
+- id: HOP-R03
+  milestone: Foundation
+  area: execution
+  title: Typed lifecycle orchestration and consistent CLI configuration
+  status: in_progress
+  priority: P0
+  depends_on:
+  - HOP-R02
+  acceptance_criteria:
+  - Orchestrate preparation, execution, verification, and finalization with typed state
+  - Preserve native harness loops, evidence schemas, and legacy CLI behavior through 0.2
+  - Own cancellation, child processes, watchers, stores, and terminal evidence on every path
+  - Provide nested help, explicit models, consistent paths, formats, and error interfaces
+  remaining:
+  - Complete typed public request/result/error interfaces and uniform handler diagnostics
+  - Consolidate admission and early evidence failures under the lifecycle owner
+- id: HOP-R04
+  milestone: Foundation
+  area: correctness
+  title: Repair integrity, fencing, recovery, and isolation before performance tuning
+  status: blocked
+  priority: P0
+  depends_on:
+  - HOP-R03
+  acceptance_criteria:
+  - Regress concurrent admission, stale workers, path containment, tampering, and cancellation
+  - Preserve corrupt and incomplete evidence; recover spool delivery without duplicates
+  - Bound trajectory page memory without dropping integrity checks
+  - Close high findings with independent security verification before M4
+  blockers:
+  - General worker egress and aggregate descendant resource enforcement remain open
+  - Verifier current-case isolation needs independent design review
+  - Latest observed Pi 1.0.0 differs from the historical 0.85.1 contract; current live acceptance outstanding
+- id: HOP-R05
+  milestone: Foundation
+  area: maintenance
+  title: Remove duplication and organize current operator and contributor documentation
+  status: in_progress
+  priority: P1
+  depends_on:
+  - HOP-R04
+  acceptance_criteria:
+  - Keep current runbook separate from immutable milestone evidence
+  - Remove confirmed redundant helpers and obsolete destructive bootstrap paths
+  - Measure size by category without trading clarity for line-count reductions
+  - Renew M0-M3 acceptance and document compatibility before foundation closure
 - id: AOP-001
   milestone: M0
   area: contracts
   title: Define versioned domain contracts
-  status: planned
+  status: implemented_scoped
   priority: P0
   depends_on: []
   outputs:
@@ -32,7 +129,7 @@ work_items:
   milestone: M0
   area: integrations
   title: Discover actual local models and harness builds
-  status: planned
+  status: implemented_scoped
   priority: P0
   depends_on: []
   outputs:
@@ -50,7 +147,8 @@ work_items:
   milestone: M0
   area: security
   title: Define trust boundaries and local-only policy
-  status: planned
+  status: partial
+  remaining: Independent review and closure of foundation boundary findings.
   priority: P0
   depends_on: []
   outputs:
@@ -68,7 +166,8 @@ work_items:
   milestone: M0
   area: foundation
   title: Create pinned repository and test infrastructure
-  status: planned
+  status: partial
+  remaining: Approved offline static type tooling and renewed clean-checkout qualification.
   priority: P0
   depends_on: []
   outputs:
@@ -86,7 +185,8 @@ work_items:
   milestone: M1
   area: storage
   title: Implement content-addressed artifact storage
-  status: planned
+  status: partial
+  remaining: Repository and tenant authorization is not established by content addressing.
   priority: P0
   depends_on:
   - AOP-001
@@ -106,7 +206,8 @@ work_items:
   milestone: M1
   area: execution
   title: Implement durable run state and worker leases
-  status: planned
+  status: partial
+  remaining: SQLite admission and fencing delivered; lease renewal, jobs/outbox and PostgreSQL not delivered.
   priority: P0
   depends_on:
   - AOP-001
@@ -128,7 +229,7 @@ work_items:
   milestone: M1
   area: models
   title: Implement local inference transport
-  status: planned
+  status: implemented_scoped
   priority: P0
   depends_on:
   - AOP-002
@@ -149,7 +250,8 @@ work_items:
   milestone: M1
   area: security
   title: Implement external worker sandbox
-  status: planned
+  status: partial
+  remaining: General worker egress and aggregate per-run descendant quotas remain open high findings.
   priority: P0
   depends_on:
   - AOP-003
@@ -170,7 +272,8 @@ work_items:
   milestone: M1
   area: adapters
   title: Implement the Pi adapter
-  status: planned
+  status: implemented_scoped
+  remaining: Current installed build requires requalification; historical evidence covers 0.85.1.
   priority: P0
   depends_on:
   - AOP-002
@@ -192,7 +295,8 @@ work_items:
   milestone: M1
   area: verification
   title: Implement independent frozen-patch verification
-  status: planned
+  status: partial
+  remaining: Current-case verifier isolation and independent security review.
   priority: P0
   depends_on:
   - AOP-005
@@ -212,7 +316,7 @@ work_items:
   milestone: M1
   area: integration
   title: Complete first end-to-end debugging slice
-  status: planned
+  status: implemented_scoped
   priority: P0
   depends_on:
   - AOP-006
@@ -233,7 +337,8 @@ work_items:
   milestone: M2
   area: telemetry
   title: Implement reliable trajectory event ingestion
-  status: planned
+  status: implemented_scoped
+  remaining: Interrupted pending writes fail visibly; automated repair and crash recovery not qualified.
   priority: P1
   depends_on:
   - AOP-001
@@ -255,7 +360,8 @@ work_items:
   milestone: M2
   area: telemetry
   title: Map events into OpenTelemetry traces
-  status: planned
+  status: implemented_scoped
+  remaining: Local file projection evidenced; external observability services not deployed or qualified.
   priority: P1
   depends_on:
   - AOP-012
@@ -274,7 +380,8 @@ work_items:
   milestone: M2
   area: security
   title: Implement telemetry redaction and retention
-  status: planned
+  status: partial
+  remaining: Redaction and classification delivered; encryption, retention lifecycle and tenant authorization remain.
   priority: P1
   depends_on:
   - AOP-003
@@ -295,7 +402,8 @@ work_items:
   milestone: M2
   area: reporting
   title: Build trajectory viewer and paired comparisons
-  status: planned
+  status: partial
+  remaining: CLI investigation and descriptive comparison implemented; live Grafana provisioning not qualified.
   priority: P1
   depends_on:
   - AOP-013
@@ -315,7 +423,7 @@ work_items:
   milestone: M3
   area: skills
   title: Implement canonical skill and agent registries
-  status: planned
+  status: implemented_scoped
   priority: P1
   depends_on:
   - AOP-001
@@ -335,7 +443,7 @@ work_items:
   milestone: M3
   area: compiler
   title: Implement deterministic bundle compiler
-  status: planned
+  status: implemented_scoped
   priority: P1
   depends_on:
   - AOP-002
@@ -355,7 +463,8 @@ work_items:
   milestone: M3
   area: packaging
   title: Integrate APM and native exporters
-  status: planned
+  status: partial
+  remaining: APM and Pi output delivered; additional exporters, OpenCode v2 and frozen installs remain unqualified.
   priority: P1
   depends_on:
   - AOP-017
@@ -374,7 +483,8 @@ work_items:
   milestone: M3
   area: release
   title: Implement bundle integrity and staging
-  status: planned
+  status: partial
+  remaining: Digests and deterministic artifacts delivered; isolated signing, release staging and activation remain M8 work.
   priority: P1
   depends_on:
   - AOP-005
@@ -395,7 +505,8 @@ work_items:
   milestone: M4
   area: datasets
   title: Implement task provenance and protected splits
-  status: planned
+  status: blocked
+  gate: Foundation acceptance must pass before implementation begins.
   priority: P1
   depends_on:
   - AOP-010

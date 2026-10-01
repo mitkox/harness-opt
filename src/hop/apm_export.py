@@ -9,13 +9,14 @@ The deterministic payload excludes the generation timestamp; if APM tooling is
 installed the package can additionally be packed by ``apm pack`` in the demo
 script (kept out of hermetic unit tests).
 """
+
 from __future__ import annotations
 
 import json
 import os
 import shutil
 import subprocess
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import yaml
 
@@ -48,8 +49,7 @@ def _component(resolved: ResolvedProfile, ctype: ComponentType):
     return None
 
 
-def build_apm_payload(resolved: ResolvedProfile,
-                      registry: ComponentRegistry) -> dict[str, bytes]:
+def build_apm_payload(resolved: ResolvedProfile, registry: ComponentRegistry) -> dict[str, bytes]:
     """Deterministic APM package content (no provenance, no timestamp)."""
     files: dict[str, bytes] = {}
 
@@ -73,36 +73,36 @@ def build_apm_payload(resolved: ResolvedProfile,
         canonical = manifest.get("canonical_path", "canonical/SKILL.md")
         if comp.variant and f"variants/{comp.variant}/SKILL.md" in content:
             files[f"skills/{comp.name}/SKILL.md"] = _norm_text(
-                content[f"variants/{comp.variant}/SKILL.md"]).encode()
+                content[f"variants/{comp.variant}/SKILL.md"]
+            ).encode()
         else:
-            files[f"skills/{comp.name}/SKILL.md"] = _norm_text(
-                content[canonical]).encode()
-        for rel in sorted(set(manifest.get("resources", []))
-                          | set(manifest.get("scripts", []))):
+            files[f"skills/{comp.name}/SKILL.md"] = _norm_text(content[canonical]).encode()
+        for rel in sorted(set(manifest.get("resources", [])) | set(manifest.get("scripts", []))):
             if rel in content:
                 files[f"skills/{comp.name}/{rel}"] = content[rel]
         if comp.variant:
             prefix = f"variants/{comp.variant}/"
             for rel in sorted(content):
-                if rel.startswith(prefix) and rel != f"{prefix}SKILL.md" \
-                        and not rel.endswith("variant.yaml"):
-                    files[f"skills/{comp.name}/{rel[len(prefix):]}"] = content[rel]
+                if (
+                    rel.startswith(prefix)
+                    and rel != f"{prefix}SKILL.md"
+                    and not rel.endswith("variant.yaml")
+                ):
+                    files[f"skills/{comp.name}/{rel[len(prefix) :]}"] = content[rel]
 
     hook_entries = []
     for comp in resolved.components:
         if comp.type == ComponentType.HOOK:
             _, content = registry.get(comp.name, comp.version, comp.type)
-            _, data = _pick(content, ["hooks.json", "hooks.yaml", "hooks.yml",
-                                      f"{comp.name}.json"])
+            _, data = _pick(content, ["hooks.json", "hooks.yaml", "hooks.yml", f"{comp.name}.json"])
             try:
-                hook_entries.append({"name": comp.name,
-                                     "config": yaml.safe_load(_norm_text(data)) or {}})
+                hook_entries.append(
+                    {"name": comp.name, "config": yaml.safe_load(_norm_text(data)) or {}}
+                )
             except yaml.YAMLError as exc:
-                raise CompilerError("malformed_hook_definition",
-                                    f"{comp.name}: {exc}") from exc
+                raise CompilerError("malformed_hook_definition", f"{comp.name}: {exc}") from exc
     if hook_entries:
-        files["hooks/hooks.json"] = json.dumps(
-            hook_entries, sort_keys=True, indent=2).encode()
+        files["hooks/hooks.json"] = json.dumps(hook_entries, sort_keys=True, indent=2).encode()
 
     mcp_entries = []
     for comp in resolved.components:
@@ -112,8 +112,7 @@ def build_apm_payload(resolved: ResolvedProfile,
             try:
                 mcp_entries.append(yaml.safe_load(_norm_text(data)) or {})
             except yaml.YAMLError as exc:
-                raise CompilerError("malformed_mcp_definition",
-                                    f"{comp.name}: {exc}") from exc
+                raise CompilerError("malformed_mcp_definition", f"{comp.name}: {exc}") from exc
     if mcp_entries:
         files[".mcp.json"] = json.dumps(mcp_entries, sort_keys=True, indent=2).encode()
 
@@ -128,8 +127,10 @@ def _apm_manifest(resolved: ResolvedProfile, includes: list[str]) -> bytes:
     manifest = {
         "name": f"hop-{resolved.profile_name}",
         "version": resolved.profile_version,
-        "description": (f"HOP profile {resolved.profile_name}@"
-                        f"{resolved.profile_version}; generated from locked source."),
+        "description": (
+            f"HOP profile {resolved.profile_name}@"
+            f"{resolved.profile_version}; generated from locked source."
+        ),
         "license": "UNLICENSED",
         "includes": includes,
         "dependencies": {"apm": [], "mcp": []},
@@ -137,15 +138,22 @@ def _apm_manifest(resolved: ResolvedProfile, includes: list[str]) -> bytes:
     return yaml.safe_dump(manifest, sort_keys=True, default_flow_style=False).encode()
 
 
-def export_apm(resolved: ResolvedProfile, registry: ComponentRegistry,
-               lock, out_dir: str, *, hop_version: str,
-               compilation_target: str = "pi",
-               generated_at: str | None = None) -> dict:
+def export_apm(
+    resolved: ResolvedProfile,
+    registry: ComponentRegistry,
+    lock,
+    out_dir: str,
+    *,
+    hop_version: str,
+    compilation_target: str = "pi",
+    generated_at: str | None = None,
+) -> dict:
     """Write the HOP APM export. Returns a summary with the package digest."""
     payload = build_apm_payload(resolved, registry)
     lock_digest = lock.lock_digest
     payload[f"{METADATA_DIR}/{LOCK_NAME}"] = json.dumps(
-        lock.model_dump(mode="json"), sort_keys=True, indent=2).encode()
+        lock.model_dump(mode="json"), sort_keys=True, indent=2
+    ).encode()
     package_digest = tree_digest(payload)
 
     if os.path.exists(out_dir):
@@ -158,34 +166,55 @@ def export_apm(resolved: ResolvedProfile, registry: ComponentRegistry,
             fh.write(data)
 
     provenance = ProvenanceManifest(
-        hop_version=hop_version, profile_name=resolved.profile_name,
+        hop_version=hop_version,
+        profile_name=resolved.profile_name,
         profile_version=resolved.profile_version,
         profile_digest=resolved.profile_digest,
         compiler_version=COMPILER_VERSION,
-        compilation_target=compilation_target, lock_digest=lock_digest,
-        export_target="apm", package_digest=package_digest,
-        source_components=[{
-            "type": c.type.value, "name": c.name, "version": c.version,
-            "digest": c.digest, "variant": c.variant,
-        } for c in sorted(resolved.components, key=lambda c: (c.type.value, c.name))],
-        package_files=[{"path": rel, "digest": _sha(payload[rel]),
-                        "size_bytes": len(payload[rel])}
-                       for rel in sorted(payload)],
+        compilation_target=compilation_target,
+        lock_digest=lock_digest,
+        export_target="apm",
+        package_digest=package_digest,
+        source_components=[
+            {
+                "type": c.type.value,
+                "name": c.name,
+                "version": c.version,
+                "digest": c.digest,
+                "variant": c.variant,
+            }
+            for c in sorted(resolved.components, key=lambda c: (c.type.value, c.name))
+        ],
+        package_files=[
+            {"path": rel, "digest": _sha(payload[rel]), "size_bytes": len(payload[rel])}
+            for rel in sorted(payload)
+        ],
         generated_at=generated_at or "",
-        deterministic_payload_digest=package_digest)
+        deterministic_payload_digest=package_digest,
+    )
     prov_path = os.path.join(out_dir, METADATA_DIR, PROVENANCE_NAME)
     os.makedirs(os.path.dirname(prov_path), exist_ok=True)
     with open(prov_path, "w") as fh:
         json.dump(provenance.model_dump(mode="json"), fh, sort_keys=True, indent=2)
-    stamp = generated_at or datetime.now(timezone.utc).isoformat()
+    stamp = generated_at or datetime.now(UTC).isoformat()
     with open(os.path.join(out_dir, METADATA_DIR, EXPORT_META_NAME), "w") as fh:
-        json.dump({"generated_at": stamp, "hop_version": hop_version,
-                   "note": "timestamp intentionally outside the hashed payload"},
-                  fh, sort_keys=True, indent=2)
+        json.dump(
+            {
+                "generated_at": stamp,
+                "hop_version": hop_version,
+                "note": "timestamp intentionally outside the hashed payload",
+            },
+            fh,
+            sort_keys=True,
+            indent=2,
+        )
     return {
-        "export_dir": out_dir, "package_digest": package_digest,
-        "profile_digest": resolved.profile_digest, "lock_digest": lock_digest,
-        "files": sorted(payload), "generated_at": stamp,
+        "export_dir": out_dir,
+        "package_digest": package_digest,
+        "profile_digest": resolved.profile_digest,
+        "lock_digest": lock_digest,
+        "files": sorted(payload),
+        "generated_at": stamp,
     }
 
 
@@ -195,9 +224,13 @@ class ExportVerificationError(ValueError):
         self.code = code
 
 
-def verify_export(path: str, *, registry: ComponentRegistry | None = None,
-                  resolved: ResolvedProfile | None = None,
-                  lock_digest: str = "") -> dict:
+def verify_export(
+    path: str,
+    *,
+    registry: ComponentRegistry | None = None,
+    resolved: ResolvedProfile | None = None,
+    lock_digest: str = "",
+) -> dict:
     """Verify an exported APM package against its HOP provenance.
 
     Checks: provenance validity, exact file set (no unexpected/missing files),
@@ -206,8 +239,7 @@ def verify_export(path: str, *, registry: ComponentRegistry | None = None,
     """
     prov_path = os.path.join(path, METADATA_DIR, PROVENANCE_NAME)
     if not os.path.exists(prov_path):
-        raise ExportVerificationError(
-            "missing_provenance", f"no HOP provenance at {prov_path}")
+        raise ExportVerificationError("missing_provenance", f"no HOP provenance at {prov_path}")
     with open(prov_path) as fh:
         provenance = ProvenanceManifest.model_validate(json.load(fh))
 
@@ -217,8 +249,7 @@ def verify_export(path: str, *, registry: ComponentRegistry | None = None,
         for name in sorted(filenames):
             full = os.path.join(dirpath, name)
             rel = os.path.relpath(full, path).replace(os.sep, "/")
-            if rel in (f"{METADATA_DIR}/{PROVENANCE_NAME}",
-                       f"{METADATA_DIR}/{EXPORT_META_NAME}"):
+            if rel in (f"{METADATA_DIR}/{PROVENANCE_NAME}", f"{METADATA_DIR}/{EXPORT_META_NAME}"):
                 continue
             with open(full, "rb") as fh:
                 on_disk[rel] = fh.read()
@@ -244,7 +275,8 @@ def verify_export(path: str, *, registry: ComponentRegistry | None = None,
     if recomputed_package != provenance.package_digest:
         errors.append(
             f"package digest mismatch: recomputed {recomputed_package}, "
-            f"recorded {provenance.package_digest}")
+            f"recorded {provenance.package_digest}"
+        )
     if provenance.deterministic_payload_digest != provenance.package_digest:
         errors.append("deterministic payload digest does not match package digest")
 
@@ -280,18 +312,20 @@ def verify_export(path: str, *, registry: ComponentRegistry | None = None,
         if not recompiled_ok:
             errors.append(
                 f"deterministic recompilation mismatch: {expected_digest} != "
-                f"{provenance.package_digest}")
+                f"{provenance.package_digest}"
+            )
     if lock_digest and provenance.lock_digest != lock_digest:
         errors.append("caller lock digest does not match provenance")
 
     if errors:
-        raise ExportVerificationError("export_verification_failed",
-                                      "; ".join(errors))
+        raise ExportVerificationError("export_verification_failed", "; ".join(errors))
     return {
-        "ok": True, "package_digest": provenance.package_digest,
+        "ok": True,
+        "package_digest": provenance.package_digest,
         "profile_digest": provenance.profile_digest,
         "lock_digest": provenance.lock_digest,
-        "files": len(on_disk), "lock_ok": lock_ok,
+        "files": len(on_disk),
+        "lock_ok": lock_ok,
         "recompiled_ok": recompiled_ok,
         "export_target": provenance.export_target,
         "source_components": provenance.source_components,
@@ -309,8 +343,13 @@ def apm_pack(export_dir: str, out_dir: str | None = None) -> dict:
     args = ["apm", "pack", "--format", "apm"]
     if out_dir:
         args += ["-o", out_dir]
-    result = subprocess.run(args, cwd=export_dir, capture_output=True, text=True,
-                            timeout=120)
-    return {"apm_available": True, "returncode": result.returncode,
-            "stdout_tail": result.stdout[-2000:], "stderr_tail": result.stderr[-2000:],
-            "out_dir": out_dir or os.path.join(export_dir, "build")}
+    result = subprocess.run(
+        args, check=False, cwd=export_dir, capture_output=True, text=True, timeout=120
+    )
+    return {
+        "apm_available": True,
+        "returncode": result.returncode,
+        "stdout_tail": result.stdout[-2000:],
+        "stderr_tail": result.stderr[-2000:],
+        "out_dir": out_dir or os.path.join(export_dir, "build"),
+    }

@@ -1,6 +1,8 @@
 """M2 negative/adversarial suite: corrupted evidence must fail visibly."""
+
 import json
 import os
+from pathlib import Path
 
 import pytest
 
@@ -17,10 +19,17 @@ def _uid(n):
 
 def _evt(eid, source, seq, etype="run.admitted", auth="platform_observation"):
     return TrajectoryEvent(
-        event_id=eid, event_type=etype, run_id="r1", attempt_id="a1",
-        source=EventSource(id=source, authority=auth), source_sequence=seq,
-        observed_at="2026-09-12T00:00:00Z", bundle_digest=DIGEST,
-        trace_id="1" * 32, span_id="2" * 16)
+        event_id=eid,
+        event_type=etype,
+        run_id="r1",
+        attempt_id="a1",
+        source=EventSource(id=source, authority=auth),
+        source_sequence=seq,
+        observed_at="2026-09-12T00:00:00Z",
+        bundle_digest=DIGEST,
+        trace_id="1" * 32,
+        span_id="2" * 16,
+    )
 
 
 def _pass_ledger(tmp_path, name="events.jsonl"):
@@ -30,8 +39,8 @@ def _pass_ledger(tmp_path, name="events.jsonl"):
     def put(etype, source="aop-runner", auth="platform_observation"):
         n = counters.get(source, 0)
         counters[source] = n + 1
-        ledger.append(_evt(_uid(len(ledger.read_all()) + 1), source, n, etype,
-                           auth=auth))
+        ledger.append(_evt(_uid(len(ledger.read_all()) + 1), source, n, etype, auth=auth))
+
     put("run.admitted")
     put("run.started")
     put("harness.exited")
@@ -59,6 +68,7 @@ def test_missing_terminal_event_incomplete(tmp_path):
         n = counters.get(source, 0)
         counters[source] = n + 1
         ledger.append(_evt(_uid(100 + len(ledger.read_all())), source, n, etype))
+
     put("run.admitted")
     put("run.started")
     put("harness.exited")
@@ -68,14 +78,19 @@ def test_missing_terminal_event_incomplete(tmp_path):
 
 
 def test_missing_verifier_event_ineligible_but_debuggable(tmp_path):
-    ledger = _pass_ledger(tmp_path)
+    _pass_ledger(tmp_path)
     # remove verifier evidence to simulate a lost verifier span
-    kept = [json.loads(line) for line in open(str(tmp_path / "events.jsonl"))
-            if json.loads(line)["event_type"] not in (
-                "verifier.started", "verifier.completed", "evaluation.recorded")]
+    kept = [
+        json.loads(line)
+        for line in Path(str(tmp_path / "events.jsonl")).read_text().splitlines(keepends=True)
+        if json.loads(line)["event_type"]
+        not in ("verifier.started", "verifier.completed", "evaluation.recorded")
+    ]
     assert len(kept) < 7  # evidence dropped, rest intact for debugging
-    assert any(json.loads(line)["event_type"] == "run.completed" for line in
-               open(str(tmp_path / "events.jsonl")))
+    assert any(
+        json.loads(line)["event_type"] == "run.completed"
+        for line in Path(str(tmp_path / "events.jsonl")).read_text().splitlines(keepends=True)
+    )
 
 
 def test_reordered_source_event_rejected(tmp_path):
@@ -103,17 +118,16 @@ def test_agent_claim_cannot_become_verifier_evidence(tmp_path):
     stored = ledger.read_all()[0]
     assert stored.authority_allows_verdict() is False
     with pytest.raises(ValueError):
-        ledger.append(_evt(_uid(2), "harness-report", 1, "evaluation.recorded",
-                           auth="agent_claim"))
+        ledger.append(_evt(_uid(2), "harness-report", 1, "evaluation.recorded", auth="agent_claim"))
 
 
 def test_tempo_outage_cannot_erase_authoritative_evidence(tmp_path, monkeypatch):
     """Collector/Tempo down: ledger stays durable, spool holds projections."""
     from hop.runner import Runner
+
     monkeypatch.setenv("HOP_COLLECTOR_DOWN", "1")
     runner = Runner(runs_dir=str(tmp_path / "runs"))
-    rep = runner.execute("debug-offbyone", harness="scripted:repair",
-                         idempotency_key="neg-outage")
+    rep = runner.execute("debug-offbyone", harness="scripted:repair", idempotency_key="neg-outage")
     assert rep["outcome"] == "pass"
     assert rep["spool"]["collector"] == "unavailable-spooled"
     assert rep["spool"]["pending"] >= 1
@@ -123,8 +137,9 @@ def test_tempo_outage_cannot_erase_authoritative_evidence(tmp_path, monkeypatch)
     assert rep["completeness_policy"]["complete"] is True
     # backend returns: spool recovers without touching the ledger
     monkeypatch.delenv("HOP_COLLECTOR_DOWN")
-    spool = SpoolQueue(os.path.join(runner.runs_dir, "_spool"),
-                       os.path.join(runner.runs_dir, "_collector"))
+    spool = SpoolQueue(
+        os.path.join(runner.runs_dir, "_spool"), os.path.join(runner.runs_dir, "_collector")
+    )
     flushed = spool.flush(rep["run_id"])
     assert flushed["collector"] == "recovered" and flushed["flushed"] >= 1
 
@@ -142,10 +157,11 @@ def test_spool_restart_recovers_pending_telemetry(tmp_path, monkeypatch):
 def test_oversized_and_secret_payloads_never_inline(tmp_path):
     from hop.telemetry.observe import MAX_TOOL_OUTPUT_BYTES, normalize_tool_call
     from hop.telemetry.redaction import sanitize_attributes
+
     big = {"blob": "z" * (MAX_TOOL_OUTPUT_BYTES + 10)}
-    call = normalize_tool_call("t", "v1", "i", "a",
-                               {"api_key": "sk-9999999999999999secret"}, big,
-                               1.0, 2.0)
+    call = normalize_tool_call(
+        "t", "v1", "i", "a", {"api_key": "sk-9999999999999999secret"}, big, 1.0, 2.0
+    )
     blob = json.dumps(call.args_summary) + json.dumps(call.result_summary)
     assert "sk-9999999999999999secret" not in blob
     assert call.result_summary.get("truncated") is True

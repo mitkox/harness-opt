@@ -9,8 +9,9 @@ the compatibility period, but:
   both variants are scrubbed from worker environments and ignored by the
   runner (M1 local-only guarantee; see hop.policy).
 
-Removal target for the legacy prefix: M4 (see ADR-008).
+Removal target: 0.3 after M4 acceptance (see ADR-010).
 """
+
 from __future__ import annotations
 
 import os
@@ -18,22 +19,23 @@ import sys
 
 LEGACY_PREFIX = "AOP_"
 CANONICAL_PREFIX = "HOP_"
-LEGACY_REMOVAL_TARGET = "M4"
+LEGACY_REMOVAL_TARGET = "0.3 after M4 acceptance"
 
 _warned: set[str] = set()
 
 
-def resolve_env(canonical: str, legacy: str | None = None,
-                default: str = "") -> str:
+def resolve_env(canonical: str, legacy: str | None = None, default: str = "") -> str:
     """Return the canonical value, falling back to legacy with a warning."""
     if canonical in os.environ:
         return os.environ[canonical]
     if legacy and legacy in os.environ:
         if legacy not in _warned:
             _warned.add(legacy)
-            print(f"hop: deprecated env {legacy}; use {canonical} "
-                  f"(legacy support ends {LEGACY_REMOVAL_TARGET})",
-                  file=sys.stderr)
+            print(
+                f"hop: deprecated env {legacy}; use {canonical} "
+                f"(legacy support ends {LEGACY_REMOVAL_TARGET})",
+                file=sys.stderr,
+            )
         return os.environ[legacy]
     return default
 

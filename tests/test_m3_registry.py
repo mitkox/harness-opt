@@ -1,4 +1,5 @@
 """M3 immutable registry tests: identity, collision, tamper, determinism."""
+
 import json
 import os
 
@@ -46,8 +47,7 @@ def test_same_version_different_content_is_a_collision(tmp_path):
     with pytest.raises(ComponentCollision):
         register(registry, name="alpha", files={"canonical/SKILL.md": b"two"})
     # A new version is the supported way to change content.
-    register(registry, name="alpha", version="1.1.0",
-             files={"canonical/SKILL.md": b"two"})
+    register(registry, name="alpha", version="1.1.0", files={"canonical/SKILL.md": b"two"})
     assert registry.versions("alpha") == ["1.1.0", "1.0.0"]
 
 
@@ -55,9 +55,9 @@ def test_content_tamper_is_detected(tmp_path):
     root = tmp_path / "r"
     registry = ComponentRegistry(str(root))
     record = register(registry, name="alpha", files={"canonical/SKILL.md": b"one"})
-    content = os.path.join(str(root), "content",
-                           record.content_digest.split(":")[1],
-                           "canonical", "SKILL.md")
+    content = os.path.join(
+        str(root), "content", record.content_digest.split(":")[1], "canonical", "SKILL.md"
+    )
     with open(content, "wb") as fh:
         fh.write(b"tampered")
     with pytest.raises(RegistryIntegrityError):
@@ -96,5 +96,5 @@ def test_by_digest_materialize(tmp_path):
 
 def test_unsupported_component_type_rejected(tmp_path):
     registry = ComponentRegistry(str(tmp_path / "r"))
-    with pytest.raises(Exception):
+    with pytest.raises(ValueError):
         register(registry, name="alpha", ctype="not_a_type")

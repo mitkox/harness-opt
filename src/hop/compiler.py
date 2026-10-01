@@ -6,6 +6,7 @@ target only implements its own ``compile_*`` methods. Compilation never calls a
 model, never rewrites prompts, and never reads the clock: identical inputs
 produce identical output bytes.
 """
+
 from __future__ import annotations
 
 import json
@@ -43,8 +44,8 @@ def _pick(files: dict[str, bytes], candidates: list[str]) -> tuple[str, bytes] |
         if candidate in files:
             return candidate, files[candidate]
     raise CompilerError(
-        "missing_required_resource",
-        f"none of the expected files {candidates} present")
+        "missing_required_resource", f"none of the expected files {candidates} present"
+    )
 
 
 class ProfileCompilerTarget(ABC):
@@ -60,8 +61,9 @@ class ProfileCompilerTarget(ABC):
         return COMPILER_VERSION
 
     # -- capability gate ---------------------------------------------------
-    def validate_capabilities(self, profile: Profile, resolved: ResolvedProfile,
-                              registry: ComponentRegistry) -> list[str]:
+    def validate_capabilities(
+        self, profile: Profile, resolved: ResolvedProfile, registry: ComponentRegistry
+    ) -> list[str]:
         """Raise ``CompilerError`` when a required feature is unsupported.
 
         Returns advisory warnings otherwise.
@@ -73,7 +75,8 @@ class ProfileCompilerTarget(ABC):
             raise CompilerError(
                 "target_capability_missing",
                 f"target {self.name} cannot compile: {sorted(required)}",
-                {"target": self.name, "unsupported": sorted(required)})
+                {"target": self.name, "unsupported": sorted(required)},
+            )
         # Executable skill resources must exist in the frozen content.
         for comp in resolved.components:
             if comp.type != ComponentType.SKILL:
@@ -86,52 +89,59 @@ class ProfileCompilerTarget(ABC):
                         "missing_skill_resource",
                         f"{comp.name}@{comp.version} declares {rel!r} but it is "
                         "absent from the registered content",
-                        {"component": comp.name, "resource": rel})
+                        {"component": comp.name, "resource": rel},
+                    )
         return warnings
 
     # -- target-specific compilation --------------------------------------
     @abstractmethod
-    def compile_profile(self, profile: Profile, resolved: ResolvedProfile,
-                        registry: ComponentRegistry) -> dict[str, bytes]:
-        ...
+    def compile_profile(
+        self, profile: Profile, resolved: ResolvedProfile, registry: ComponentRegistry
+    ) -> dict[str, bytes]: ...
 
     @abstractmethod
-    def compile_system_prompt(self, profile: Profile, resolved: ResolvedProfile,
-                              registry: ComponentRegistry) -> dict[str, bytes]:
-        ...
+    def compile_system_prompt(
+        self, profile: Profile, resolved: ResolvedProfile, registry: ComponentRegistry
+    ) -> dict[str, bytes]: ...
 
     @abstractmethod
-    def compile_agents(self, profile: Profile, resolved: ResolvedProfile,
-                       registry: ComponentRegistry) -> dict[str, bytes]:
-        ...
+    def compile_agents(
+        self, profile: Profile, resolved: ResolvedProfile, registry: ComponentRegistry
+    ) -> dict[str, bytes]: ...
 
     @abstractmethod
-    def compile_skills(self, profile: Profile, resolved: ResolvedProfile,
-                       registry: ComponentRegistry) -> dict[str, bytes]:
-        ...
+    def compile_skills(
+        self, profile: Profile, resolved: ResolvedProfile, registry: ComponentRegistry
+    ) -> dict[str, bytes]: ...
 
     @abstractmethod
-    def compile_hooks(self, profile: Profile, resolved: ResolvedProfile,
-                      registry: ComponentRegistry) -> dict[str, bytes]:
-        ...
+    def compile_hooks(
+        self, profile: Profile, resolved: ResolvedProfile, registry: ComponentRegistry
+    ) -> dict[str, bytes]: ...
 
     @abstractmethod
-    def compile_mcp(self, profile: Profile, resolved: ResolvedProfile,
-                    registry: ComponentRegistry) -> dict[str, bytes]:
-        ...
+    def compile_mcp(
+        self, profile: Profile, resolved: ResolvedProfile, registry: ComponentRegistry
+    ) -> dict[str, bytes]: ...
 
-    def compile_policies(self, profile: Profile, resolved: ResolvedProfile,
-                         registry: ComponentRegistry) -> dict[str, bytes]:
+    def compile_policies(
+        self, profile: Profile, resolved: ResolvedProfile, registry: ComponentRegistry
+    ) -> dict[str, bytes]:
         return {}
 
-    def emit_manifest(self, profile: Profile, resolved: ResolvedProfile,
-                      lock: Lockfile, files: dict[str, bytes]) -> dict[str, bytes]:
+    def emit_manifest(
+        self, profile: Profile, resolved: ResolvedProfile, lock: Lockfile, files: dict[str, bytes]
+    ) -> dict[str, bytes]:
         return {}
 
     # -- pipeline ----------------------------------------------------------
-    def compile(self, profile: Profile, resolved: ResolvedProfile,
-                registry: ComponentRegistry,
-                lock: Lockfile | None = None) -> tuple[CompiledArtifact, dict[str, bytes]]:
+    def compile(
+        self,
+        profile: Profile,
+        resolved: ResolvedProfile,
+        registry: ComponentRegistry,
+        lock: Lockfile | None = None,
+    ) -> tuple[CompiledArtifact, dict[str, bytes]]:
         warnings = self.validate_capabilities(profile, resolved, registry)
         stages: list[tuple[str, dict[str, bytes]]] = [
             ("profile", self.compile_profile(profile, resolved, registry)),
@@ -150,7 +160,8 @@ class ProfileCompilerTarget(ABC):
                     raise CompilerError(
                         "duplicate_resource_collision",
                         f"two {stage} inputs produced different bytes for {path!r}",
-                        {"path": path, "stage": stage})
+                        {"path": path, "stage": stage},
+                    )
                 files[path] = data
         manifest = self.emit_manifest(profile, resolved, lock, files)
         for path, data in manifest.items():
@@ -158,15 +169,22 @@ class ProfileCompilerTarget(ABC):
             files[path] = data
         artifact_digest = tree_digest(files)
         artifact = CompiledArtifact(
-            target=self.name, compiler_version=self.compiler_version,
+            target=self.name,
+            compiler_version=self.compiler_version,
             profile_digest=resolved.profile_digest,
             lock_digest=(lock.lock_digest if lock else ""),
             artifact_digest=artifact_digest,
-            files=[CompiledFile(path=rel, size_bytes=len(files[rel]),
-                                digest="sha256:" + _sha(files[rel]),
-                                executable=files[rel].startswith(b"#!"))
-                   for rel in sorted(files)],
-            warnings=warnings)
+            files=[
+                CompiledFile(
+                    path=rel,
+                    size_bytes=len(files[rel]),
+                    digest="sha256:" + _sha(files[rel]),
+                    executable=files[rel].startswith(b"#!"),
+                )
+                for rel in sorted(files)
+            ],
+            warnings=warnings,
+        )
         return artifact, files
 
 
@@ -190,10 +208,17 @@ class PiCompilerTarget(ProfileCompilerTarget):
     """
 
     name = "pi"
-    supported_kinds = frozenset({
-        "system_prompt", "skill", "agent", "tool_policy", "context_policy",
-        "org_policy", "harness_overlay",
-    })
+    supported_kinds = frozenset(
+        {
+            "system_prompt",
+            "skill",
+            "agent",
+            "tool_policy",
+            "context_policy",
+            "org_policy",
+            "harness_overlay",
+        }
+    )
 
     def compile_profile(self, profile, resolved, registry):
         return {}
@@ -202,8 +227,8 @@ class PiCompilerTarget(ProfileCompilerTarget):
         comp = _component(resolved, ComponentType.SYSTEM_PROMPT)
         if comp is None:
             return {}
-        record, files = registry.get(comp.name, comp.version, comp.type)
-        path, data = _pick(files, ["system.md", "system-prompt.md", "prompt.md"])
+        _record, files = registry.get(comp.name, comp.version, comp.type)
+        _path, data = _pick(files, ["system.md", "system-prompt.md", "prompt.md"])
         return {"system-prompt.md": _norm_text(data).encode()}
 
     def compile_agents(self, profile, resolved, registry):
@@ -211,7 +236,7 @@ class PiCompilerTarget(ProfileCompilerTarget):
         for comp in resolved.components:
             if comp.type != ComponentType.AGENT:
                 continue
-            record, files = registry.get(comp.name, comp.version, comp.type)
+            _record, files = registry.get(comp.name, comp.version, comp.type)
             _, data = _pick(files, [f"{comp.name}.md", "AGENT.md", "agent.md"])
             out[f"agents/{comp.name}.md"] = _norm_text(data).encode()
         return out
@@ -227,17 +252,15 @@ class PiCompilerTarget(ProfileCompilerTarget):
             if comp.variant:
                 variant_skill = f"variants/{comp.variant}/SKILL.md"
                 if variant_skill in files:
-                    out[f"skills/{comp.name}/SKILL.md"] = _norm_text(
-                        files[variant_skill]).encode()
+                    out[f"skills/{comp.name}/SKILL.md"] = _norm_text(files[variant_skill]).encode()
                 else:
-                    out[f"skills/{comp.name}/SKILL.md"] = _norm_text(
-                        files[canonical]).encode()
+                    out[f"skills/{comp.name}/SKILL.md"] = _norm_text(files[canonical]).encode()
             else:
-                out[f"skills/{comp.name}/SKILL.md"] = _norm_text(
-                    files[canonical]).encode()
+                out[f"skills/{comp.name}/SKILL.md"] = _norm_text(files[canonical]).encode()
             # Resources and scripts: declared entries, deterministic order.
-            for rel in sorted(set(manifest.get("resources", []))
-                              | set(manifest.get("scripts", []))):
+            for rel in sorted(
+                set(manifest.get("resources", [])) | set(manifest.get("scripts", []))
+            ):
                 if rel not in files:
                     continue
                 out[f"skills/{comp.name}/{rel}"] = files[rel]
@@ -245,9 +268,12 @@ class PiCompilerTarget(ProfileCompilerTarget):
             if comp.variant:
                 prefix = f"variants/{comp.variant}/"
                 for rel in sorted(files):
-                    if rel.startswith(prefix) and not rel.endswith("variant.yaml") \
-                            and rel != f"{prefix}SKILL.md":
-                        out[f"skills/{comp.name}/{rel[len(prefix):]}"] = files[rel]
+                    if (
+                        rel.startswith(prefix)
+                        and not rel.endswith("variant.yaml")
+                        and rel != f"{prefix}SKILL.md"
+                    ):
+                        out[f"skills/{comp.name}/{rel[len(prefix) :]}"] = files[rel]
         return out
 
     def compile_hooks(self, profile, resolved, registry):
@@ -261,15 +287,13 @@ class PiCompilerTarget(ProfileCompilerTarget):
         for comp in resolved.components:
             if comp.type != ComponentType.MCP:
                 continue
-            record, files = registry.get(comp.name, comp.version, comp.type)
-            candidate = _pick(files, ["mcp.json", "mcp.yaml", "mcp.yml",
-                                      f"{comp.name}.json"])
+            _record, files = registry.get(comp.name, comp.version, comp.type)
+            candidate = _pick(files, ["mcp.json", "mcp.yaml", "mcp.yml", f"{comp.name}.json"])
             _, data = candidate
             try:
                 payload = yaml.safe_load(_norm_text(data)) or {}
             except yaml.YAMLError as exc:
-                raise CompilerError("malformed_mcp_definition",
-                                    f"{comp.name}: {exc}") from exc
+                raise CompilerError("malformed_mcp_definition", f"{comp.name}: {exc}") from exc
             entries.append({"name": comp.name, "config": payload})
         if entries:
             out["mcp.json"] = json.dumps(entries, sort_keys=True, indent=2).encode()
@@ -277,26 +301,32 @@ class PiCompilerTarget(ProfileCompilerTarget):
 
     def compile_policies(self, profile, resolved, registry):
         out: dict[str, bytes] = {}
-        for kind, filename in ((ComponentType.TOOL_POLICY, "tool-policy.json"),
-                               (ComponentType.CONTEXT_POLICY, "context-policy.json"),
-                               (ComponentType.ORG_POLICY, "org-policy.json")):
+        for kind, filename in (
+            (ComponentType.TOOL_POLICY, "tool-policy.json"),
+            (ComponentType.CONTEXT_POLICY, "context-policy.json"),
+            (ComponentType.ORG_POLICY, "org-policy.json"),
+        ):
             for comp in resolved.components:
                 if comp.type != kind:
                     continue
                 record, _ = registry.get(comp.name, comp.version, comp.type)
                 if record.policy_rules:
                     out[filename] = json.dumps(
-                        record.policy_rules, sort_keys=True, indent=2).encode()
+                        record.policy_rules, sort_keys=True, indent=2
+                    ).encode()
         if resolved.effective_policy:
             out["effective-policy.json"] = json.dumps(
-                resolved.effective_policy, sort_keys=True, indent=2).encode()
+                resolved.effective_policy, sort_keys=True, indent=2
+            ).encode()
         return out
 
     def emit_manifest(self, profile, resolved, lock, files):
-        skills = sorted(f"skills/{c.name}" for c in resolved.components
-                        if c.type == ComponentType.SKILL)
-        agents = sorted(f"agents/{c.name}.md" for c in resolved.components
-                        if c.type == ComponentType.AGENT)
+        skills = sorted(
+            f"skills/{c.name}" for c in resolved.components if c.type == ComponentType.SKILL
+        )
+        agents = sorted(
+            f"agents/{c.name}.md" for c in resolved.components if c.type == ComponentType.AGENT
+        )
         argv = ["pi"]
         if "system-prompt.md" in files:
             argv += ["--system-prompt", "system-prompt.md"]
@@ -320,8 +350,7 @@ class PiCompilerTarget(ProfileCompilerTarget):
             "invocation": {"argv": argv},
             "tool_policy_component": (tool_policy.name if tool_policy else ""),
         }
-        return {"pi-profile.json": json.dumps(
-            manifest, sort_keys=True, indent=2).encode()}
+        return {"pi-profile.json": json.dumps(manifest, sort_keys=True, indent=2).encode()}
 
 
 class PrimeCompilerTarget(ProfileCompilerTarget):
@@ -332,9 +361,9 @@ class PrimeCompilerTarget(ProfileCompilerTarget):
     def validate_capabilities(self, profile, resolved, registry):
         raise CompilerError(
             "unsupported_target",
-            "Prime Agent compilation target is an M3 extension point and is "
-            "not implemented",
-            {"target": self.name})
+            "Prime Agent compilation target is an M3 extension point and is not implemented",
+            {"target": self.name},
+        )
 
     def compile_profile(self, *a, **k):
         raise CompilerError("unsupported_target", "prime target not implemented")
@@ -364,8 +393,10 @@ def get_target(name: str) -> ProfileCompilerTarget:
         return TARGETS[name]
     except KeyError as exc:
         raise CompilerError(
-            "unsupported_target", f"unknown compilation target {name!r}",
-            {"target": name, "available": sorted(TARGETS)}) from exc
+            "unsupported_target",
+            f"unknown compilation target {name!r}",
+            {"target": name, "available": sorted(TARGETS)},
+        ) from exc
 
 
 def _component(resolved: ResolvedProfile, ctype: ComponentType):
