@@ -10,6 +10,10 @@ HOP evaluates and eventually optimizes complete local coding-agent
 configurations across models, harnesses, skills, prompts, tools, and runtime
 settings.
 
+`master` is the default development branch. It contains work in progress,
+not a release-qualified optimization system. Use the milestone acceptance
+records to distinguish delivered behavior from planned capabilities.
+
 ## Core idea
 
 ```text
@@ -22,22 +26,18 @@ model
         ↓
        HOP
         ↓
-observe
-evaluate
-qualify
-optimize
-promote
+observe -> verify -> compare
         ↓
-       APM
-        ↓
-distribute approved sets
+future: optimize -> confirm -> activate locally -> rollback
+
+optional: export a locked profile with APM
 ```
 
 HOP binds one immutable **execution bundle** — model deployment, harness
 build, prompt, skills, tools, and runtime configuration — to every run,
-observes the full trajectory, and judges the outcome with an independent
-trusted verifier. Better configurations are kept, inconclusive ones are not,
-and regressions roll back.
+observes the trajectory, and judges the outcome with a trusted verifier in a
+separate process. Optimization, local activation, and rollback remain planned;
+the current system records and compares evidence without claiming improvement.
 
 ## HOP is not another coding-agent harness
 
@@ -50,7 +50,8 @@ HOP operates **above** harnesses such as:
 
 It does not replace their agent loops. It wraps their headless interfaces,
 runs them in isolated workspaces against local models, and records what
-happened. Only the Pi adapter is implemented; the others are planned (M5).
+happened. Only the Pi adapter is implemented; the others are optional future
+integrations (M5), not requirements for local coding with Pi.
 
 ```text
 HOP
@@ -66,7 +67,7 @@ APM
   distribute
 ```
 
-APM is the downstream packaging/distribution layer, not the optimizer
+APM is an optional packaging/export layer, not the optimizer
 itself. M3 implements the HOP-to-APM export as a distribution target; HOP
 remains authoritative for profile, component, and evaluation identity.
 
@@ -81,6 +82,12 @@ security findings, independent review, offline type tooling, and current live
 qualification still block advancement to M4. Start with the
 [runbook](docs/runbook.md), [review](docs/foundation-review.md), and
 [acceptance matrix](docs/acceptance-foundation.md).
+
+Latest recorded scope validation: **284 non-live tests passed**, with lint and
+formatting passing. Type checking remains blocked on approved offline tooling;
+current Pi/local-model qualification and independent boundary review remain
+outstanding. See [the validation report](docs/single-user-delivery.md). A merge
+into `master` does not waive these gates or authorize M4 to begin.
 
 Implemented (M0–M3 plus the AOP → HOP rename):
 
@@ -113,7 +120,7 @@ Planned (not implemented — automatic optimization does not exist yet):
 - model qualification
 - skill/prompt optimization
 - dynamic profile optimization
-- promotion/canary/rollback
+- owner-confirmed local activation, trial tasks, and rollback
 
 ## Roadmap
 
@@ -126,7 +133,7 @@ Planned (not implemented — automatic optimization does not exist yet):
 | M3 | Canonical skills, compiler, and APM | ✅ done (profiles/compiler/APM) |
 | Foundation | HOP-R01-R05 review and simplification | In progress; acceptance blocked |
 | M4 | Local coding evaluation packs | ⬜ blocked on foundation |
-| M5 | All harness integrations | ⬜ planned |
+| M5 | Optional harness integrations | ⬜ planned |
 | M6 | Model matrix and fair benchmarking | ⬜ planned |
 | M7 | First optimization loop | ⬜ planned |
 | M8 | Owner-confirmed local activation and rollback | ⬜ planned |
@@ -164,7 +171,7 @@ build, `bwrap`, and a registered local model. Other combinations require
 qualification before support is claimed.
 
 ```bash
-git clone https://github.com/mitkox/harness-opt.git
+git clone --branch master https://github.com/mitkox/harness-opt.git
 cd harness-opt
 HOP_WHEELHOUSE=/path/to/approved/wheels scripts/dev bootstrap
 ./hop --help

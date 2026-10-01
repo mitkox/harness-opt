@@ -6,6 +6,52 @@ Implement the single-user local coding tool specified in `BUILD_PLAN.md` and ADR
 
 M0-M3 are delivered in scoped form. HOP-R01-R05 foundation requalification remains blocked; read its acceptance matrix before M4. Preserve existing repository work and historical evidence. Optional integrations do not gate the single-user core unless enabled.
 
+## Repository State and Sources of Truth
+
+`master` is the default development branch. A development merge is not milestone
+acceptance, release qualification, or permission to advance dependencies.
+
+- `BACKLOG.yaml` owns current scope, dependencies, exclusions, and work-item IDs.
+  Its status fields were reconciled; do not treat the old all-planned snapshot
+  as current or reimplement delivered milestones.
+- `docs/acceptance-m{1,2,3}.md` and `docs/evidence/` describe historical delivered
+  slices. Preserve their bytes and the ability to read prior runs and locks.
+- `docs/acceptance-foundation.md`, `docs/single-user-delivery.md`, and ADR-011
+  describe the current incomplete foundation and single-user scope.
+- Latest recorded validation is 284 non-live tests passing. Type checking,
+  current Pi/local-model acceptance, and independent boundary review remain
+  outstanding; verify the installed build rather than trusting old version notes.
+- Only Pi is implemented. Other adapters are optional and explicitly blocked
+  until their pinned interfaces are qualified. Automatic optimization does not
+  exist yet; do not approximate it with an ad-hoc loop.
+- `.hidden/` remains an interim namespace-protected store, not sealed
+  evaluator-owned storage. AOP-020 owns that transition after foundation acceptance.
+
+## Local Development
+
+Use the approved offline wheelhouse and pinned environment. The evidenced
+combination is CPython 3.14/Linux x86-64, not every Python/platform combination.
+
+```sh
+HOP_WHEELHOUSE=/path/to/approved/wheels scripts/dev bootstrap
+scripts/dev check
+scripts/dev test --suite all
+./hop doctor
+./hop profile --help
+```
+
+`check` must remain blocked when approved type tooling is unavailable. Select
+`unit`, `contract`, `sandbox`, or `live` for focused tests. Live probes and full
+local-model acceptance are separate; fixtures never qualify a model. Do not use
+`pip install -e .`, download packages during evaluation, or overwrite an existing
+environment to make setup succeed. `./hop` handles its own import path.
+
+Keep work in isolated `esf/` branches/worktrees. Before cleanup, verify the exact
+branch tip is included in `master`; preserve open reviews and unmerged work.
+Never discard dirty files to switch branches. Preserve a recoverable copy before
+reconciling user edits, and report its location. Publish or merge only when the
+owner explicitly requests that action; do not trigger it from tests.
+
 ## Hard constraints
 
 All task inference, routing, judge calls, reflection, embeddings, compaction, and synthetic-data generation use registered local model deployments. No hosted API fallback. No external telemetry, session sharing, package downloads, or auto-updates during evaluation. Controlled artifact import is a separate explicit owner action.
@@ -66,3 +112,10 @@ Report the work-item IDs, files changed, implementation decisions, validations r
 ## Current Assignment
 
 Close the foundation acceptance gaps before implementing AOP-020 and the core local coding packs. Keep AOP-024 and AOP-042 out of scope under ADR-011. Do not begin optimization or activation before their dependency evidence exists. A scope reduction is not a passed safety gate.
+
+After foundation acceptance, implement provenance/protected splits (AOP-020),
+coding and debugging (AOP-021), local diff review (AOP-022), test/dependency
+maintenance (AOP-025), and advisory calibrated local judges (AOP-026). Each core
+pack needs passing, failing, and inconclusive examples with complete trajectories
+and completeness reports. AOP-023 local build fixtures remain optional. The
+trusted verifier remains authoritative and insufficient evidence is inconclusive.
