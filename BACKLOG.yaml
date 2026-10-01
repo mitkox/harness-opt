@@ -1,5 +1,13 @@
 schema_version: '0.1'
 project: HOP - Harness Optimization Platform
+product_scope: single_user_local_coding
+scope_revision: docs/adr/ADR-011-single-user.md
+scope_rules:
+  core: Local coding, debugging, diff review, tests, and dependency maintenance
+  storage: SQLite and owner-controlled files, without accounts or tenant settings
+  optional_capabilities: Additional harnesses, models, local build fixtures, GEPA and APM export
+  excluded: Enterprise services, RBAC, fleet rollout, signing infrastructure and provider write-back
+  optional_gates: Only explicitly enabled capabilities gate acceptance; excluded items never do
 status: m0_m3_delivered_scoped_foundation_requalification_blocked
 initial_assignment:
 - Foundation
@@ -14,6 +22,7 @@ status_definitions:
   in_progress: Current implementation and review work; exit gate not passed.
   blocked: Acceptance cannot pass until listed dependencies or evidence exist.
   planned: Not implemented; dependency and milestone acceptance gates still apply.
+  out_of_scope: Removed by the single-user decision, not implemented or required for acceptance.
 historical_acceptance:
   M0: docs/acceptance-m1.md
   M1: docs/acceptance-m1.md
@@ -186,7 +195,7 @@ work_items:
   area: storage
   title: Implement content-addressed artifact storage
   status: partial
-  remaining: Repository and tenant authorization is not established by content addressing.
+  remaining: Owner-only storage permissions and per-run path isolation need qualification.
   priority: P0
   depends_on:
   - AOP-001
@@ -207,7 +216,7 @@ work_items:
   area: execution
   title: Implement durable run state and worker leases
   status: partial
-  remaining: SQLite admission and fencing delivered; lease renewal, jobs/outbox and PostgreSQL not delivered.
+  remaining: SQLite admission and fencing delivered; local crash recovery still needs qualification.
   priority: P0
   depends_on:
   - AOP-001
@@ -216,7 +225,7 @@ work_items:
   - AOP-005
   outputs:
   - Run/attempt state machines
-  - PostgreSQL jobs, outbox, leases and fencing
+  - SQLite transactions, local attempts and fencing
   acceptance_criteria:
   - Duplicate admission is idempotent
   - A stale worker cannot finalize a newer attempt
@@ -381,7 +390,7 @@ work_items:
   area: security
   title: Implement telemetry redaction and retention
   status: partial
-  remaining: Redaction and classification delivered; encryption, retention lifecycle and tenant authorization remain.
+  remaining: Redaction and classification delivered; local retention and owner-only file permissions remain.
   priority: P1
   depends_on:
   - AOP-003
@@ -389,11 +398,11 @@ work_items:
   - AOP-012
   outputs:
   - Artifact sensitivity tiers
-  - Redaction, encryption/access hooks and retention rules
+  - Redaction, owner-only file access and retention rules
   acceptance_criteria:
   - Seed secrets do not appear in ordinary logs, metrics or traces
   - Redaction limitations mark replay eligibility accurately
-  - Tenant/repository access applies to payload artifacts
+  - Workers cannot read unrelated owner files or another run's payloads
   evidence_required:
   - Reviewable diff or commit
   - Exact validation commands and observed outcomes
@@ -403,14 +412,14 @@ work_items:
   area: reporting
   title: Build trajectory viewer and paired comparisons
   status: partial
-  remaining: CLI investigation and descriptive comparison implemented; live Grafana provisioning not qualified.
+  remaining: CLI investigation and descriptive comparison implemented; local usability acceptance remains.
   priority: P1
   depends_on:
   - AOP-013
   - AOP-014
   outputs:
   - Run and diff report UI
-  - Grafana provisioning and bounded metrics labels
+  - Local trace files and bounded metrics labels
   acceptance_criteria:
   - One investigation links skill load through tool result to verifier evidence
   - All attempts and infra errors remain visible
@@ -464,7 +473,7 @@ work_items:
   area: packaging
   title: Integrate APM and native exporters
   status: partial
-  remaining: APM and Pi output delivered; additional exporters, OpenCode v2 and frozen installs remain unqualified.
+  remaining: APM and Pi output delivered; offline local export qualification remains. Other exporters are opt-in.
   priority: P1
   depends_on:
   - AOP-017
@@ -473,7 +482,7 @@ work_items:
   - Exporters for unsupported harness targets
   acceptance_criteria:
   - Frozen install passes offline with populated local mirrors
-  - OpenCode v2 output is independently qualified
+  - Each explicitly enabled export target is independently qualified
   - Packaging never modifies active developer directories
   evidence_required:
   - Reviewable diff or commit
@@ -484,18 +493,18 @@ work_items:
   area: release
   title: Implement bundle integrity and staging
   status: partial
-  remaining: Digests and deterministic artifacts delivered; isolated signing, release staging and activation remain M8 work.
+  remaining: Digests and deterministic artifacts delivered; local staging and activation remain M8 work.
   priority: P1
   depends_on:
   - AOP-005
   - AOP-017
   - AOP-018
   outputs:
-  - Content digest manifest and signature verification
+  - Content digest manifest and tamper verification
   - Read-only staged execution bundles
   acceptance_criteria:
   - Any modified script or prompt is rejected
-  - A valid signature cannot override capability checks
+  - A matching digest cannot override capability checks
   - Active runs keep their original bundle identity
   evidence_required:
   - Reviewable diff or commit
@@ -545,7 +554,7 @@ work_items:
 - id: AOP-022
   milestone: M4
   area: workflows
-  title: Build PR and MR review workflow pack
+  title: Build local diff and commit review pack
   status: planned
   priority: P1
   depends_on:
@@ -564,7 +573,8 @@ work_items:
 - id: AOP-023
   milestone: M4
   area: workflows
-  title: Build CI and build engineering pack
+  title: Build optional local build-repair fixtures
+  optional: true
   status: planned
   priority: P1
   depends_on:
@@ -584,7 +594,8 @@ work_items:
   milestone: M4
   area: workflows
   title: Build defensive security pack
-  status: planned
+  status: out_of_scope
+  scope_note: Standalone scanner/security workflows removed; adversarial safety tests remain required under AOP-050.
   priority: P1
   depends_on:
   - AOP-003
@@ -644,6 +655,7 @@ work_items:
   milestone: M5
   area: adapters
   title: Integrate Prime Agent with controlled state
+  optional: true
   status: planned
   priority: P1
   depends_on:
@@ -666,6 +678,7 @@ work_items:
   milestone: M5
   area: adapters
   title: Integrate OpenCode v2 with durable event recovery
+  optional: true
   status: planned
   priority: P1
   depends_on:
@@ -688,6 +701,7 @@ work_items:
   milestone: M5
   area: adapters
   title: Integrate DeepSeek Harness preview
+  optional: true
   status: planned
   priority: P1
   depends_on:
@@ -714,6 +728,7 @@ work_items:
   priority: P1
   depends_on:
   - AOP-009
+  optional_depends_on:
   - AOP-027
   - AOP-028
   - AOP-029
@@ -799,12 +814,12 @@ work_items:
   depends_on:
   - AOP-021
   - AOP-022
-  - AOP-023
-  - AOP-024
   - AOP-025
   - AOP-026
   - AOP-030
   - AOP-033
+  optional_depends_on:
+  - AOP-023
   outputs:
   - Qualified local pair baseline reports
   - Cold/warm cache and fixed-envelope comparisons
@@ -863,6 +878,7 @@ work_items:
   milestone: M7
   area: optimization
   title: Add optional GEPA backend
+  optional: true
   status: planned
   priority: P1
   depends_on:
@@ -908,8 +924,9 @@ work_items:
   priority: P1
   depends_on:
   - AOP-036
-  - AOP-037
   - AOP-038
+  optional_depends_on:
+  - AOP-037
   outputs:
   - Candidate-versus-baseline report
   - Improve/retain/inconclusive decision artifact
@@ -938,7 +955,7 @@ work_items:
   acceptance_criteria:
   - Verifier failure cannot be overruled by a judge
   - Missing required trajectory data prevents promotion
-  - Proposer processes cannot access signing keys
+  - Proposer processes cannot modify the owner's active-profile pointer
   evidence_required:
   - Reviewable diff or commit
   - Exact validation commands and observed outcomes
@@ -946,7 +963,7 @@ work_items:
 - id: AOP-041
   milestone: M8
   area: deployment
-  title: Implement desired-state channels and drift control
+  title: Implement local profile activation and drift checks
   status: planned
   priority: P1
   depends_on:
@@ -954,21 +971,22 @@ work_items:
   - AOP-019
   - AOP-040
   outputs:
-  - Signed channel manifests
-  - Pull, stage, activate and drift reporting
+  - Owner-confirmed content-addressed activation record
+  - Local stage, atomic activation and drift reporting
   acceptance_criteria:
   - New releases apply only to new sessions
   - Developer edits are not silently overwritten
-  - Offline nodes reconcile safely from locally mirrored artifacts
+  - Local activation works offline and retains the previous bundle for rollback
   evidence_required:
   - Reviewable diff or commit
   - Exact validation commands and observed outcomes
   - Explicit unexecuted tests and compatibility limits
 - id: AOP-042
   milestone: M8
-  area: enterprise
+  area: excluded_integrations
   title: Implement Git and CI read/write brokers
-  status: planned
+  status: out_of_scope
+  scope_note: The owner publishes outside HOP; no webhooks, provider services or remote writes are implemented.
   priority: P1
   depends_on:
   - AOP-003
@@ -988,15 +1006,14 @@ work_items:
 - id: AOP-043
   milestone: M8
   area: reliability
-  title: Implement shadow, canary and rollback
+  title: Implement local trial runs and rollback
   status: planned
   priority: P1
   depends_on:
   - AOP-041
-  - AOP-042
   outputs:
   - Side-effect-free shadow execution
-  - Supervised cohort and rollback controller
+  - Owner-selected trial tasks and local rollback
   acceptance_criteria:
   - A regressed candidate is stopped by gates
   - Rollback preserves incumbent artifacts and active sessions
@@ -1078,9 +1095,10 @@ work_items:
   status: planned
   priority: P1
   depends_on:
-  - AOP-027
   - AOP-030
   - AOP-046
+  optional_depends_on:
+  - AOP-027
   outputs:
   - Session-local learning overlay
   - Explicit escalation handoff and child-run accounting
@@ -1117,20 +1135,19 @@ work_items:
 - id: AOP-049
   milestone: M10
   area: security
-  title: Complete enterprise authorization and audit
+  title: Complete local file protection and activity history
   status: planned
   priority: P1
   depends_on:
   - AOP-014
   - AOP-040
-  - AOP-042
   outputs:
-  - Tenant/repository RBAC
-  - Approval/audit/retention enforcement
+  - Owner-only local file permissions and worker capabilities
+  - Local activation history and retention controls
   acceptance_criteria:
-  - Cross-tenant artifacts and traces are denied
-  - Read permissions do not imply release or write permission
-  - Revoked credentials cannot complete pending publications
+  - Workers cannot access unrelated owner files or evaluator data
+  - Reading a bundle does not grant authority to change the active profile
+  - Local history records every explicit activation and rollback
   evidence_required:
   - Reviewable diff or commit
   - Exact validation commands and observed outcomes
@@ -1142,7 +1159,6 @@ work_items:
   status: planned
   priority: P1
   depends_on:
-  - AOP-024
   - AOP-030
   - AOP-040
   - AOP-049
@@ -1188,16 +1204,15 @@ work_items:
   priority: P1
   depends_on:
   - AOP-018
-  - AOP-024
   - AOP-030
   - AOP-044
   - AOP-051
   outputs:
   - Local mirrors and air-gap import manifests
-  - Compose and optional Kubernetes deployment tests
+  - Single-machine offline bootstrap and local execution tests
   acceptance_criteria:
   - All dependencies resolve with external egress denied
-  - Scanner database freshness is shown
+  - Imported artifact versions and hashes are recorded
   - Auxiliary titles/compaction/embedding/judge calls remain local
   evidence_required:
   - Reviewable diff or commit
@@ -1216,7 +1231,7 @@ work_items:
   - AOP-052
   outputs:
   - Tracing overhead and load test report
-  - Operational SLOs and capacity runbooks
+  - Local resource budgets and troubleshooting instructions
   acceptance_criteria:
   - Instrumented versus reference measurements use matched conditions
   - Metric labels stay bounded under many runs
@@ -1245,8 +1260,8 @@ work_items:
   - Full lifecycle demonstration on available qualified local models
   acceptance_criteria:
   - Demonstrate task, eval, candidate, confirm, deploy, feedback and rollback
-  - All six workflow packs have independent verifiers
-  - All requested models/harnesses have truthful qualified or blocked status
+  - Four core coding workflows have independent verifiers
+  - Enabled models and harnesses have truthful qualified or blocked status
   evidence_required:
   - Reviewable diff or commit
   - Exact validation commands and observed outcomes

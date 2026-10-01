@@ -169,7 +169,7 @@ def test_profile_referencing_nonexistent_model_deployment_is_infra_error(tmp_pat
         "skills": ["testing@^1.0.0"],
         "tools": {"policy_ref": "coding-tools@^1.0.0"},
         "context": {"policy_ref": "default-context@^1.0.0"},
-        "policy": ["enterprise-coding@^1.0.0"],
+        "policy": ["local-safety@^1.0.0"],
         "distribution": {"target": "apm"},
     }
     path = tmp_path / "bad-model.yaml"

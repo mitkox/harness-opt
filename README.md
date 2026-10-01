@@ -2,6 +2,10 @@
 
 **Harness Optimization Platform.**
 
+A CLI-first tool for one developer doing local coding. One machine, local
+models, local repositories, SQLite, and files. No accounts, teams, tenants,
+enterprise settings, cloud services, or required dashboard stack.
+
 HOP evaluates and eventually optimizes complete local coding-agent
 configurations across models, harnesses, skills, prompts, tools, and runtime
 settings.
@@ -104,7 +108,7 @@ Implemented (M0–M3 plus the AOP → HOP rename):
 
 Planned (not implemented — automatic optimization does not exist yet):
 
-- enterprise workflow eval packs
+- local coding, debugging, diff-review, and test/dependency evaluation packs
 - additional harness adapters (Prime Agent, OpenCode v2, DeepSeek Harness)
 - model qualification
 - skill/prompt optimization
@@ -121,11 +125,11 @@ Planned (not implemented — automatic optimization does not exist yet):
 | — | AOP → HOP namespace migration | ✅ done (`hop-namespace`) |
 | M3 | Canonical skills, compiler, and APM | ✅ done (profiles/compiler/APM) |
 | Foundation | HOP-R01-R05 review and simplification | In progress; acceptance blocked |
-| M4 | Enterprise benchmark packs | ⬜ blocked on foundation |
+| M4 | Local coding evaluation packs | ⬜ blocked on foundation |
 | M5 | All harness integrations | ⬜ planned |
 | M6 | Model matrix and fair benchmarking | ⬜ planned |
 | M7 | First optimization loop | ⬜ planned |
-| M8 | Promotion, deployment, and rollback | ⬜ planned |
+| M8 | Owner-confirmed local activation and rollback | ⬜ planned |
 | M9+ | Dynamic routing / lifecycle hardening | ⬜ planned |
 
 ## Architecture
@@ -260,15 +264,16 @@ tests/              unit, contract, security, and e2e tests
   no promotion. M3 adds profiles, deterministic compilation, and APM export
   only.
 - Exported APM provenance is tamper-evident (digests) but not signed;
-  production signing is deferred to the promotion milestone.
+  signing infrastructure is outside the single-user scope.
 - `.hidden/` is an interim in-repo hidden-test location enforced by mount
   namespaces, not sealed evaluator-owned storage (M4).
 - Isolation uses `bwrap` namespaces. The Pi worker shares host networking;
   inference endpoint checks do not enforce general OS-level worker egress.
   Aggregate descendant quotas and verifier current-case protection also remain
   open security findings. Do not treat this as hostile-workload qualification.
-- PostgreSQL, multi-node scheduling, and the release publisher are deferred
-  per the ADRs.
+- PostgreSQL, multi-node scheduling, remote publishers, and organizational
+  administration are out of scope, not deferred requirements. See
+  [the single-user decision](docs/adr/ADR-011-single-user.md).
 
 License: Apache-2.0 (`LICENSE`). Security reports: see `SECURITY.md`.
 Contributions: see `CONTRIBUTING.md`.

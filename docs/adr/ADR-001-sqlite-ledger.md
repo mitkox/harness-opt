@@ -1,5 +1,8 @@
 # ADR-001: SQLite + filesystem ledger for M0/M1, PostgreSQL deferred
 
+Scope update: ADR-011 retains SQLite permanently for the single-user product;
+the historical PostgreSQL migration proposal below is no longer in scope.
+
 Date: 2026-09-12.
 
 BUILD_PLAN §3 recommends PostgreSQL for registry metadata, job state, and a

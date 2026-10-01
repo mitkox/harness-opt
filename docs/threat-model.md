@@ -1,17 +1,16 @@
 # Threat model — M0/M1 trust boundaries (AOP-003, revised after M1 review)
 
-Status: implemented for the M1 vertical slice. PostgreSQL/OTel/publisher
-deferred (ADR-001, ADR-005). This document describes what the code actually
-guarantees, not the aspirational M4+ design.
+Scope: one local owner (ADR-011). The boundaries below describe the delivered
+M1 slice with foundation corrections; they are not full hostile-workload
+qualification. Current open findings are tracked in foundation-review.md.
 
 ## Principals and processes
 
 | Principal | Identity | Filesystem (namespace view) | Network | Credentials |
 |---|---|---|---|---|
 | Control plane / CLI (`hop`) | invoking user | repo + `runs/` ledger | loopback inference only (`policy.assert_local_url`) | user env, never forwarded |
-| Agent worker (Pi) | `bwrap` mount/PID namespace | run root + pinned harness/Node runtime (ro) + `/tmp`; **no** repo, `.hidden`, or other runs | loopback only (deployment endpoint); proxies/keys scrubbed | none |
+| Agent worker (Pi) | `bwrap` mount/PID namespace | run root + pinned harness/Node runtime (ro) + `/tmp`; **no** repo, `.hidden`, or other runs | host network shared; only inference URLs are restricted; general egress remains open | none |
 | Trusted verifier | `bwrap` mount/PID namespace | frozen snapshot (ro) + one hidden case (ro) + verifier bootstrap (ro) + scratch out | none (`--unshare-net`) | none |
-| Publisher | not implemented in M0/M1 | — | — | no signing keys exist yet |
 
 ## Boundaries enforced in code
 
@@ -60,9 +59,10 @@ guarantees, not the aspirational M4+ design.
   untrusted repositories remains M5+/M10.
 - Egress policy beyond loopback inference: the agent namespace shares the host
   network when a real model call is required. Host-level egress enforcement is
-  M10.
-- PostgreSQL transactional outbox, OTel projection, signed releases, publisher
-  broker, multi-tenant RBAC: see BACKLOG M2–M10.
+  an open foundation defect, not waived by the single-user scope.
+- Aggregate descendant CPU/memory/disk quotas are not established by RLIMITs.
+- Publisher services and multi-user authorization are out of scope, not future
+  required trust principals. Local trace projection is implemented.
 - Candidate code imported by hidden tests can read the current case's hidden
   tests during verification only; sealed evaluator storage with an access
   ledger is M4.

@@ -1,5 +1,11 @@
 # HOP 0.2 Developer and Operator Runbook
 
+HOP is a single-user local coding tool. There is no enterprise mode, account
+setup, organization configuration, hosted write-back, or service stack to deploy.
+The owner publishes code outside HOP; evaluation only produces local evidence.
+Active profiles use local-safety. Historical org_policy identifiers are retained
+for file compatibility, not user-management features. See ADR-011.
+
 ## Offline Setup
 
 The currently evidenced environment is Linux x86-64 with Python 3.14. Supply the

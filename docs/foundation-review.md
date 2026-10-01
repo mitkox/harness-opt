@@ -4,6 +4,10 @@ Baseline: `4e6d6a243e5f46b80318fb35981251ef0392d200`.
 Implementation branch: `esf/hop-foundation`.
 Work items: HOP-R01 through HOP-R05. Review date: 2026-10-01.
 
+Scope follow-up: ADR-011 removes enterprise services, signing infrastructure,
+and multi-user authorization from the product. The local safety findings below
+remain open; historical future-integration references are not current requirements.
+
 This is the implementer's review and regression evidence. It does not constitute
 independent security verification or renewed M0-M3 release qualification.
 

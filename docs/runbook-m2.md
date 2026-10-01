@@ -1,5 +1,8 @@
 # M2 runbook: investigate, migrate, recover
 
+Historical milestone instructions. Use docs/runbook.md for current operation.
+ADR-011 removed service-stack deployment; local trace files and the spool remain.
+
 ## Investigate a failed run (no DB spelunking)
 
 ```
@@ -48,12 +51,7 @@ automatically (`telemetry.recovered` event); pending spool can be inspected
 via the `spool` section of `run show`. The ledger under
 `runs/<run-id>/events.jsonl` is unaffected throughout.
 
-## Local OTel stack (operator-provisioned, not evaluation-required)
-
-```
-docker compose -f deploy/compose/otel-local.yaml config   # validate only
-docker compose -f deploy/compose/otel-local.yaml up       # operator action
-```
+## Local Trace Files
 
 M2 evaluation does not pull images or require SaaS; the demonstrated path
 is the per-run `trace-otel.json` file plus the local spool/collector
