@@ -14,6 +14,7 @@ content fails closed: changing content requires a new version/identity. Reads
 recompute the content digest from stored bytes, so silent mutation of the
 store is detected rather than accepted.
 """
+
 from __future__ import annotations
 
 import json
@@ -40,10 +41,17 @@ class RegistryIntegrityError(RegistryError):
 
 
 def compute_record_digest(record: RegistryComponent) -> str:
-    payload = record.model_dump(mode="json", exclude={
-        "record_digest", "created_at", "source", "source_revision", "metadata",
-        "files",
-    })
+    payload = record.model_dump(
+        mode="json",
+        exclude={
+            "record_digest",
+            "created_at",
+            "source",
+            "source_revision",
+            "metadata",
+            "files",
+        },
+    )
     return digest_payload(payload)
 
 
@@ -70,14 +78,16 @@ class ComponentRegistry:
                 recorded = fh.read().strip()
         if recorded and recorded != _sha256_hex(raw):
             raise RegistryIntegrityError(
-                "registry index integrity anchor mismatch (tampered index)")
+                "registry index integrity anchor mismatch (tampered index)"
+            )
         payload = json.loads(raw.decode("utf-8"))
         components = payload.get("components", {})
         for record_digest, data in components.items():
             record = RegistryComponent.model_validate(data)
             if record.record_digest != record_digest:
                 raise RegistryIntegrityError(
-                    f"index record {record_digest} has mismatched digest field")
+                    f"index record {record_digest} has mismatched digest field"
+                )
             self._index[record_digest] = record
 
     def _write_index(self) -> None:
@@ -85,8 +95,9 @@ class ComponentRegistry:
         for digest in sorted(self._index):
             serialized[digest] = self._index[digest].model_dump(mode="json")
         payload = {"schema_version": "0.3", "components": serialized}
-        raw = json.dumps(payload, sort_keys=True, separators=(",", ":"),
-                         ensure_ascii=True).encode("utf-8")
+        raw = json.dumps(payload, sort_keys=True, separators=(",", ":"), ensure_ascii=True).encode(
+            "utf-8"
+        )
         _atomic_write(self.index_path, raw)
         _atomic_write(self.index_anchor, _sha256_hex(raw).encode())
 
@@ -100,12 +111,13 @@ class ComponentRegistry:
             if actual != record.content_digest:
                 raise RegistryError(
                     f"content digest mismatch for {record.logical_name}: "
-                    f"declared {record.content_digest}, computed {actual}")
+                    f"declared {record.content_digest}, computed {actual}"
+                )
         stored = self._stored_files(record.content_digest)
         if stored is not None and stored != files:
             raise RegistryIntegrityError(
-                f"content store for {record.content_digest} already exists with "
-                "different bytes")
+                f"content store for {record.content_digest} already exists with different bytes"
+            )
         if not record.record_digest:
             record.record_digest = compute_record_digest(record)
         else:
@@ -120,14 +132,17 @@ class ComponentRegistry:
 
         # Collision: same identity, different content/digest.
         for other in self._index.values():
-            if (other.component_type == record.component_type
-                    and other.logical_name == record.logical_name
-                    and other.version == record.version):
+            if (
+                other.component_type == record.component_type
+                and other.logical_name == record.logical_name
+                and other.version == record.version
+            ):
                 raise ComponentCollision(
                     f"{record.component_type.value}/{record.logical_name}@"
                     f"{record.version} already registered as {other.record_digest}; "
                     "immutable components cannot be silently mutated "
-                    "(bump the version)")
+                    "(bump the version)"
+                )
 
         self._write_content(record.content_digest, files)
         record.files = _file_list(files)
@@ -138,31 +153,38 @@ class ComponentRegistry:
 
             record.created_at = utcnow().isoformat()
         self._index[record.record_digest] = record
-        _atomic_write(os.path.join(self.root, "records",
-                                   record.record_digest.split(":")[1] + ".json"),
-                      json.dumps(record.model_dump(mode="json"), sort_keys=True,
-                                 indent=2).encode())
+        _atomic_write(
+            os.path.join(self.root, "records", record.record_digest.split(":")[1] + ".json"),
+            json.dumps(record.model_dump(mode="json"), sort_keys=True, indent=2).encode(),
+        )
         self._write_index()
         return record
 
     # -- read --------------------------------------------------------------
-    def get(self, name: str, version: str,
-            component_type=None) -> tuple[RegistryComponent, dict[str, bytes]]:
-        matches = [r for r in self._index.values()
-                   if r.logical_name == name and r.version == version
-                   and (component_type is None or r.component_type == component_type)]
+    def get(
+        self, name: str, version: str, component_type=None
+    ) -> tuple[RegistryComponent, dict[str, bytes]]:
+        matches = [
+            r
+            for r in self._index.values()
+            if r.logical_name == name
+            and r.version == version
+            and (component_type is None or r.component_type == component_type)
+        ]
         if not matches:
             raise ComponentNotFound(f"component {name}@{version} not registered")
         if len(matches) > 1:
             raise RegistryError(
                 f"ambiguous component identity {name}@{version}: "
-                f"{[m.component_type.value for m in matches]}")
+                f"{[m.component_type.value for m in matches]}"
+            )
         record = matches[0]
         self._verify_existing(record)
         files = self._stored_files(record.content_digest)
         if files is None:
             raise RegistryIntegrityError(
-                f"content missing for {name}@{version} ({record.content_digest})")
+                f"content missing for {name}@{version} ({record.content_digest})"
+            )
         return record, files
 
     def by_digest(self, record_digest: str) -> tuple[RegistryComponent, dict[str, bytes]]:
@@ -178,18 +200,23 @@ class ComponentRegistry:
     def versions(self, name: str, component_type=None) -> list[str]:
         from .semver import Version
 
-        out = [r.version for r in self._index.values()
-               if r.logical_name == name
-               and (component_type is None or r.component_type == component_type)]
+        out = [
+            r.version
+            for r in self._index.values()
+            if r.logical_name == name
+            and (component_type is None or r.component_type == component_type)
+        ]
         out.sort(key=lambda v: Version.parse(v), reverse=True)
         return out
 
     def all_components(self) -> list[RegistryComponent]:
-        return sorted(self._index.values(),
-                      key=lambda r: (r.component_type.value, r.logical_name, r.version))
+        return sorted(
+            self._index.values(), key=lambda r: (r.component_type.value, r.logical_name, r.version)
+        )
 
-    def find(self, name: str | None = None, component_type=None,
-             version: str | None = None) -> list[RegistryComponent]:
+    def find(
+        self, name: str | None = None, component_type=None, version: str | None = None
+    ) -> list[RegistryComponent]:
         out = []
         for record in self.all_components():
             if name is not None and record.logical_name != name:
@@ -213,21 +240,26 @@ class ComponentRegistry:
         files = self._stored_files(record.content_digest)
         if files is None:
             raise RegistryIntegrityError(
-                f"content missing for {record.logical_name}@{record.version}")
+                f"content missing for {record.logical_name}@{record.version}"
+            )
         actual = tree_digest(files)
         if actual != record.content_digest:
             raise RegistryIntegrityError(
                 f"content digest mismatch for {record.logical_name}@"
-                f"{record.version}: expected {record.content_digest}, got {actual}")
+                f"{record.version}: expected {record.content_digest}, got {actual}"
+            )
 
     def verify_all(self) -> list[dict]:
         """Recompute every record; return per-record integrity evidence."""
         results = []
         for record in self.all_components():
-            entry = {"type": record.component_type.value,
-                     "name": record.logical_name, "version": record.version,
-                     "record_digest": record.record_digest,
-                     "content_digest": record.content_digest}
+            entry = {
+                "type": record.component_type.value,
+                "name": record.logical_name,
+                "version": record.version,
+                "record_digest": record.record_digest,
+                "content_digest": record.content_digest,
+            }
             try:
                 self._verify_existing(record)
                 recomputed = compute_record_digest(record)
@@ -267,10 +299,15 @@ class ComponentRegistry:
 
 
 def _file_list(files: dict[str, bytes]) -> list[dict]:
-    return [{"path": rel, "size_bytes": len(files[rel]),
-             "digest": "sha256:" + _sha256_hex(files[rel]),
-             "executable": bool(files[rel].startswith(b"#!"))}
-            for rel in sorted(files)]
+    return [
+        {
+            "path": rel,
+            "size_bytes": len(files[rel]),
+            "digest": "sha256:" + _sha256_hex(files[rel]),
+            "executable": bool(files[rel].startswith(b"#!")),
+        }
+        for rel in sorted(files)
+    ]
 
 
 def _sha256_hex(data: bytes) -> str:

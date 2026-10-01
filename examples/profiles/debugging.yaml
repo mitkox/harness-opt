@@ -42,7 +42,7 @@ context:
   policy_ref: default-context@^1.0.0
 
 policy:
-  - enterprise-coding@^1.0.0
+  - local-safety@^1.0.0
 
 distribution:
   target: apm

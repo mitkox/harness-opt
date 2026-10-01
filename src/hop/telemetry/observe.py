@@ -5,6 +5,7 @@ All free-text fields are redacted and truncated; large payloads become
 content-addressed artifacts referenced by digest, never inline blobs or
 metric labels.
 """
+
 from __future__ import annotations
 
 import hashlib
@@ -15,9 +16,9 @@ from dataclasses import dataclass, field
 from .redaction import digest_of, sanitize_attributes
 
 # Metric provenance taxonomy (BUILD_PLAN §10-11 honesty rule).
-MEASURED = "measured"      # directly observed (client span boundaries, rusage)
-DERIVED = "derived"        # computed from measured values (durations, rates)
-ESTIMATED = "estimated"    # host-level approximation, method recorded
+MEASURED = "measured"  # directly observed (client span boundaries, rusage)
+DERIVED = "derived"  # computed from measured values (durations, rates)
+ESTIMATED = "estimated"  # host-level approximation, method recorded
 UNAVAILABLE = "unavailable"  # server did not expose it; never fabricated
 
 METRIC_PROVENANCE = {
@@ -71,31 +72,46 @@ class ToolCall:
     artifact_refs: list[str] = field(default_factory=list)
 
 
-def normalize_tool_call(tool_name: str, tool_version: str, invocation_id: str,
-                        caller_agent: str, args: dict, result: dict,
-                        start_wall: float, end_wall: float,
-                        exit_status: str = "ok", timed_out: bool = False,
-                        retry_count: int = 0,
-                        artifact_refs: list[str] | None = None) -> ToolCall:
+def normalize_tool_call(
+    tool_name: str,
+    tool_version: str,
+    invocation_id: str,
+    caller_agent: str,
+    args: dict,
+    result: dict,
+    start_wall: float,
+    end_wall: float,
+    exit_status: str = "ok",
+    timed_out: bool = False,
+    retry_count: int = 0,
+    artifact_refs: list[str] | None = None,
+) -> ToolCall:
     raw_args = str(args)
     raw_result = str(result)
     if len(raw_result.encode()) > MAX_TOOL_OUTPUT_BYTES:
-        result_summary = {"truncated": True,
-                          "digest": digest_of(raw_result),
-                          "note": "oversized output stored as artifact, not inline"}
+        result_summary = {
+            "truncated": True,
+            "digest": digest_of(raw_result),
+            "note": "oversized output stored as artifact, not inline",
+        }
     else:
         result_summary = sanitize_attributes(result)
     return ToolCall(
-        tool_name=tool_name, tool_version=tool_version,
-        invocation_id=invocation_id, caller_agent=caller_agent,
+        tool_name=tool_name,
+        tool_version=tool_version,
+        invocation_id=invocation_id,
+        caller_agent=caller_agent,
         args_digest=digest_of(raw_args),
         args_summary=sanitize_attributes(args),
         result_digest=digest_of(raw_result),
         result_summary=result_summary,
-        start_wall=start_wall, end_wall=end_wall,
-        exit_status=exit_status, timed_out=timed_out,
+        start_wall=start_wall,
+        end_wall=end_wall,
+        exit_status=exit_status,
+        timed_out=timed_out,
         retry_count=retry_count,
-        artifact_refs=list(artifact_refs or []))
+        artifact_refs=list(artifact_refs or []),
+    )
 
 
 @dataclass
@@ -171,41 +187,49 @@ class ResourceSample:
             "gpu_memory_bytes": self.gpu_mem_bytes,
             "gpu_utilization": self.gpu_util,
             "provenance": self.provenance,
-            "note": "queue/model/harness/verification kept separate; "
-                    "no combined latency metric",
+            "note": "queue/model/harness/verification kept separate; no combined latency metric",
         }
 
 
 def sample_resources() -> ResourceSample:
     cpu_s, peak_rss = 0.0, 0
+    cpu_note = "measured"
     try:
         import resource as _resource
+
         usage = _resource.getrusage(_resource.RUSAGE_SELF)
         cpu_s = usage.ru_utime + usage.ru_stime
         peak_rss = usage.ru_maxrss * 1024  # Linux kilobytes
-    except Exception:
-        pass
+    except (ImportError, OSError) as exc:
+        cpu_note = f"unavailable: {type(exc).__name__}"
     gpu_mem, gpu_util = None, None
     gpu_note = "no gpu meter available"
     for probe in ("rocm-smi", "nvidia-smi"):
         try:
             import shutil as _shutil
             import subprocess as _sp
+
             if _shutil.which(probe):
-                out = _sp.run([probe, "--showmeminfo", "vram"],
-                              capture_output=True, text=True, timeout=5)
+                out = _sp.run(
+                    [probe, "--showmeminfo", "vram"],
+                    check=False,
+                    capture_output=True,
+                    text=True,
+                    timeout=5,
+                )
                 if out.returncode == 0 and out.stdout.strip():
                     # Host-level meter present but unattributed to this run:
                     # keep null (never attribute a shared meter to one task).
-                    gpu_note = (f"{probe} present but host-level; "
-                                "not attributed to this run")
+                    gpu_note = f"{probe} present but host-level; not attributed to this run"
                     break
-        except Exception:
-            continue
-    sample = ResourceSample(cpu_s=cpu_s, peak_rss_bytes=peak_rss,
-                            gpu_mem_bytes=gpu_mem, gpu_util=gpu_util)
+        except (OSError, _sp.SubprocessError) as exc:
+            gpu_note = f"probe unavailable: {type(exc).__name__}"
+    sample = ResourceSample(
+        cpu_s=cpu_s, peak_rss_bytes=peak_rss, gpu_mem_bytes=gpu_mem, gpu_util=gpu_util
+    )
     sample.provenance = dict(METRIC_PROVENANCE)
     sample.provenance["gpu_note"] = gpu_note
+    sample.provenance["cpu_note"] = cpu_note
     return sample
 
 

@@ -25,12 +25,18 @@ Do not weaken verifier or security boundaries to make an evaluation pass:
 
 - Add focused tests with every change, including at least one
   failure/adversarial case for boundary code.
-- Run the full suite before asking for review:
-  `scripts/build_lock_env.sh --run-tests`, or with an existing lock env
-  `PYTHONPATH=src .venv-m1/bin/python -m pytest tests/ -q`.
+- Bootstrap offline with `HOP_WHEELHOUSE=/approved/wheels scripts/dev bootstrap`.
+  Run `scripts/dev check` and `scripts/dev test --suite all` before review.
+  Select `unit`, `contract`, `sandbox`, or `live` for focused validation.
+  Live probes and full local-model acceptance are separate gates.
 - Record the exact commands and observed outputs in the work report.
 - A skipped integration is acceptable only with an explicit reason and a
   blocked capability entry. It is not approval.
+- Copy committed compatibility evidence into temporary test directories.
+  Never require a contributor's inventories, aliases, or gitignored runs.
+- Read [the runbook](docs/runbook.md) for environment preservation and the
+  current offline type-checker blocker. Independent boundary review is still
+  required even when all automated tests pass.
 
 ## Milestone discipline
 

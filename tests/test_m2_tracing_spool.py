@@ -1,5 +1,5 @@
 """M2 commit 3: tracing correlation + spool recovery."""
-import json
+
 import os
 
 from hop.telemetry.spool import SpoolQueue, collector_available

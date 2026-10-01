@@ -1,21 +1,24 @@
 """M3 negative/integrity tests: altered components, stale history, tamper."""
+
 import os
 
 import pytest
 
-from hop.contracts.profile import ComponentType
+from hop.contracts.profile import ComponentType, tree_digest
 from hop.registry import ComponentRegistry, RegistryIntegrityError
 from hop.resolver import ResolutionError
-from hop.contracts.profile import tree_digest
 from tests.m3_helpers import base_profile_dict, register, skill_files
 
 
 def _seed(registry):
-    register(registry, name="sys", ctype=ComponentType.SYSTEM_PROMPT,
-             files={"system.md": b"# s\n"})
+    register(registry, name="sys", ctype=ComponentType.SYSTEM_PROMPT, files={"system.md": b"# s\n"})
     register(registry, name="alpha", ctype=ComponentType.SKILL, files=skill_files("a"))
-    register(registry, name="overlay", ctype=ComponentType.HARNESS_OVERLAY,
-             files={"component.md": b"o\n"})
+    register(
+        registry,
+        name="overlay",
+        ctype=ComponentType.HARNESS_OVERLAY,
+        files={"component.md": b"o\n"},
+    )
 
 
 def test_altered_registered_component_blocks_resolution(tmp_path):
@@ -25,9 +28,9 @@ def test_altered_registered_component_blocks_resolution(tmp_path):
     registry = ComponentRegistry(str(tmp_path / "r"))
     _seed(registry)
     record = registry.find(name="alpha")[0]
-    content = os.path.join(str(tmp_path / "r"), "content",
-                           record.content_digest.split(":")[1], "canonical",
-                           "SKILL.md")
+    content = os.path.join(
+        str(tmp_path / "r"), "content", record.content_digest.split(":")[1], "canonical", "SKILL.md"
+    )
     with open(content, "wb") as fh:
         fh.write(b"tampered\n")
     data = base_profile_dict(agents=[], tools={}, context={}, policy=[])
@@ -43,8 +46,7 @@ def test_historical_profile_unavailable_after_component_removed(tmp_path):
 
     registry = ComponentRegistry(str(tmp_path / "r"))
     _seed(registry)
-    profile = Profile.model_validate(base_profile_dict(
-        agents=[], tools={}, context={}, policy=[]))
+    profile = Profile.model_validate(base_profile_dict(agents=[], tools={}, context={}, policy=[]))
     resolved = P.resolve(profile, registry)
     from hop.lockfile import build_lockfile
 
@@ -63,11 +65,10 @@ def test_altered_compiled_output_changes_digest(tmp_path):
 
     registry = ComponentRegistry(str(tmp_path / "r"))
     _seed(registry)
-    profile = Profile.model_validate(base_profile_dict(
-        agents=[], tools={}, context={}, policy=[]))
+    profile = Profile.model_validate(base_profile_dict(agents=[], tools={}, context={}, policy=[]))
     resolved = P.resolve(profile, registry)
-    from hop.lockfile import build_lockfile
     from hop.compiler import get_target
+    from hop.lockfile import build_lockfile
 
     lock = build_lockfile(resolved, hop_version="0.1.0", compilation_target="pi")
     artifact, files = get_target("pi").compile(profile, resolved, registry, lock)
@@ -83,14 +84,18 @@ def test_historical_lock_survives_relock(tmp_path):
 
     registry = ComponentRegistry(str(tmp_path / "r"))
     _seed(registry)
-    profile = Profile.model_validate(base_profile_dict(
-        agents=[], tools={}, context={}, policy=[]))
+    profile = Profile.model_validate(base_profile_dict(agents=[], tools={}, context={}, policy=[]))
     res1 = P.resolve(profile, registry)
     lock1 = build_lockfile(res1, hop_version="0.1.0", compilation_target="pi")
     P.persist_resolved(res1, lock1, home=str(tmp_path))
     # New compatible version; re-resolution must produce a *different* lock.
-    register(registry, name="alpha", version="1.5.0",
-             ctype=ComponentType.SKILL, files=skill_files("new-alpha"))
+    register(
+        registry,
+        name="alpha",
+        version="1.5.0",
+        ctype=ComponentType.SKILL,
+        files=skill_files("new-alpha"),
+    )
     res2 = P.resolve(profile, registry)
     lock2 = build_lockfile(res2, hop_version="0.1.0", compilation_target="pi")
     P.persist_resolved(res2, lock2, home=str(tmp_path))
@@ -106,20 +111,23 @@ def test_historical_lock_survives_relock(tmp_path):
     assert latest["lock_digest"] == lock2.lock_digest
 
 
-def test_resolution_digest_tracks_component_content_but_profile_digest_does_not(
-        tmp_path):
+def test_resolution_digest_tracks_component_content_but_profile_digest_does_not(tmp_path):
     from hop import profiles as P
     from hop.contracts.profile import Profile
 
     registry = ComponentRegistry(str(tmp_path / "r"))
     _seed(registry)
-    profile = Profile.model_validate(base_profile_dict(
-        agents=[], tools={}, context={}, policy=[]))
+    profile = Profile.model_validate(base_profile_dict(agents=[], tools={}, context={}, policy=[]))
     first = P.resolve(profile, registry)
-    register(registry, name="alpha", version="1.5.0",
-             ctype=ComponentType.SKILL, files=skill_files("changed"))
+    register(
+        registry,
+        name="alpha",
+        version="1.5.0",
+        ctype=ComponentType.SKILL,
+        files=skill_files("changed"),
+    )
     second = P.resolve(profile, registry)
-    assert first.profile_digest == second.profile_digest      # source unchanged
+    assert first.profile_digest == second.profile_digest  # source unchanged
     assert first.resolution_digest != second.resolution_digest  # content changed
 
 
@@ -146,8 +154,7 @@ def test_missing_dependency_reported_by_code(tmp_path):
 
     registry = ComponentRegistry(str(tmp_path / "r"))
     _seed(registry)
-    data = base_profile_dict(agents=[], tools={}, context={}, policy=[],
-                             skills=["ghost@^1.0.0"])
+    data = base_profile_dict(agents=[], tools={}, context={}, policy=[], skills=["ghost@^1.0.0"])
     with pytest.raises(ResolutionError) as exc:
         P.resolve(Profile.model_validate(data), registry)
     assert exc.value.code == "missing_dependency"

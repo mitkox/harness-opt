@@ -1,6 +1,7 @@
 """M2 investigation interface (AOP-015): run show/trajectory/artifacts/trace/
 verify/skills/tools/completeness/replay-check over durable run directories.
 """
+
 from __future__ import annotations
 
 import json
@@ -8,16 +9,21 @@ import os
 
 
 def find_run_dir(runs_dir: str, run_id: str) -> str:
-    direct = os.path.join(runs_dir, run_id)
+    from .files import contained_path, identifier
+
+    identifier(run_id)
+    direct = contained_path(runs_dir, run_id)
     if os.path.isdir(direct):
         return direct
     # idempotency-key or prefix lookup across run dirs
-    for name in sorted(os.listdir(runs_dir)):
-        full = os.path.join(runs_dir, name)
+    matches = []
+    for name in sorted(os.listdir(runs_dir)) if os.path.isdir(runs_dir) else []:
+        full = contained_path(runs_dir, name)
         if not os.path.isdir(full):
             continue
         if name.startswith(run_id):
-            return full
+            matches.append(full)
+            continue
         report = os.path.join(full, "report.json")
         if os.path.exists(report):
             try:
@@ -27,6 +33,10 @@ def find_run_dir(runs_dir: str, run_id: str) -> str:
                     return full
             except (OSError, ValueError):
                 continue
+    if len(matches) == 1:
+        return matches[0]
+    if matches:
+        raise ValueError(f"ambiguous run prefix {run_id!r}")
     raise KeyError(f"no run {run_id!r} under {runs_dir}")
 
 
@@ -41,8 +51,10 @@ def show(run_dir: str) -> dict:
     if os.path.exists(os.path.join(run_dir, "manifest.json")):
         manifest = _load_json(os.path.join(run_dir, "manifest.json"))
     return {
-        "run_id": rep.get("run_id"), "case_id": rep.get("case_id"),
-        "outcome": rep.get("outcome"), "verdict": rep.get("verdict"),
+        "run_id": rep.get("run_id"),
+        "case_id": rep.get("case_id"),
+        "outcome": rep.get("outcome"),
+        "verdict": rep.get("verdict"),
         "error_class": rep.get("error_class", ""),
         "bundle_digest": rep.get("bundle_digest"),
         "model_deployment_id": rep.get("model_deployment_id"),
@@ -64,31 +76,36 @@ def show(run_dir: str) -> dict:
 
 def trajectory(run_dir: str, event_type: str = "") -> list[dict]:
     from hop.trajectories import EventLedger
+
     ledger = EventLedger(os.path.join(run_dir, "events.jsonl"))
     out = []
     for evt in ledger.read_all():
         if event_type and evt.event_type != event_type:
             continue
-        out.append({
-            "event_type": evt.event_type, "authority": evt.source.authority.value,
-            "source": evt.source.id, "seq": evt.source_sequence,
-            "agent": evt.agent_id, "trace_id": evt.trace_id,
-            "span_id": evt.span_id, "attributes": evt.attributes,
-            "payload_refs": evt.payload_refs,
-            "skill": evt.skill_id,
-            "tool": evt.tool_id,
-            "classification": evt.data_classification,
-        })
+        out.append(
+            {
+                "event_type": evt.event_type,
+                "authority": evt.source.authority.value,
+                "source": evt.source.id,
+                "seq": evt.source_sequence,
+                "agent": evt.agent_id,
+                "trace_id": evt.trace_id,
+                "span_id": evt.span_id,
+                "attributes": evt.attributes,
+                "payload_refs": evt.payload_refs,
+                "skill": evt.skill_id,
+                "tool": evt.tool_id,
+                "classification": evt.data_classification,
+            }
+        )
     return out
 
 
 def artifacts(run_dir: str, runs_dir: str, run_id: str) -> list[dict]:
     from hop.storage import ArtifactStore
-    store = ArtifactStore(os.path.join(runs_dir, "artifacts"))
-    try:
-        refs = store.list_refs(run_id)
-    except Exception:
-        refs = []
+
+    store = ArtifactStore(os.path.join(runs_dir, "artifacts"), create=False)
+    refs = store.list_refs(run_id)
     for ref in refs:
         ref["verifies"] = store.verify(ref["digest"])
     return refs
@@ -105,8 +122,7 @@ def trace_view(run_dir: str) -> dict:
 
 
 def verify_view(run_dir: str) -> dict:
-    for name in ("evaluation.json", "scope.json", "error.json",
-                 "cancellation.json"):
+    for name in ("evaluation.json", "scope.json", "error.json", "cancellation.json"):
         path = os.path.join(run_dir, name)
         if os.path.exists(path):
             return {"file": name, "payload": _load_json(path)}
@@ -118,13 +134,16 @@ def skills_view(run_dir: str) -> list[dict]:
 
 
 def tools_view(run_dir: str) -> list[dict]:
-    return [e for e in trajectory(run_dir)
-            if e["event_type"].startswith("tool.")
-            or e["event_type"].startswith("harness.pi.tool")]
+    return [
+        e
+        for e in trajectory(run_dir)
+        if e["event_type"].startswith("tool.") or e["event_type"].startswith("harness.pi.tool")
+    ]
 
 
 def completeness_view(run_dir: str, outcome: str = "") -> dict:
     from hop.trajectories import EventLedger
+
     ledger = EventLedger(os.path.join(run_dir, "events.jsonl"))
     rep = {}
     if os.path.exists(os.path.join(run_dir, "report.json")):
@@ -144,13 +163,11 @@ def replay_check(run_dir: str, runs_dir: str, run_id: str) -> dict:
     rep = _load_json(os.path.join(run_dir, "report.json"))
     replay = rep.get("replay", {})
     from hop.storage import ArtifactStore
-    store = ArtifactStore(os.path.join(runs_dir, "artifacts"))
+
+    store = ArtifactStore(os.path.join(runs_dir, "artifacts"), create=False)
     artifact_status = []
-    try:
-        refs = store.list_refs(run_id)
-        available = {r["digest"] for r in refs if store.verify(r["digest"])}
-    except Exception:
-        available = set()
+    refs = store.list_refs(run_id)
+    available = {r["digest"] for r in refs if store.verify(r["digest"])}
     manifest = {}
     if os.path.exists(os.path.join(run_dir, "manifest.json")):
         manifest = _load_json(os.path.join(run_dir, "manifest.json"))
@@ -172,27 +189,30 @@ def replay_check(run_dir: str, runs_dir: str, run_id: str) -> dict:
     profile_report = {"present": False}
     if isinstance(profile, dict) and profile.get("profile_digest"):
         profile_report = _profile_availability(profile)
-        checks["profile_store"] = profile_report.get("stored", False)
-    missing = [k for k, v in checks.items()
-               if k not in ("artifacts_available",) and not v]
+        checks["profile_store"] = profile_report.get("stored", False) and profile_report.get(
+            "materializable", False
+        )
+    missing = [k for k, v in checks.items() if k not in ("artifacts_available",) and not v]
     return {
         "reproducible_identities": checks,
         "missing": missing,
         "artifacts": artifact_status,
         "profile": profile_report,
         "replayable": not missing,
-        "note": "identities are pinned; stochastic model generation is not "
-                "claimed deterministic",
+        "note": "identities are pinned; stochastic model generation is not claimed deterministic",
     }
 
 
 def _profile_availability(profile: dict) -> dict:
     """Can the exact locked agent configuration be materialized locally?"""
     digest = profile.get("profile_digest", "")
-    report = {"present": True, "profile_digest": digest,
-              "lock_digest": profile.get("lock_digest", ""),
-              "compiled_target": profile.get("compiled_target", ""),
-              "compiled_target_digest": profile.get("compiled_target_digest", "")}
+    report = {
+        "present": True,
+        "profile_digest": digest,
+        "lock_digest": profile.get("lock_digest", ""),
+        "compiled_target": profile.get("compiled_target", ""),
+        "compiled_target_digest": profile.get("compiled_target_digest", ""),
+    }
     # The registry root is recorded in the run's profile identity so replay
     # verification uses the same store/catalog as the original run.
     registry_root = profile.get("registry_root", "")
@@ -202,11 +222,7 @@ def _profile_availability(profile: dict) -> dict:
 
         # Prefer the exact lock digest; fall back to the source profile digest.
         lock_digest = profile.get("lock_digest", "")
-        try:
-            stored = (P.load_persisted(lock_digest, home=home) if lock_digest
-                      else P.load_persisted(digest, home=home))
-        except Exception:
-            stored = P.load_persisted(digest, home=home)
+        stored = P.load_persisted(lock_digest or digest, home=home)
         resolved = stored.get("resolved", {})
         lock = stored.get("lock", {})
         report["stored"] = True

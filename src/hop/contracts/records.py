@@ -9,8 +9,10 @@ from pydantic import BaseModel, ConfigDict, Field
 from .base import AopBase
 
 # RFC-4122 textual UUID; the published trajectory schema requires format: uuid.
-UUID_PATTERN = (r"^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-"
-                r"[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$")
+UUID_PATTERN = (
+    r"^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-"
+    r"[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
+)
 
 
 class TaskSpec(AopBase):
@@ -61,8 +63,9 @@ class ExecutionBundle(AopBase):
     compiled_target: str = Field(default="")
     compiled_target_digest: str = Field(default="")
     source_map: dict[str, str] = Field(default_factory=dict)
-    deployable: bool = Field(default=False,
-                             description="False for draft targets with unresolved inputs")
+    deployable: bool = Field(
+        default=False, description="False for draft targets with unresolved inputs"
+    )
 
 
 class RunOutcome(str, Enum):
@@ -190,8 +193,9 @@ class TrajectoryEvent(AopBase):
     skill_digest: str = Field(default="")
     tool_id: str = Field(default="")
     tool_version: str = Field(default="")
-    data_classification: str = Field(default="internal",
-                                     pattern=r"^(public|internal|confidential|secret)$")
+    data_classification: str = Field(
+        default="internal", pattern=r"^(public|internal|confidential|secret)$"
+    )
     synthetic_fixture: bool = False
     payload_refs: list[str] = Field(default_factory=list)
     attributes: dict = Field(default_factory=dict)

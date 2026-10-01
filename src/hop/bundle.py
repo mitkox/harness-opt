@@ -1,4 +1,5 @@
 """Immutable execution bundle compiler (M1 slice): resolve + digest + refuse drafts."""
+
 from __future__ import annotations
 
 import json
@@ -21,19 +22,27 @@ def harness_build_digest(harness: HarnessBuild) -> str:
     return "sha256:" + sha256_hex(json.dumps(payload, sort_keys=True).encode())
 
 
-def compile_bundle(model: ModelDeployment, harness: HarnessBuild, base_prompt: str,
-                   skill_variant_ids: list[str] | None = None,
-                   inference_config: dict | None = None,
-                   sandbox_digest: str = "", hardware_envelope: str = "",
-                   profile_id: str = "", profile_digest: str = "",
-                   lock_digest: str = "", compiled_target: str = "",
-                   compiled_target_digest: str = "") -> dict:
+def compile_bundle(
+    model: ModelDeployment,
+    harness: HarnessBuild,
+    base_prompt: str,
+    skill_variant_ids: list[str] | None = None,
+    inference_config: dict | None = None,
+    sandbox_digest: str = "",
+    hardware_envelope: str = "",
+    profile_id: str = "",
+    profile_digest: str = "",
+    lock_digest: str = "",
+    compiled_target: str = "",
+    compiled_target_digest: str = "",
+) -> dict:
     """Returns (ExecutionBundle, source_map). Raises on unresolved inputs.
 
     M3: profile/lock/compiled-target identity participates in the bundle digest
     when supplied. Legacy M1/M2 calls pass nothing and are unchanged.
     """
     from .contracts.records import ExecutionBundle
+
     model.require_qualified()
     if harness.status.value != "qualified":
         raise ValueError(f"harness {harness.harness.value} is {harness.status.value}")
@@ -53,35 +62,45 @@ def compile_bundle(model: ModelDeployment, harness: HarnessBuild, base_prompt: s
         "compiled_target": compiled_target,
         "compiled_target_digest": compiled_target_digest,
     }
-    canonical = json.dumps({
-        "model": model.model_dump(mode="json"),
-        "harness": harness.model_dump(mode="json"),
-        "prompt_sha": source_map["base_prompt_sha256"],
-        "policy": POLICY_ID,
-        "skills": sorted(skill_variant_ids or []),
-        "inference": inference_config,
-        "sandbox": sandbox_digest,
-        "hardware": hardware_envelope,
-        "profile_id": profile_id,
-        "profile_digest": profile_digest,
-        "lock_digest": lock_digest,
-        "compiled_target": compiled_target,
-        "compiled_target_digest": compiled_target_digest,
-    }, sort_keys=True)
+    canonical = json.dumps(
+        {
+            "model": model.model_dump(mode="json"),
+            "harness": harness.model_dump(mode="json"),
+            "prompt_sha": source_map["base_prompt_sha256"],
+            "policy": POLICY_ID,
+            "skills": sorted(skill_variant_ids or []),
+            "inference": inference_config,
+            "sandbox": sandbox_digest,
+            "hardware": hardware_envelope,
+            "profile_id": profile_id,
+            "profile_digest": profile_digest,
+            "lock_digest": lock_digest,
+            "compiled_target": compiled_target,
+            "compiled_target_digest": compiled_target_digest,
+        },
+        sort_keys=True,
+    )
     digest = "sha256:" + sha256_hex(canonical.encode())
     bundle = ExecutionBundle(
-        digest=digest, model_deployment_id=model.deployment_id,
+        digest=digest,
+        model_deployment_id=model.deployment_id,
         model_deployment_digest=model_digest,
-        harness=harness.harness.value, harness_version=harness.version,
+        harness=harness.harness.value,
+        harness_version=harness.version,
         harness_digest=harness_digest,
         adapter_revision=harness.adapter_revision,
-        base_prompt_sha256=source_map["base_prompt_sha256"], policy_id=POLICY_ID,
+        base_prompt_sha256=source_map["base_prompt_sha256"],
+        policy_id=POLICY_ID,
         skill_variant_ids=sorted(skill_variant_ids or []),
-        inference_config_digest=sha256_hex(json.dumps(inference_config,
-                                                      sort_keys=True).encode()),
-        sandbox_digest=sandbox_digest, hardware_envelope=hardware_envelope,
-        profile_id=profile_id, profile_digest=profile_digest,
-        lock_digest=lock_digest, compiled_target=compiled_target,
+        inference_config_digest=sha256_hex(json.dumps(inference_config, sort_keys=True).encode()),
+        sandbox_digest=sandbox_digest,
+        hardware_envelope=hardware_envelope,
+        profile_id=profile_id,
+        profile_digest=profile_digest,
+        lock_digest=lock_digest,
+        compiled_target=compiled_target,
         compiled_target_digest=compiled_target_digest,
-        source_map=source_map, deployable=True)
+        source_map=source_map,
+        deployable=True,
+    )
     return bundle, source_map

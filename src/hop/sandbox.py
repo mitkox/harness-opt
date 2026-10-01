@@ -9,9 +9,10 @@ not present inside its namespace.
 ``bwrap`` is required for isolation. If it is unavailable the caller must fail
 closed (``SandboxUnavailable``), never silently run unisolated.
 
-Quotas apply to the whole process group; cancellation propagates via
-SIGTERM/SIGKILL.
+RLIMITs are not aggregate per-run quotas. Cancellation propagates to the
+process group via SIGTERM/SIGKILL.
 """
+
 from __future__ import annotations
 
 import os
@@ -103,22 +104,6 @@ class RunResult:
     backend: str = "bwrap"
 
 
-def _preexec(spec: SandboxSpec):
-    def apply():
-        # NOTE: no os.setsid() here; start_new_session=True already creates
-        # the process group (a second setsid raises EPERM as group leader).
-        try:
-            import resource
-            resource.setrlimit(resource.RLIMIT_CPU, (spec.cpu_time_s, spec.cpu_time_s))
-            resource.setrlimit(resource.RLIMIT_NPROC,
-                               (spec.max_processes, spec.max_processes))
-            resource.setrlimit(resource.RLIMIT_AS,
-                               (spec.memory_bytes, spec.memory_bytes))
-        except BaseException:
-            pass
-    return apply
-
-
 def interpreter_ro_binds() -> list[tuple[str, str]]:
     """Bind the active interpreter prefix when it lives outside /usr (venv)."""
     binds: list[tuple[str, str]] = []
@@ -128,9 +113,15 @@ def interpreter_ro_binds() -> list[tuple[str, str]]:
     return binds
 
 
-def build_bwrap_cmd(cmd: list[str], *, cwd: str, ro_binds: list[tuple[str, str]],
-                    rw_binds: list[tuple[str, str]], share_network: bool,
-                    unshare_pid: bool = True) -> list[str]:
+def build_bwrap_cmd(
+    cmd: list[str],
+    *,
+    cwd: str,
+    ro_binds: list[tuple[str, str]],
+    rw_binds: list[tuple[str, str]],
+    share_network: bool,
+    unshare_pid: bool = True,
+) -> list[str]:
     bwrap = shutil.which("bwrap")
     if bwrap is None:
         raise SandboxUnavailable("bwrap is required for sandbox isolation")
@@ -159,11 +150,19 @@ def build_bwrap_cmd(cmd: list[str], *, cwd: str, ro_binds: list[tuple[str, str]]
     return args + cmd
 
 
-def spawn_confined(cmd: list[str], *, cwd: str, env: dict[str, str],
-                   ro_binds: list[tuple[str, str]], rw_binds: list[tuple[str, str]],
-                   spec: SandboxSpec, timeout_s: float | None = None,
-                   cancel: threading.Event | None = None,
-                   stdout_path: str = "", stderr_path: str = "") -> RunResult:
+def spawn_confined(
+    cmd: list[str],
+    *,
+    cwd: str,
+    env: dict[str, str],
+    ro_binds: list[tuple[str, str]],
+    rw_binds: list[tuple[str, str]],
+    spec: SandboxSpec,
+    timeout_s: float | None = None,
+    cancel: threading.Event | None = None,
+    stdout_path: str = "",
+    stderr_path: str = "",
+) -> RunResult:
     """Run ``cmd`` inside a mount/PID namespace with explicit bind mounts."""
     if spec.isolate_mounts and not bwrap_available():
         raise SandboxUnavailable("bwrap missing; refusing to run unisolated")
@@ -171,8 +170,9 @@ def spawn_confined(cmd: list[str], *, cwd: str, env: dict[str, str],
     stdout_path = stdout_path or os.path.join(cwd, "stdout.log")
     stderr_path = stderr_path or os.path.join(cwd, "stderr.log")
     if spec.isolate_mounts:
-        sandbox_cmd = build_bwrap_cmd(cmd, cwd=cwd, ro_binds=ro_binds, rw_binds=rw_binds,
-                                      share_network=spec.share_network)
+        sandbox_cmd = build_bwrap_cmd(
+            cmd, cwd=cwd, ro_binds=ro_binds, rw_binds=rw_binds, share_network=spec.share_network
+        )
         backend = "bwrap"
     else:
         sandbox_cmd = cmd
@@ -180,10 +180,24 @@ def spawn_confined(cmd: list[str], *, cwd: str, env: dict[str, str],
     timed_out = False
     cancelled = False
     truncated = False
+    limited_cmd = [
+        sys.executable,
+        "-I",
+        os.path.join(os.path.dirname(__file__), "limit_exec.py"),
+        str(spec.cpu_time_s),
+        str(spec.max_processes),
+        str(spec.memory_bytes),
+        *sandbox_cmd,
+    ]
     with open(stdout_path, "wb") as out_fh, open(stderr_path, "wb") as err_fh:
-        proc = subprocess.Popen(sandbox_cmd, cwd=cwd if backend == "none" else None,
-                                env=env, stdout=out_fh, stderr=err_fh,
-                                preexec_fn=_preexec(spec), start_new_session=True)
+        proc = subprocess.Popen(
+            limited_cmd,
+            cwd=cwd if backend == "none" else None,
+            env=env,
+            stdout=out_fh,
+            stderr=err_fh,
+            start_new_session=True,
+        )
         try:
             deadline = None if timeout_s is None else time.monotonic() + timeout_s
             while True:
@@ -210,17 +224,27 @@ def spawn_confined(cmd: list[str], *, cwd: str, env: dict[str, str],
             with open(path, "r+b") as fh:
                 fh.truncate(spec.output_limit_bytes)
             truncated = True
-    return RunResult(exit_code=proc.returncode if not cancelled else -signal.SIGTERM,
-                     timed_out=timed_out, cancelled=cancelled,
-                     stdout_path=stdout_path, stderr_path=stderr_path,
-                     truncated=truncated, backend=backend)
+    return RunResult(
+        exit_code=proc.returncode if not cancelled else -signal.SIGTERM,
+        timed_out=timed_out,
+        cancelled=cancelled,
+        stdout_path=stdout_path,
+        stderr_path=stderr_path,
+        truncated=truncated,
+        backend=backend,
+    )
 
 
-def spawn_isolated(cmd: list[str], layout: SandboxLayout, spec: SandboxSpec,
-                   extra_env: dict[str, str] | None = None,
-                   timeout_s: float | None = None,
-                   cancel: threading.Event | None = None,
-                   stdout_path: str = "", stderr_path: str = "") -> RunResult:
+def spawn_isolated(
+    cmd: list[str],
+    layout: SandboxLayout,
+    spec: SandboxSpec,
+    extra_env: dict[str, str] | None = None,
+    timeout_s: float | None = None,
+    cancel: threading.Event | None = None,
+    stdout_path: str = "",
+    stderr_path: str = "",
+) -> RunResult:
     env = scrub_worker_env(dict(os.environ))
     if extra_env:
         env.update(extra_env)
@@ -246,9 +270,17 @@ def spawn_isolated(cmd: list[str], layout: SandboxLayout, spec: SandboxSpec,
     if not os.path.realpath(layout.workspace).startswith(root_real):
         rw_binds.append((layout.workspace, layout.workspace))
     return spawn_confined(
-        cmd, cwd=layout.workspace, env=env, ro_binds=ro_binds, rw_binds=rw_binds,
-        spec=spec, timeout_s=timeout_s, cancel=cancel,
-        stdout_path=stdout_path, stderr_path=stderr_path)
+        cmd,
+        cwd=layout.workspace,
+        env=env,
+        ro_binds=ro_binds,
+        rw_binds=rw_binds,
+        spec=spec,
+        timeout_s=timeout_s,
+        cancel=cancel,
+        stdout_path=stdout_path,
+        stderr_path=stderr_path,
+    )
 
 
 def _kill_group(proc: subprocess.Popen) -> None:

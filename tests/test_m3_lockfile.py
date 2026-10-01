@@ -1,4 +1,5 @@
 """M3 lockfile determinism, floating-reference, and stale-digest tests."""
+
 import json
 
 import pytest
@@ -13,19 +14,28 @@ def _resolved(tmp_path):
     from hop import profiles as P
 
     registry = ComponentRegistry(str(tmp_path / "r"))
-    register(registry, name="sys", ctype=ComponentType.SYSTEM_PROMPT,
-             files={"system.md": b"# s\n"})
+    register(registry, name="sys", ctype=ComponentType.SYSTEM_PROMPT, files={"system.md": b"# s\n"})
     register(registry, name="alpha", ctype=ComponentType.SKILL, files=skill_files("a"))
-    register(registry, name="agent", ctype=ComponentType.AGENT,
-             dependencies=["alpha@^1.0.0"], files={"agent.md": b"a\n"})
-    register(registry, name="tools", ctype=ComponentType.TOOL_POLICY,
-             files={"component.md": b"t\n"})
-    register(registry, name="context", ctype=ComponentType.CONTEXT_POLICY,
-             files={"component.md": b"c\n"})
-    register(registry, name="org", ctype=ComponentType.ORG_POLICY,
-             files={"component.md": b"o\n"})
-    register(registry, name="overlay", ctype=ComponentType.HARNESS_OVERLAY,
-             files={"component.md": b"ov\n"})
+    register(
+        registry,
+        name="agent",
+        ctype=ComponentType.AGENT,
+        dependencies=["alpha@^1.0.0"],
+        files={"agent.md": b"a\n"},
+    )
+    register(
+        registry, name="tools", ctype=ComponentType.TOOL_POLICY, files={"component.md": b"t\n"}
+    )
+    register(
+        registry, name="context", ctype=ComponentType.CONTEXT_POLICY, files={"component.md": b"c\n"}
+    )
+    register(registry, name="org", ctype=ComponentType.ORG_POLICY, files={"component.md": b"o\n"})
+    register(
+        registry,
+        name="overlay",
+        ctype=ComponentType.HARNESS_OVERLAY,
+        files={"component.md": b"ov\n"},
+    )
     profile = Profile.model_validate(base_profile_dict())
     resolved = P.resolve(profile, registry)
     lock = build_lockfile(resolved, hop_version="0.1.0", compilation_target="pi")
@@ -44,8 +54,9 @@ def test_lock_is_deterministic(tmp_path):
     _, _, lock1 = _resolved(tmp_path)
     _, _, lock2 = _resolved(tmp_path)
     assert lock1.lock_digest == lock2.lock_digest
-    assert json.dumps(lock1.model_dump(mode="json"), sort_keys=True) == \
-        json.dumps(lock2.model_dump(mode="json"), sort_keys=True)
+    assert json.dumps(lock1.model_dump(mode="json"), sort_keys=True) == json.dumps(
+        lock2.model_dump(mode="json"), sort_keys=True
+    )
 
 
 def test_lock_tamper_is_detected(tmp_path):
@@ -85,9 +96,9 @@ def test_duplicate_component_injected_into_lock_is_rejected(tmp_path):
 
 def test_target_and_compiler_affect_lock_identity(tmp_path):
     _, resolved, lock_pi = _resolved(tmp_path)
-    lock_prime = build_lockfile(resolved, hop_version="0.1.0",
-                                compilation_target="prime",
-                                compiler_version="other-compiler")
+    lock_prime = build_lockfile(
+        resolved, hop_version="0.1.0", compilation_target="prime", compiler_version="other-compiler"
+    )
     assert lock_pi.lock_digest != lock_prime.lock_digest
 
 

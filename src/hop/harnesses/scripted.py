@@ -4,6 +4,7 @@ No GPU needed. ``repair`` applies the known-good fix for the bundled debugging
 cases; ``scope_violation`` additionally edits a protected file so the runner's
 scope gate must reject the run even though hidden tests would pass.
 """
+
 from __future__ import annotations
 
 import os
@@ -13,8 +14,15 @@ import time
 from ..contracts.harness import HarnessCapabilities, HarnessName
 from .base import HarnessOutput, PreparedSession
 
-BEHAVIORS = ("succeed", "fail", "hang", "claim_success", "repair",
-              "scope_violation", "skill_repair")
+BEHAVIORS = (
+    "succeed",
+    "fail",
+    "hang",
+    "claim_success",
+    "repair",
+    "scope_violation",
+    "skill_repair",
+)
 
 _REPAIRS = {
     "median_bug.py": (
@@ -55,18 +63,31 @@ class ScriptedHarness:
 
     def probe(self) -> HarnessCapabilities:
         return HarnessCapabilities(
-            harness=HarnessName.PI, build_version="scripted", adapter_revision="scripted-v1",
-            supports_headless=True, supports_streaming_events=True,
-            supports_cancellation=True, supports_session_export=False,
-            supports_isolated_home=True, supports_model_selection=False)
+            harness=HarnessName.PI,
+            build_version="scripted",
+            adapter_revision="scripted-v1",
+            supports_headless=True,
+            supports_streaming_events=True,
+            supports_cancellation=True,
+            supports_session_export=False,
+            supports_isolated_home=True,
+            supports_model_selection=False,
+        )
 
     def prepare(self, bundle_digest: str, layout_root: str, identity: str) -> PreparedSession:
-        return PreparedSession(session_id="scripted", harness="scripted",
-                               layout_root=layout_root)
+        return PreparedSession(session_id="scripted", harness="scripted", layout_root=layout_root)
 
-    def start(self, task_prompt: str, session: PreparedSession, workspace: str,
-              stdout_path: str, stderr_path: str, timeout_s: float,
-              cancel: threading.Event, on_native_event=None) -> HarnessOutput:
+    def start(
+        self,
+        task_prompt: str,
+        session: PreparedSession,
+        workspace: str,
+        stdout_path: str,
+        stderr_path: str,
+        timeout_s: float,
+        cancel: threading.Event,
+        on_native_event=None,
+    ) -> HarnessOutput:
         deadline = time.monotonic() + timeout_s
         step = 0.05
         if self.behavior == "hang":
@@ -95,31 +116,52 @@ class ScriptedHarness:
             # Deterministic skill lifecycle through the same native-event path
             # the Pi adapter uses: exposure != selection != load != execution.
             for native in (
-                {"type": "skill_selected", "skillId": "debug-helper",
-                 "skillVersion": "v3"},
-                {"type": "skill_loaded", "skillId": "debug-helper",
-                 "skillVersion": "v3",
-                 "resources": ["scripts/repro.py"]},
-                {"type": "tool_execution_start", "toolCallId": "skill-tool-1",
-                 "toolName": "read", "args": {"path": "median_bug.py"}},
-                {"type": "tool_execution_end", "toolCallId": "skill-tool-1",
-                 "toolName": "read", "status": "ok",
-                 "result": {"bytes": 120}},
-                {"type": "skill_executed", "skillId": "debug-helper",
-                 "skillVersion": "v3", "status": "ok"},
+                {"type": "skill_selected", "skillId": "debug-helper", "skillVersion": "v3"},
+                {
+                    "type": "skill_loaded",
+                    "skillId": "debug-helper",
+                    "skillVersion": "v3",
+                    "resources": ["scripts/repro.py"],
+                },
+                {
+                    "type": "tool_execution_start",
+                    "toolCallId": "skill-tool-1",
+                    "toolName": "read",
+                    "args": {"path": "median_bug.py"},
+                },
+                {
+                    "type": "tool_execution_end",
+                    "toolCallId": "skill-tool-1",
+                    "toolName": "read",
+                    "status": "ok",
+                    "result": {"bytes": 120},
+                },
+                {
+                    "type": "skill_executed",
+                    "skillId": "debug-helper",
+                    "skillVersion": "v3",
+                    "status": "ok",
+                },
             ):
                 on_native_event(native)
         if self.behavior == "fail":
-            return HarnessOutput(terminal_status="exited", exit_code=1,
-                                 agent_claim="I could not fix it")
+            return HarnessOutput(
+                terminal_status="exited", exit_code=1, agent_claim="I could not fix it"
+            )
         if self.behavior == "claim_success":
-            return HarnessOutput(terminal_status="exited", exit_code=0,
-                                 agent_claim="Fixed! All tests pass (trust me)")
+            return HarnessOutput(
+                terminal_status="exited",
+                exit_code=0,
+                agent_claim="Fixed! All tests pass (trust me)",
+            )
         if self.behavior == "repair":
-            return HarnessOutput(terminal_status="exited", exit_code=0,
-                                 agent_claim="Repair applied")
+            return HarnessOutput(
+                terminal_status="exited", exit_code=0, agent_claim="Repair applied"
+            )
         if self.behavior == "skill_repair":
-            return HarnessOutput(terminal_status="exited", exit_code=0,
-                                 agent_claim="Repair applied via debug-helper v3")
-        return HarnessOutput(terminal_status="exited", exit_code=0,
-                             agent_claim="done")
+            return HarnessOutput(
+                terminal_status="exited",
+                exit_code=0,
+                agent_claim="Repair applied via debug-helper v3",
+            )
+        return HarnessOutput(terminal_status="exited", exit_code=0, agent_claim="done")

@@ -1,4 +1,5 @@
 """M3 deterministic compiler + capability tests."""
+
 import pytest
 
 from hop.compiler import CompilerError, PiCompilerTarget, get_target
@@ -12,22 +13,43 @@ def _setup(tmp_path):
     from hop import profiles as P
 
     registry = ComponentRegistry(str(tmp_path / "r"))
-    register(registry, name="sys", ctype=ComponentType.SYSTEM_PROMPT,
-             files={"system.md": b"# system\n"})
-    register(registry, name="alpha", ctype=ComponentType.SKILL,
-             files=skill_files("alpha", resource="resources/r.md"),
-             skill_manifest={"canonical_path": "canonical/SKILL.md",
-                             "resources": ["resources/r.md"], "scripts": []})
-    register(registry, name="agent", ctype=ComponentType.AGENT,
-             dependencies=["alpha@^1.0.0"], files={"agent.md": b"# agent\n"})
-    register(registry, name="tools", ctype=ComponentType.TOOL_POLICY,
-             files={"component.md": b"tools\n"})
-    register(registry, name="context", ctype=ComponentType.CONTEXT_POLICY,
-             files={"component.md": b"ctx\n"})
-    register(registry, name="org", ctype=ComponentType.ORG_POLICY,
-             files={"component.md": b"org\n"})
-    register(registry, name="overlay", ctype=ComponentType.HARNESS_OVERLAY,
-             files={"component.md": b"overlay\n"})
+    register(
+        registry, name="sys", ctype=ComponentType.SYSTEM_PROMPT, files={"system.md": b"# system\n"}
+    )
+    register(
+        registry,
+        name="alpha",
+        ctype=ComponentType.SKILL,
+        files=skill_files("alpha", resource="resources/r.md"),
+        skill_manifest={
+            "canonical_path": "canonical/SKILL.md",
+            "resources": ["resources/r.md"],
+            "scripts": [],
+        },
+    )
+    register(
+        registry,
+        name="agent",
+        ctype=ComponentType.AGENT,
+        dependencies=["alpha@^1.0.0"],
+        files={"agent.md": b"# agent\n"},
+    )
+    register(
+        registry, name="tools", ctype=ComponentType.TOOL_POLICY, files={"component.md": b"tools\n"}
+    )
+    register(
+        registry,
+        name="context",
+        ctype=ComponentType.CONTEXT_POLICY,
+        files={"component.md": b"ctx\n"},
+    )
+    register(registry, name="org", ctype=ComponentType.ORG_POLICY, files={"component.md": b"org\n"})
+    register(
+        registry,
+        name="overlay",
+        ctype=ComponentType.HARNESS_OVERLAY,
+        files={"component.md": b"overlay\n"},
+    )
     profile = Profile.model_validate(base_profile_dict())
     resolved = P.resolve(profile, registry)
     lock = build_lockfile(resolved, hop_version="0.1.0", compilation_target="pi")
@@ -49,11 +71,14 @@ def test_changing_component_content_changes_artifact_digest(tmp_path):
     target = get_target("pi")
     before, _ = target.compile(profile, resolved, registry, lock)
     # Register a new version of the skill; ^1.0.0 now resolves to it.
-    register(registry, name="alpha", version="1.1.0",
-             ctype=ComponentType.SKILL,
-             files={"canonical/SKILL.md": b"# changed\n"},
-             skill_manifest={"canonical_path": "canonical/SKILL.md",
-                             "resources": [], "scripts": []})
+    register(
+        registry,
+        name="alpha",
+        version="1.1.0",
+        ctype=ComponentType.SKILL,
+        files={"canonical/SKILL.md": b"# changed\n"},
+        skill_manifest={"canonical_path": "canonical/SKILL.md", "resources": [], "scripts": []},
+    )
     from hop import profiles as P
 
     resolved2 = P.resolve(profile, registry)
@@ -76,8 +101,7 @@ def test_target_capability_missing_for_hooks(tmp_path):
     from hop import profiles as P
 
     registry, _, _, _ = _setup(tmp_path)
-    register(registry, name="audit-hook", ctype=ComponentType.HOOK,
-             files={"hooks.json": b"{}"})
+    register(registry, name="audit-hook", ctype=ComponentType.HOOK, files={"hooks.json": b"{}"})
     profile = Profile.model_validate(base_profile_dict(hooks=["audit-hook@^1.0.0"]))
     resolved = P.resolve(profile, registry)
     lock = build_lockfile(resolved, hop_version="0.1.0", compilation_target="pi")
@@ -90,16 +114,25 @@ def test_missing_declared_skill_resource_fails(tmp_path):
     from hop import profiles as P
 
     registry = ComponentRegistry(str(tmp_path / "r"))
-    register(registry, name="sys", ctype=ComponentType.SYSTEM_PROMPT,
-             files={"system.md": b"# s\n"})
-    register(registry, name="alpha", ctype=ComponentType.SKILL,
-             files={"canonical/SKILL.md": b"# a\n"},
-             skill_manifest={"canonical_path": "canonical/SKILL.md",
-                             "resources": ["resources/missing.md"], "scripts": []})
-    register(registry, name="overlay", ctype=ComponentType.HARNESS_OVERLAY,
-             files={"component.md": b"o\n"})
-    profile = Profile.model_validate(base_profile_dict(
-        agents=[], tools={}, context={}, policy=[]))
+    register(registry, name="sys", ctype=ComponentType.SYSTEM_PROMPT, files={"system.md": b"# s\n"})
+    register(
+        registry,
+        name="alpha",
+        ctype=ComponentType.SKILL,
+        files={"canonical/SKILL.md": b"# a\n"},
+        skill_manifest={
+            "canonical_path": "canonical/SKILL.md",
+            "resources": ["resources/missing.md"],
+            "scripts": [],
+        },
+    )
+    register(
+        registry,
+        name="overlay",
+        ctype=ComponentType.HARNESS_OVERLAY,
+        files={"component.md": b"o\n"},
+    )
+    profile = Profile.model_validate(base_profile_dict(agents=[], tools={}, context={}, policy=[]))
     resolved = P.resolve(profile, registry)
     lock = build_lockfile(resolved, hop_version="0.1.0", compilation_target="pi")
     with pytest.raises(CompilerError) as exc:
@@ -128,16 +161,25 @@ def test_executable_script_is_marked_and_content_preserved(tmp_path):
     from hop import profiles as P
 
     registry = ComponentRegistry(str(tmp_path / "r"))
-    register(registry, name="sys", ctype=ComponentType.SYSTEM_PROMPT,
-             files={"system.md": b"# s\n"})
-    register(registry, name="alpha", ctype=ComponentType.SKILL,
-             files={**skill_files("a"), "scripts/run.sh": b"#!/bin/sh\necho hi\n"},
-             skill_manifest={"canonical_path": "canonical/SKILL.md",
-                             "resources": [], "scripts": ["scripts/run.sh"]})
-    register(registry, name="overlay", ctype=ComponentType.HARNESS_OVERLAY,
-             files={"component.md": b"o\n"})
-    profile = Profile.model_validate(base_profile_dict(
-        agents=[], tools={}, context={}, policy=[]))
+    register(registry, name="sys", ctype=ComponentType.SYSTEM_PROMPT, files={"system.md": b"# s\n"})
+    register(
+        registry,
+        name="alpha",
+        ctype=ComponentType.SKILL,
+        files={**skill_files("a"), "scripts/run.sh": b"#!/bin/sh\necho hi\n"},
+        skill_manifest={
+            "canonical_path": "canonical/SKILL.md",
+            "resources": [],
+            "scripts": ["scripts/run.sh"],
+        },
+    )
+    register(
+        registry,
+        name="overlay",
+        ctype=ComponentType.HARNESS_OVERLAY,
+        files={"component.md": b"o\n"},
+    )
+    profile = Profile.model_validate(base_profile_dict(agents=[], tools={}, context={}, policy=[]))
     resolved = P.resolve(profile, registry)
     lock = build_lockfile(resolved, hop_version="0.1.0", compilation_target="pi")
     artifact, files = get_target("pi").compile(profile, resolved, registry, lock)
@@ -150,21 +192,36 @@ def test_selected_variant_content_is_compiled(tmp_path):
     from hop import profiles as P
 
     registry = ComponentRegistry(str(tmp_path / "r"))
-    register(registry, name="sys", ctype=ComponentType.SYSTEM_PROMPT,
-             files={"system.md": b"# s\n"})
-    register(registry, name="alpha", ctype=ComponentType.SKILL,
-             files={**skill_files("canonical"),
-                    "variants/qwen/SKILL.md": b"# QWEN VARIANT MARKER\n"},
-             variants=[{"name": "qwen", "path": "variants/qwen",
-                        "selectors": [{"dimension": "model_family",
-                                       "value": "qwen"}]}],
-             skill_manifest={"canonical_path": "canonical/SKILL.md",
-                             "resources": [], "scripts": []})
-    register(registry, name="overlay", ctype=ComponentType.HARNESS_OVERLAY,
-             files={"component.md": b"o\n"})
-    profile = Profile.model_validate(base_profile_dict(
-        agents=[], tools={}, context={}, policy=[],
-        variant_selectors=[{"dimension": "model_family", "value": "qwen"}]))
+    register(registry, name="sys", ctype=ComponentType.SYSTEM_PROMPT, files={"system.md": b"# s\n"})
+    register(
+        registry,
+        name="alpha",
+        ctype=ComponentType.SKILL,
+        files={**skill_files("canonical"), "variants/qwen/SKILL.md": b"# QWEN VARIANT MARKER\n"},
+        variants=[
+            {
+                "name": "qwen",
+                "path": "variants/qwen",
+                "selectors": [{"dimension": "model_family", "value": "qwen"}],
+            }
+        ],
+        skill_manifest={"canonical_path": "canonical/SKILL.md", "resources": [], "scripts": []},
+    )
+    register(
+        registry,
+        name="overlay",
+        ctype=ComponentType.HARNESS_OVERLAY,
+        files={"component.md": b"o\n"},
+    )
+    profile = Profile.model_validate(
+        base_profile_dict(
+            agents=[],
+            tools={},
+            context={},
+            policy=[],
+            variant_selectors=[{"dimension": "model_family", "value": "qwen"}],
+        )
+    )
     resolved = P.resolve(profile, registry)
     lock = build_lockfile(resolved, hop_version="0.1.0", compilation_target="pi")
     _, files = get_target("pi").compile(profile, resolved, registry, lock)

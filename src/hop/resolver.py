@@ -14,6 +14,7 @@ registry, resolution produces a :class:`~hop.contracts.profile.ResolvedProfile`:
 Resolution is pure and offline: identical registry contents and inputs give an
 identical result independent of declaration or filesystem ordering.
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass, field
@@ -42,8 +43,9 @@ class ResolutionError(Exception):
         self.detail = detail or {}
 
 
-def resolve_profile(profile: Profile, registry: ComponentRegistry,
-                    context: dict[str, str] | None = None) -> ResolvedProfile:
+def resolve_profile(
+    profile: Profile, registry: ComponentRegistry, context: dict[str, str] | None = None
+) -> ResolvedProfile:
     context = {k.lower(): str(v) for k, v in (context or {}).items()}
     context.setdefault("harness", profile.harness.name)
     if profile.model.family_hint:
@@ -108,8 +110,7 @@ class _Requirement:
 
 
 class _Resolver:
-    def __init__(self, registry: ComponentRegistry, profile: Profile,
-                 context: dict[str, str]):
+    def __init__(self, registry: ComponentRegistry, profile: Profile, context: dict[str, str]):
         self.registry = registry
         self.profile = profile
         self.context = context
@@ -121,8 +122,7 @@ class _Resolver:
         self.excluded: list[dict] = []
 
     # -- requirement collection -------------------------------------------
-    def require(self, ctype: ComponentType | None, ref: ComponentRef,
-                reason: str) -> None:
+    def require(self, ctype: ComponentType | None, ref: ComponentRef, reason: str) -> None:
         key = ref.name
         constraint = Constraint.parse(ref.version)
         existing = self.requirements.get(key)
@@ -132,9 +132,9 @@ class _Resolver:
             if existing.ctype is not None and ctype is not None and existing.ctype != ctype:
                 raise ResolutionError(
                     "ambiguous_component",
-                    f"{ref.name} is required as both {existing.ctype.value} and "
-                    f"{ctype.value}",
-                    {"name": ref.name})
+                    f"{ref.name} is required as both {existing.ctype.value} and {ctype.value}",
+                    {"name": ref.name},
+                )
             if existing.ctype is None:
                 existing.ctype = ctype
             existing.reasons.extend([reason, f"constraint:{constraint.raw}"])
@@ -156,14 +156,17 @@ class _Resolver:
                     self.candidates[existing].reasons.extend(requirement.reasons)
                     continue
                 record = self._select(name, requirement)
-                node = (f"{record.component_type.value}:"
-                        f"{record.logical_name}@{record.version}")
+                node = f"{record.component_type.value}:{record.logical_name}@{record.version}"
                 candidate = _Candidate(
-                    node=node, ctype=record.component_type, name=record.logical_name,
-                    version=record.version, record_digest=record.record_digest or "",
+                    node=node,
+                    ctype=record.component_type,
+                    name=record.logical_name,
+                    version=record.version,
+                    record_digest=record.record_digest or "",
                     content_digest=record.content_digest,
                     dependencies=list(record.dependencies),
-                    reasons=list(requirement.reasons))
+                    reasons=list(requirement.reasons),
+                )
                 self.candidates[node] = candidate
                 for dep in record.dependencies:
                     self.require(dep.type, dep, reason=f"{node} -> {dep.ref}")
@@ -180,43 +183,49 @@ class _Resolver:
             # Distinguish unknown component from unsupported type.
             any_versions = self.registry.versions(name)
             if any_versions:
-                types_present = sorted({
-                    r.component_type.value
-                    for r in self.registry.find(name=name)})
+                types_present = sorted(
+                    {r.component_type.value for r in self.registry.find(name=name)}
+                )
                 raise ResolutionError(
                     "unsupported_component_type",
                     f"{name} is registered, but not as "
                     f"{requirement.ctype.value if requirement.ctype else 'any type'}"
                     f" (present types: {types_present})",
-                    {"name": name, "present_types": types_present})
+                    {"name": name, "present_types": types_present},
+                )
             raise ResolutionError(
                 "missing_dependency",
                 f"no registered component satisfies {name} "
                 f"constraint {requirement.constraint.raw!r}",
-                {"name": name, "constraint": requirement.constraint.raw})
+                {"name": name, "constraint": requirement.constraint.raw},
+            )
         matching = [v for v in versions if requirement.constraint.matches(v)]
         if not matching:
             raise ResolutionError(
                 "version_conflict",
                 f"no version of {name} satisfies constraint "
                 f"{requirement.constraint.raw!r}; available: {versions}",
-                {"name": name, "constraint": requirement.constraint.raw,
-                 "available": versions})
+                {"name": name, "constraint": requirement.constraint.raw, "available": versions},
+            )
         # versions() is sorted descending; pick the highest satisfying version.
         selected = matching[0]
-        matches = self.registry.find(name=name, version=selected,
-                                     component_type=requirement.ctype)
+        matches = self.registry.find(name=name, version=selected, component_type=requirement.ctype)
         if len(matches) > 1:
             raise ResolutionError(
                 "ambiguous_component",
                 f"{name}@{selected} is registered under multiple component types",
-                {"name": name, "version": selected})
+                {"name": name, "version": selected},
+            )
         try:
             record, _ = self.registry.get(name, selected, requirement.ctype)
         except (ComponentNotFound, RegistryIntegrityError) as exc:
             raise ResolutionError(
-                "digest_mismatch" if isinstance(exc, RegistryIntegrityError)
-                else "missing_dependency", str(exc), {"name": name}) from exc
+                "digest_mismatch"
+                if isinstance(exc, RegistryIntegrityError)
+                else "missing_dependency",
+                str(exc),
+                {"name": name},
+            ) from exc
         return record
 
     def _topological_order(self) -> None:
@@ -229,7 +238,8 @@ class _Resolver:
                     raise ResolutionError(
                         "missing_dependency",
                         f"{node} depends on unregistered {dep.ref}",
-                        {"from": node, "dependency": dep.ref})
+                        {"from": node, "dependency": dep.ref},
+                    )
                 edges[node].add(target)
         # Kahn with lexicographic tie-break for determinism.
         indegree = {node: 0 for node in edges}
@@ -251,18 +261,19 @@ class _Resolver:
             raise ResolutionError(
                 "dependency_cycle",
                 f"dependency cycle detected among: {cyclic}",
-                {"cycle_nodes": cyclic})
+                {"cycle_nodes": cyclic},
+            )
         self.order = order
         self._edges = edges
 
     def _candidate_for_name(self, name: str) -> str | None:
-        matches = [n for n in self.candidates
-                   if self.candidates[n].name == name]
+        matches = [n for n in self.candidates if self.candidates[n].name == name]
         if len(matches) > 1:
             raise ResolutionError(
                 "ambiguous_component",
                 f"{name} resolved to multiple component nodes: {matches}",
-                {"name": name, "nodes": sorted(matches)})
+                {"name": name, "nodes": sorted(matches)},
+            )
         return matches[0] if matches else None
 
     def _select_variants(self) -> None:
@@ -271,8 +282,7 @@ class _Resolver:
                 continue
             record, files = self.registry.get(candidate.name, candidate.version)
             variants = record.variants or []
-            selected, reason, excluded = select_variant(
-                candidate.name, variants, self.context)
+            selected, reason, excluded = select_variant(candidate.name, variants, self.context)
             self.excluded.extend(excluded)
             selection: dict = {"variant": selected, "reason": reason}
             if selected:
@@ -280,11 +290,12 @@ class _Resolver:
                 if not variant_files:
                     raise ResolutionError(
                         "malformed_skill_package",
-                        f"variant {selected!r} of {candidate.name} has no content "
-                        "files",
-                        {"skill": candidate.name, "variant": selected})
+                        f"variant {selected!r} of {candidate.name} has no content files",
+                        {"skill": candidate.name, "variant": selected},
+                    )
                 selection["content_digest"] = digest_payload(
-                    {p: _sha(data) for p, data in sorted(variant_files.items())})
+                    {p: _sha(data) for p, data in sorted(variant_files.items())}
+                )
                 candidate.reasons.append(reason)
             self.variant_selections[node] = selection
 
@@ -299,13 +310,15 @@ class _Resolver:
                     "incompatible_harness",
                     f"{candidate.name}@{candidate.version} declares harness "
                     f"compatibility {harnesses}, not {harness!r}",
-                    {"component": node, "harness": harness})
+                    {"component": node, "harness": harness},
+                )
             families = [str(f) for f in compatibility.get("model_families", [])]
             hint = self.context.get("model_family", "")
             if families and hint and hint not in families:
                 self.warnings.append(
                     f"{candidate.name}@{candidate.version} lists model families "
-                    f"{families}; profile family hint is {hint!r} (descriptive only)")
+                    f"{families}; profile family hint is {hint!r} (descriptive only)"
+                )
             self._check_required_tools(record)
 
     def _check_required_tools(self, record) -> None:
@@ -323,7 +336,8 @@ class _Resolver:
                 "missing_required_tool",
                 f"{record.logical_name}@{record.version} requires tools "
                 f"{missing} not allowed by the resolved tool policy",
-                {"component": record.logical_name, "missing_tools": missing})
+                {"component": record.logical_name, "missing_tools": missing},
+            )
 
     def _allowed_tools(self) -> set[str] | None:
         rule = self._raw_rule("tools.allow")
@@ -353,45 +367,62 @@ class _Resolver:
             candidate = self.candidates[node]
             selection = self.variant_selections.get(node, {})
             record, _ = self.registry.get(candidate.name, candidate.version)
-            components.append(ResolvedComponent(
-                type=candidate.ctype, name=candidate.name, version=candidate.version,
-                digest=candidate.record_digest,
-                dependencies=sorted(
-                    self._candidate_for_name(d.name) or d.ref
-                    for d in candidate.dependencies),
-                reason="; ".join(sorted(set(candidate.reasons))),
-                source=record.source,
-                variant=selection.get("variant", ""),
-                variant_reason=selection.get("reason", "")))
+            components.append(
+                ResolvedComponent(
+                    type=candidate.ctype,
+                    name=candidate.name,
+                    version=candidate.version,
+                    digest=candidate.record_digest,
+                    dependencies=sorted(
+                        self._candidate_for_name(d.name) or d.ref for d in candidate.dependencies
+                    ),
+                    reason="; ".join(sorted(set(candidate.reasons))),
+                    source=record.source,
+                    variant=selection.get("variant", ""),
+                    variant_reason=selection.get("reason", ""),
+                )
+            )
         graph = {node: sorted(self._edges.get(node, set())) for node in self.order}
-        overlay = next((c for c in components
-                        if c.type == ComponentType.HARNESS_OVERLAY), None)
+        overlay = next((c for c in components if c.type == ComponentType.HARNESS_OVERLAY), None)
         effective_policy = merge_policies(self)
-        resolution_digest = digest_payload({
-            "profile_digest": self.profile.profile_digest(),
-            "components": [{"type": c.type.value, "name": c.name,
-                            "version": c.version, "digest": c.digest,
-                            "variant": c.variant} for c in components],
-            "policy": effective_policy,
-            "context": dict(sorted(self.context.items())),
-        })
+        resolution_digest = digest_payload(
+            {
+                "profile_digest": self.profile.profile_digest(),
+                "components": [
+                    {
+                        "type": c.type.value,
+                        "name": c.name,
+                        "version": c.version,
+                        "digest": c.digest,
+                        "variant": c.variant,
+                    }
+                    for c in components
+                ],
+                "policy": effective_policy,
+                "context": dict(sorted(self.context.items())),
+            }
+        )
         return ResolvedProfile(
             profile_name=self.profile.metadata.name,
             profile_version=self.profile.metadata.version,
             profile_digest=self.profile.profile_digest(),
             resolution_digest=resolution_digest,
-            components=components, harness_overlay=overlay,
+            components=components,
+            harness_overlay=overlay,
             effective_policy=effective_policy,
             variant_selections=self.variant_selections,
-            excluded_alternatives=sorted(self.excluded, key=lambda e: (
-                e.get("component", ""), e.get("variant", ""))),
+            excluded_alternatives=sorted(
+                self.excluded, key=lambda e: (e.get("component", ""), e.get("variant", ""))
+            ),
             warnings=sorted(set(self.warnings)),
             dependency_graph=graph,
-            resolution_context=dict(sorted(self.context.items())))
+            resolution_context=dict(sorted(self.context.items())),
+        )
 
 
-def select_variant(name: str, variants: list[dict],
-                   context: dict[str, str]) -> tuple[str, str, list[dict]]:
+def select_variant(
+    name: str, variants: list[dict], context: dict[str, str]
+) -> tuple[str, str, list[dict]]:
     """Deterministic variant selection.
 
     Returns ``(variant_name, reason, excluded)``. An empty name means the
@@ -421,9 +452,13 @@ def select_variant(name: str, variants: list[dict],
         if matched:
             matches.append((variant["name"], reasons))
         else:
-            excluded.append({
-                "component": name, "variant": variant["name"],
-                "reason": _exclusion_reason(variant, context)})
+            excluded.append(
+                {
+                    "component": name,
+                    "variant": variant["name"],
+                    "reason": _exclusion_reason(variant, context),
+                }
+            )
     if not matches:
         return "", "canonical: no variant selectors matched", excluded
     if len(matches) > 1:
@@ -431,7 +466,8 @@ def select_variant(name: str, variants: list[dict],
             "ambiguous_variant",
             f"{name}: {len(matches)} variants match: "
             f"{sorted(m for m, _ in matches)}; selection is ambiguous",
-            {"component": name, "matches": sorted(m for m, _ in matches)})
+            {"component": name, "matches": sorted(m for m, _ in matches)},
+        )
     variant_name, reasons = matches[0]
     return variant_name, "variant " + variant_name + " matched " + ",".join(reasons), excluded
 
@@ -474,7 +510,7 @@ _LAYER_FOR_TYPE = {
 }
 
 
-def merge_policies(resolver: "_Resolver") -> dict[str, dict]:
+def merge_policies(resolver: _Resolver) -> dict[str, dict]:
     """Explicit classified merge with mandatory rules at highest precedence."""
     declarations: list[dict] = []
     for node in resolver.order:
@@ -482,11 +518,15 @@ def merge_policies(resolver: "_Resolver") -> dict[str, dict]:
         record, _ = resolver.registry.get(candidate.name, candidate.version)
         layer = _LAYER_FOR_TYPE.get(candidate.ctype, "component")
         for key, spec in sorted((record.policy_rules or {}).items()):
-            declarations.append({
-                "key": key, "value": spec.get("value"),
-                "class": spec.get("class", "default"),
-                "layer": layer, "source": node,
-            })
+            declarations.append(
+                {
+                    "key": key,
+                    "value": spec.get("value"),
+                    "class": spec.get("class", "default"),
+                    "layer": layer,
+                    "source": node,
+                }
+            )
     return apply_policy_layers(declarations)
 
 
@@ -502,13 +542,14 @@ def apply_policy_layers(declarations: list[dict]) -> dict[str, dict]:
     for key in sorted(forbidden):
         attempts = [d for d in declarations if d["key"] == key]
         if len(attempts) > 1:
-            forbid("forbidden_override",
-                   f"policy key {key!r} is forbidden from override but is declared "
-                   f"{len(attempts)} times",
-                   {"key": key, "sources": sorted(d["source"] for d in attempts)})
+            forbid(
+                "forbidden_override",
+                f"policy key {key!r} is forbidden from override but is declared "
+                f"{len(attempts)} times",
+                {"key": key, "sources": sorted(d["source"] for d in attempts)},
+            )
         if len(attempts) == 1 and attempts[0]["class"] != "forbidden_override":
-            forbid("forbidden_override",
-                   f"policy key {key!r} cannot be set", {"key": key})
+            forbid("forbidden_override", f"policy key {key!r} cannot be set", {"key": key})
 
     # 2. mandatory declarations must agree with each other.
     mandatory: dict[str, dict] = {}
@@ -517,33 +558,43 @@ def apply_policy_layers(declarations: list[dict]) -> dict[str, dict]:
             continue
         prior = mandatory.get(decl["key"])
         if prior is not None and prior["value"] != decl["value"]:
-            forbid("policy_conflict",
-                   f"mandatory policy key {decl['key']!r} has conflicting values "
-                   f"from {prior['source']} and {decl['source']}",
-                   {"key": decl["key"]})
+            forbid(
+                "policy_conflict",
+                f"mandatory policy key {decl['key']!r} has conflicting values "
+                f"from {prior['source']} and {decl['source']}",
+                {"key": decl["key"]},
+            )
         mandatory[decl["key"]] = decl
 
     # 3. Merge non-mandatory, non-forbidden declarations layer by layer.
     for layer in POLICY_LAYERS:
-        layer_decls = [d for d in declarations
-                       if d["layer"] == layer
-                       and d["class"] not in ("mandatory", "forbidden_override")]
+        layer_decls = [
+            d
+            for d in declarations
+            if d["layer"] == layer and d["class"] not in ("mandatory", "forbidden_override")
+        ]
         for decl in sorted(layer_decls, key=lambda d: (d["key"], d["source"])):
             key = decl["key"]
             current = effective.get(key)
             if decl["class"] == "additive":
                 if current is None:
                     effective[key] = {
-                        "value": _as_list(decl["value"]), "class": "additive",
-                        "sources": [decl["source"]], "layer": layer}
+                        "value": _as_list(decl["value"]),
+                        "class": "additive",
+                        "sources": [decl["source"]],
+                        "layer": layer,
+                    }
                 else:
                     current["value"] = _as_list(current["value"]) + _as_list(decl["value"])
                     current["sources"].append(decl["source"])
                     current["class"] = "additive"
                 continue
             effective[key] = {
-                "value": decl["value"], "class": decl["class"],
-                "sources": [decl["source"]], "layer": layer}
+                "value": decl["value"],
+                "class": decl["class"],
+                "sources": [decl["source"]],
+                "layer": layer,
+            }
 
     # 4. Mandatory rules win last; a pre-existing different value is weakening.
     for key in sorted(mandatory):
@@ -555,11 +606,19 @@ def apply_policy_layers(declarations: list[dict]) -> dict[str, dict]:
                 f"lower-precedence configuration sets {key!r}={current['value']!r} "
                 f"but mandatory policy requires {decl['value']!r} "
                 f"(attempted weakening)",
-                {"key": key, "mandatory": decl["value"], "attempted": current["value"],
-                 "sources": current["sources"]})
+                {
+                    "key": key,
+                    "mandatory": decl["value"],
+                    "attempted": current["value"],
+                    "sources": current["sources"],
+                },
+            )
         effective[key] = {
-            "value": decl["value"], "class": "mandatory",
-            "sources": [decl["source"]], "layer": "mandatory"}
+            "value": decl["value"],
+            "class": "mandatory",
+            "sources": [decl["source"]],
+            "layer": "mandatory",
+        }
 
     return {key: effective[key] for key in sorted(effective)}
 

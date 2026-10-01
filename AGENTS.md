@@ -2,19 +2,65 @@
 
 ## Objective
 
-Implement the local-only enterprise agent optimization platform specified in `BUILD_PLAN.md`. This is a new implementation plan, not proof that the platform already exists. Read the relevant section and the work item's acceptance criteria before changing code.
+Implement the single-user local coding tool specified in `BUILD_PLAN.md` and ADR-011. No tenants, accounts, enterprise workflows, provider write-back, signing service, fleet deployment, or role administration. Preserve worker/verifier isolation, local-only inference, and evidence integrity.
 
-Start with M0 and M1. Build one verifiable local run before building optimization. Preserve existing repository work and inspect its architecture before applying this proposed layout to an existing codebase.
+M0-M3 are delivered in scoped form. HOP-R01-R05 foundation requalification remains blocked; read its acceptance matrix before M4. Preserve existing repository work and historical evidence. Optional integrations do not gate the single-user core unless enabled.
+
+## Repository State and Sources of Truth
+
+`master` is the default development branch. A development merge is not milestone
+acceptance, release qualification, or permission to advance dependencies.
+
+- `BACKLOG.yaml` owns current scope, dependencies, exclusions, and work-item IDs.
+  Its status fields were reconciled; do not treat the old all-planned snapshot
+  as current or reimplement delivered milestones.
+- `docs/acceptance-m{1,2,3}.md` and `docs/evidence/` describe historical delivered
+  slices. Preserve their bytes and the ability to read prior runs and locks.
+- `docs/acceptance-foundation.md`, `docs/single-user-delivery.md`, and ADR-011
+  describe the current incomplete foundation and single-user scope.
+- Latest recorded validation is 284 non-live tests passing. Type checking,
+  current Pi/local-model acceptance, and independent boundary review remain
+  outstanding; verify the installed build rather than trusting old version notes.
+- Only Pi is implemented. Other adapters are optional and explicitly blocked
+  until their pinned interfaces are qualified. Automatic optimization does not
+  exist yet; do not approximate it with an ad-hoc loop.
+- `.hidden/` remains an interim namespace-protected store, not sealed
+  evaluator-owned storage. AOP-020 owns that transition after foundation acceptance.
+
+## Local Development
+
+Use the approved offline wheelhouse and pinned environment. The evidenced
+combination is CPython 3.14/Linux x86-64, not every Python/platform combination.
+
+```sh
+HOP_WHEELHOUSE=/path/to/approved/wheels scripts/dev bootstrap
+scripts/dev check
+scripts/dev test --suite all
+./hop doctor
+./hop profile --help
+```
+
+`check` must remain blocked when approved type tooling is unavailable. Select
+`unit`, `contract`, `sandbox`, or `live` for focused tests. Live probes and full
+local-model acceptance are separate; fixtures never qualify a model. Do not use
+`pip install -e .`, download packages during evaluation, or overwrite an existing
+environment to make setup succeed. `./hop` handles its own import path.
+
+Keep work in isolated `esf/` branches/worktrees. Before cleanup, verify the exact
+branch tip is included in `master`; preserve open reviews and unmerged work.
+Never discard dirty files to switch branches. Preserve a recoverable copy before
+reconciling user edits, and report its location. Publish or merge only when the
+owner explicitly requests that action; do not trigger it from tests.
 
 ## Hard constraints
 
-All task inference, routing, judge calls, reflection, embeddings, compaction, and synthetic-data generation use registered local model deployments. No hosted API fallback. No external telemetry, session sharing, package downloads, or auto-updates during evaluation. Controlled artifact import is a separate administrator action.
+All task inference, routing, judge calls, reflection, embeddings, compaction, and synthetic-data generation use registered local model deployments. No hosted API fallback. No external telemetry, session sharing, package downloads, or auto-updates during evaluation. Controlled artifact import is a separate explicit owner action.
 
 Do not infer model capabilities from names. Exact checkpoints, quantizations, serving builds, chat templates, tool parsers, and supported generation parameters require pinned identities and test evidence. Never copy guessed reasoning settings into production configuration. Unsupported or unavailable combinations remain explicit, not silently substituted.
 
 Do not replace the native harness agent loop. Wrap its supported headless/RPC/plugin interface. Isolate configuration, home, workspace, memory, credentials, and caches per run. A worker's Python REPL is not its security boundary; untrusted code requires external isolation.
 
-Do not modify mandatory safety/policy/permission constraints to make an evaluation pass. Protect verifier code, hidden tests, sealed holdout cases, publisher credentials, and signing keys from agent and optimizer workers. Hidden tests must not be readable inside an agent environment, even on a read-only mount.
+Do not modify mandatory safety/policy/permission constraints to make an evaluation pass. Protect verifier code, hidden tests, sealed holdout cases, and host credentials from agent and optimizer workers. Hidden tests must not be readable inside an agent environment, even on a read-only mount.
 
 Do not publish comments, push branches, create external tickets, change real CI, scan public targets, merge code, or deploy artifacts as a side effect of tests. Use controlled fixtures and disabled side-effect brokers. Real writes require explicit scoped authorization.
 
@@ -45,7 +91,7 @@ For each assigned task:
 7. Update documentation, schema version/migration notes, and the work-item evidence.
 8. Leave a reviewable commit or patch. Do not claim unavailable tests passed.
 
-Separate implementation and independent verification for security boundaries, signed releases, dataset partitions, evaluation graders, and promotion logic. A local model judge is advisory when deterministic evidence or human approval is required.
+Separate implementation and independent verification for security boundaries, dataset partitions, evaluation graders, and local activation logic. A local model judge is advisory when deterministic evidence or owner confirmation is required.
 
 ## Parallel work
 
@@ -63,6 +109,13 @@ A skipped integration is acceptable only with an explicit reason and a blocked c
 
 Report the work-item IDs, files changed, implementation decisions, validations run, observed results, unexecuted tests with reasons, compatibility limitations, and next dependency-ready item. Distinguish implemented behavior from design stubs and sample configurations.
 
-## First assignment
+## Current Assignment
 
-Implement M0 and M1 only: contracts, actual local discovery, pinned toolchain, trust boundaries, durable artifact/run storage, local inference, Pi execution, isolated workspace, one protected verifier, and an end-to-end debugging task. Deliver both passing and failing examples with complete trajectories. Do not begin optimization until that slice is reproducible.
+Close the foundation acceptance gaps before implementing AOP-020 and the core local coding packs. Keep AOP-024 and AOP-042 out of scope under ADR-011. Do not begin optimization or activation before their dependency evidence exists. A scope reduction is not a passed safety gate.
+
+After foundation acceptance, implement provenance/protected splits (AOP-020),
+coding and debugging (AOP-021), local diff review (AOP-022), test/dependency
+maintenance (AOP-025), and advisory calibrated local judges (AOP-026). Each core
+pack needs passing, failing, and inconclusive examples with complete trajectories
+and completeness reports. AOP-023 local build fixtures remain optional. The
+trusted verifier remains authoritative and insufficient evidence is inconclusive.

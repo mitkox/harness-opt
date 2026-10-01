@@ -8,6 +8,7 @@ digest therefore changes whenever any file or the manifest changes.
 
 Import is deterministic and offline. There is no implicit network lookup.
 """
+
 from __future__ import annotations
 
 import os
@@ -19,8 +20,8 @@ from .contracts.profile import (
     ComponentType,
     RegistryComponent,
     VariantSelector,
+    tree_digest,
 )
-from .contracts.profile import tree_digest
 from .registry import ComponentRegistry, compute_record_digest
 
 SKILL_MANIFEST_NAMES = ("skill.yaml", "skill.yml")
@@ -42,14 +43,14 @@ def _read_manifest(directory: str) -> tuple[dict, str]:
             return data, name
     raise ComponentSourceError(
         f"no component manifest in {directory} "
-        f"(expected one of {SKILL_MANIFEST_NAMES + COMPONENT_MANIFEST_NAMES})")
+        f"(expected one of {SKILL_MANIFEST_NAMES + COMPONENT_MANIFEST_NAMES})"
+    )
 
 
 def _collect_files(directory: str) -> dict[str, bytes]:
     files: dict[str, bytes] = {}
     for dirpath, dirnames, filenames in os.walk(directory):
-        dirnames[:] = sorted(d for d in dirnames
-                             if d not in ("__pycache__", ".git"))
+        dirnames[:] = sorted(d for d in dirnames if d not in ("__pycache__", ".git"))
         for name in sorted(filenames):
             full = os.path.join(dirpath, name)
             if os.path.islink(full):
@@ -82,8 +83,7 @@ def _infer_type(directory: str, manifest: dict) -> ComponentType:
     }
     if parent in mapping:
         return mapping[parent]
-    raise ComponentSourceError(
-        f"cannot infer component type for {directory}; set component_type")
+    raise ComponentSourceError(f"cannot infer component type for {directory}; set component_type")
 
 
 def _parse_dependencies(raw) -> list[ComponentRef]:
@@ -98,9 +98,13 @@ def _parse_dependencies(raw) -> list[ComponentRef]:
 
             refs.append(parse_ref(item))
         elif isinstance(item, dict):
-            refs.append(ComponentRef(
-                name=item["name"], version=str(item.get("version", "*")),
-                type=ComponentType(item["type"]) if item.get("type") else None))
+            refs.append(
+                ComponentRef(
+                    name=item["name"],
+                    version=str(item.get("version", "*")),
+                    type=ComponentType(item["type"]) if item.get("type") else None,
+                )
+            )
         else:
             raise ComponentSourceError(f"invalid dependency entry {item!r}")
     refs.sort(key=lambda r: (r.name, r.version, r.type.value if r.type else ""))
@@ -119,26 +123,30 @@ def _parse_variants(directory: str) -> list[dict]:
         manifest_path = os.path.join(vdir, "variant.yaml")
         if not os.path.isfile(manifest_path):
             raise ComponentSourceError(
-                f"variant {name!r} has no variant.yaml (selectors are required)")
+                f"variant {name!r} has no variant.yaml (selectors are required)"
+            )
         with open(manifest_path) as fh:
             manifest = yaml.safe_load(fh) or {}
         selectors = manifest.get("selectors")
         if not selectors or not isinstance(selectors, list):
-            raise ComponentSourceError(
-                f"variant {name!r} must declare non-empty selectors")
+            raise ComponentSourceError(f"variant {name!r} must declare non-empty selectors")
         parsed = []
         for selector in selectors:
             try:
-                parsed.append(VariantSelector(
-                    dimension=selector["dimension"], value=str(selector["value"])))
+                parsed.append(
+                    VariantSelector(dimension=selector["dimension"], value=str(selector["value"]))
+                )
             except (KeyError, ValueError) as exc:
                 raise ComponentSourceError(
-                    f"invalid selector in variant {name!r}: {selector!r}") from exc
-        variants.append({
-            "name": name,
-            "selectors": [s.model_dump(mode="json") for s in parsed],
-            "path": f"variants/{name}",
-        })
+                    f"invalid selector in variant {name!r}: {selector!r}"
+                ) from exc
+        variants.append(
+            {
+                "name": name,
+                "selectors": [s.model_dump(mode="json") for s in parsed],
+                "path": f"variants/{name}",
+            }
+        )
     names = [v["name"] for v in variants]
     if len(names) != len(set(names)):
         raise ComponentSourceError("duplicate variant names")
@@ -156,19 +164,22 @@ def _parse_policy_rules(manifest: dict) -> dict[str, dict]:
             raise ComponentSourceError(f"policy rule {key!r} needs a value")
         classification = str(spec.get("class", "default"))
         if classification not in valid:
-            raise ComponentSourceError(
-                f"policy rule {key!r} has invalid class {classification!r}")
+            raise ComponentSourceError(f"policy rule {key!r} has invalid class {classification!r}")
         rules[key] = {"value": spec["value"], "class": classification}
     return rules
 
 
-def load_component_source(directory: str,
-                          component_type: ComponentType | None = None) -> tuple[RegistryComponent, dict[str, bytes]]:
+def load_component_source(
+    directory: str, component_type: ComponentType | None = None
+) -> tuple[RegistryComponent, dict[str, bytes]]:
     """Load and normalize one component directory (no registry write)."""
     manifest, manifest_name = _read_manifest(directory)
     ctype = component_type or _infer_type(directory, manifest)
-    name = manifest.get("logical_name") or manifest.get("name") or os.path.basename(
-        os.path.abspath(directory))
+    name = (
+        manifest.get("logical_name")
+        or manifest.get("name")
+        or os.path.basename(os.path.abspath(directory))
+    )
     version = str(manifest.get("version", ""))
     if not version:
         raise ComponentSourceError(f"{directory} manifest missing 'version'")
@@ -186,36 +197,40 @@ def load_component_source(directory: str,
         skill_manifest = _normalize_skill_manifest(manifest, directory, variants)
 
     record = RegistryComponent(
-        logical_name=name, version=version, component_type=ctype,
+        logical_name=name,
+        version=version,
+        component_type=ctype,
         content_digest=content_digest,
         metadata={
             "description": manifest.get("description", ""),
             "purpose": manifest.get("purpose", ""),
             "manifest": manifest_name,
         },
-        dependencies=dependencies, compatibility=compatibility,
-        source=os.path.abspath(directory), source_revision="",
-        policy_rules=policy_rules, variants=variants,
+        dependencies=dependencies,
+        compatibility=compatibility,
+        source=os.path.abspath(directory),
+        source_revision="",
+        policy_rules=policy_rules,
+        variants=variants,
         skill_manifest=skill_manifest,
     )
     record.record_digest = compute_record_digest(record)
     return record, files
 
 
-def _normalize_skill_manifest(manifest: dict, directory: str,
-                              variants: list[dict]) -> dict:
+def _normalize_skill_manifest(manifest: dict, directory: str, variants: list[dict]) -> dict:
     canonical = None
     for candidate in ("canonical/SKILL.md", "SKILL.md"):
         if os.path.isfile(os.path.join(directory, candidate)):
             canonical = candidate
             break
     if canonical is None:
-        raise ComponentSourceError(
-            f"skill {directory} has no canonical/SKILL.md or SKILL.md")
+        raise ComponentSourceError(f"skill {directory} has no canonical/SKILL.md or SKILL.md")
     triggers = manifest.get("triggers") or {}
     normalized = {
-        "name": manifest.get("logical_name") or manifest.get("name") or
-                os.path.basename(os.path.abspath(directory)),
+        "name": manifest.get("logical_name")
+        or manifest.get("name")
+        or os.path.basename(os.path.abspath(directory)),
         "description": manifest.get("description", ""),
         "purpose": manifest.get("purpose", ""),
         "canonical_path": canonical,
@@ -244,17 +259,21 @@ def import_directory(registry: ComponentRegistry, directory: str) -> list[dict]:
     imported: list[dict] = []
     for dirpath, dirnames, filenames in os.walk(directory):
         dirnames[:] = sorted(d for d in dirnames if d not in ("__pycache__", ".git"))
-        has_manifest = any(n in filenames for n in
-                           SKILL_MANIFEST_NAMES + COMPONENT_MANIFEST_NAMES)
+        has_manifest = any(n in filenames for n in SKILL_MANIFEST_NAMES + COMPONENT_MANIFEST_NAMES)
         if not has_manifest:
             continue
         record, files = load_component_source(dirpath)
         stored = registry.register(record, files)
-        imported.append({
-            "type": stored.component_type.value, "name": stored.logical_name,
-            "version": stored.version, "digest": stored.record_digest,
-            "content_digest": stored.content_digest, "source": dirpath,
-        })
+        imported.append(
+            {
+                "type": stored.component_type.value,
+                "name": stored.logical_name,
+                "version": stored.version,
+                "digest": stored.record_digest,
+                "content_digest": stored.content_digest,
+                "source": dirpath,
+            }
+        )
         # Do not descend into a component's own subdirectories.
         dirnames[:] = []
     imported.sort(key=lambda r: (r["type"], r["name"], r["version"]))

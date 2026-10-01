@@ -1,0 +1,20 @@
+component_type: org_policy
+name: local-safety
+version: 1.0.0
+description: Mandatory safety rules for local coding runs.
+compatibility:
+  harnesses:
+  - pi
+rules:
+  network.egress:
+    value: deny
+    class: mandatory
+  secrets.exfiltration:
+    value: deny
+    class: mandatory
+  telemetry.external:
+    value: deny
+    class: mandatory
+  audit.trajectory:
+    value: required
+    class: mandatory

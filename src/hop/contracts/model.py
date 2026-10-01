@@ -83,4 +83,5 @@ class ModelDeployment(AopBase):
         if not self.weight_shards:
             raise ValueError(
                 f"deployment {self.deployment_id} has no weight-shard manifest; "
-                "identity cannot be established")
+                "identity cannot be established"
+            )

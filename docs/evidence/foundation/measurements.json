@@ -1,0 +1,106 @@
+{
+  "baseline": {
+    "source_bytes": 353395,
+    "source_lines": 8342,
+    "source_sha256": "df79e9a9e4d10c2a484214b1e8d143dcdb1013dd1c64143042e3d67bb9e02562",
+    "help_startup_median_ms": 26.398496003821492,
+    "profile_compile_median_ms": 7.439238950610161,
+    "trajectory_first_page": {
+      "events": 10000,
+      "returned": 100,
+      "median_ms": 433.95105900708586,
+      "median_peak_python_bytes": 47143569,
+      "samples": [
+        {
+          "events": 10000,
+          "returned": 100,
+          "milliseconds": 430.6216749828309,
+          "peak_python_bytes": 47143569
+        },
+        {
+          "events": 10000,
+          "returned": 100,
+          "milliseconds": 452.77913904283196,
+          "peak_python_bytes": 47143569
+        },
+        {
+          "events": 10000,
+          "returned": 100,
+          "milliseconds": 434.98066905885935,
+          "peak_python_bytes": 47143569
+        },
+        {
+          "events": 10000,
+          "returned": 100,
+          "milliseconds": 425.56838202290237,
+          "peak_python_bytes": 47143569
+        },
+        {
+          "events": 10000,
+          "returned": 100,
+          "milliseconds": 433.95105900708586,
+          "peak_python_bytes": 47143569
+        }
+      ]
+    }
+  },
+  "current": {
+    "source_bytes": 383408,
+    "source_lines": 10390,
+    "source_sha256": "409da0941f6543115630e69d16d051c9f74391cda85072f1b2db8ccc2db08714",
+    "help_startup_median_ms": 30.57903394801542,
+    "profile_compile_median_ms": 7.3393810307607055,
+    "trajectory_first_page": {
+      "events": 10000,
+      "returned": 100,
+      "median_ms": 84.02491896413267,
+      "median_peak_python_bytes": 1266471,
+      "samples": [
+        {
+          "events": 10000,
+          "returned": 100,
+          "milliseconds": 83.71213998179883,
+          "peak_python_bytes": 1266471
+        },
+        {
+          "events": 10000,
+          "returned": 100,
+          "milliseconds": 83.46910204272717,
+          "peak_python_bytes": 1264469
+        },
+        {
+          "events": 10000,
+          "returned": 100,
+          "milliseconds": 84.02491896413267,
+          "peak_python_bytes": 1266779
+        },
+        {
+          "events": 10000,
+          "returned": 100,
+          "milliseconds": 85.32734296750277,
+          "peak_python_bytes": 1268319
+        },
+        {
+          "events": 10000,
+          "returned": 100,
+          "milliseconds": 85.7015480287373,
+          "peak_python_bytes": 1264854
+        }
+      ]
+    }
+  },
+  "python": "3.14.4 (main, Aug 20 2026, 10:41:58) [GCC 15.2.0]",
+  "model_inference": false,
+  "limitations": "Warm local filesystem; five trajectory samples; no GPU or model-speed claim.",
+  "runtime_installation": {
+    "command": "du -s -B1 /home/mitko/dev/harness-opt/.venv-m1 /tmp/hop-foundation/.venv-runtime/",
+    "baseline_allocated_bytes": 46616576,
+    "current_allocated_bytes": 42323968,
+    "baseline_locked_packages": 16,
+    "current_locked_packages": 11,
+    "includes": "Trusted pytest verifier and its dependencies; developer-only JSON Schema tooling excluded.",
+    "limitations": "Allocated environment bytes include pip and bytecode; symlinked system interpreter excluded. Historical runs, wheelhouse, source, and retained environments measured separately, not deleted."
+  },
+  "baseline_revision": "4e6d6a243e5f46b80318fb35981251ef0392d200",
+  "date": "2026-10-01"
+}

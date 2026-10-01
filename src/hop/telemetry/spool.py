@@ -13,24 +13,26 @@ Promotion/evaluation eligibility distinguishes:
 - observability backend unavailable (spool pending, ledger complete), from
 - authoritative trajectory incomplete (ledger gaps/missing evidence).
 """
+
 from __future__ import annotations
 
+import fcntl
 import json
 import os
+from contextlib import contextmanager
+
+from ..files import atomic_write, identifier
 
 
 def collector_available(collector_dir: str) -> bool:
-    from ..envcompat import COLLECTOR_DOWN_VARS
-    from ..envcompat import is_flag_set
+    from ..envcompat import COLLECTOR_DOWN_VARS, is_flag_set
+
     if is_flag_set(*COLLECTOR_DOWN_VARS):
         return False
-    marker = os.path.join(collector_dir, ".collector-up")
     # Absent marker + absent dir both mean "no collector"; presence of the
     # up-marker means available. Default local dir without marker is treated
     # as available (writes succeed) unless explicitly taken down.
-    if os.path.exists(os.path.join(collector_dir, ".collector-down")):
-        return False
-    return True
+    return not os.path.exists(os.path.join(collector_dir, ".collector-down"))
 
 
 class SpoolQueue:
@@ -40,11 +42,21 @@ class SpoolQueue:
         os.makedirs(spool_dir, exist_ok=True)
 
     def _path(self, run_id: str) -> str:
+        identifier(run_id)
         return os.path.join(self.spool_dir, f"{run_id}.jsonl")
+
+    @contextmanager
+    def _locked(self, run_id: str):
+        with open(self._path(run_id) + ".lock", "a") as lock:
+            fcntl.flock(lock, fcntl.LOCK_EX)
+            try:
+                yield
+            finally:
+                fcntl.flock(lock, fcntl.LOCK_UN)
 
     def enqueue(self, run_id: str, payload: dict) -> None:
         path = self._path(run_id)
-        with open(path, "a") as fh:
+        with self._locked(run_id), open(path, "a") as fh:
             fh.write(json.dumps(payload, sort_keys=True) + "\n")
             fh.flush()
             os.fsync(fh.fileno())
@@ -61,19 +73,29 @@ class SpoolQueue:
 
     def flush(self, run_id: str) -> dict:
         """Try to deliver spooled payloads to the collector. Returns report."""
+        with self._locked(run_id):
+            return self._flush(run_id)
+
+    def _flush(self, run_id: str) -> dict:
         items = self.pending(run_id)
         if not items:
             return {"flushed": 0, "pending": 0, "collector": "idle-empty"}
         if not collector_available(self.collector_dir):
-            return {"flushed": 0, "pending": len(items),
-                    "collector": "unavailable-spooled",
-                    "telemetry_gap": True}
+            return {
+                "flushed": 0,
+                "pending": len(items),
+                "collector": "unavailable-spooled",
+                "telemetry_gap": True,
+            }
         os.makedirs(self.collector_dir, exist_ok=True)
         dest = os.path.join(self.collector_dir, f"{run_id}.jsonl")
-        with open(dest, "a") as fh:
-            for item in items:
-                fh.write(json.dumps(item, sort_keys=True) + "\n")
-            fh.flush()
-            os.fsync(fh.fileno())
+        delivered = []
+        if os.path.exists(dest):
+            with open(dest) as fh:
+                delivered = [json.loads(line) for line in fh if line.strip()]
+        # The local collector is a replayable projection. Publishing the
+        # deduplicated set atomically makes a crash before spool removal safe.
+        lines = dict.fromkeys(json.dumps(item, sort_keys=True) for item in delivered + items)
+        atomic_write(dest, ("\n".join(lines) + "\n").encode())
         os.remove(self._path(run_id))
         return {"flushed": len(items), "pending": 0, "collector": "recovered"}

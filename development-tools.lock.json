@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "platform": "linux-x86_64",
+  "tools": {
+    "ruff": {
+      "version": "0.16.8",
+      "sha256": "f3eb080f0173e1a5884fabcc2c836f5a0ebea35fccf252e718fc71b17f821ef7",
+      "source": "Existing local Ruff executable; no download or installation performed",
+      "status": "pinned_local_binary"
+    },
+    "mypy": {
+      "status": "blocked",
+      "reason": "No approved offline mypy artifact or transitive dependency lock is available. Administrator import is required before type qualification."
+    }
+  }
+}

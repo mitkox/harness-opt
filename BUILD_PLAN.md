@@ -1,13 +1,17 @@
 # HOP — Harness Optimization Platform
 ## Coding-agent implementation plan
 
-Version: 0.1 design handoff  
-Prepared: 12 September 2026  
-Status: implementation specification, not an implemented or benchmarked product
+Version: 0.2 single-user scope revision
+Updated: 1 October 2026
+Status: M0-M3 scoped delivery; foundation requalification remains blocked
+
+## Scope Override
+
+HOP is for one local user. There are no accounts, tenants, teams, RBAC, organization administration, approval chains, fleet deployments, or required external services. Use one local configuration and owner-controlled storage. This revision supersedes the original enterprise requirements; see ADR-011. Safety boundaries between the owner, agent, verifier, and optimizer remain mandatory. M0-M3 historical evidence and schema identifiers remain unchanged. Foundation acceptance still gates M4; no milestone is declared complete by this scope change.
 
 ## 0. Mission and operating boundary
 
-Build a local-only platform that develops, evaluates, optimizes, packages, deploys, observes, and retires configurations for enterprise software-development agents. Optimize the whole executable configuration, including skills and their executable resources, rather than only the system prompt.
+Build a local-only tool for one developer to evaluate and improve coding-agent configurations on their own machine and repositories. Optimize the whole executable configuration, including skills and their executable resources, rather than only the system prompt.
 
 Initial model targets are DeepSeek-V4-Flash, DeepSeek-V4.1-Flash, Qwen3.8-Flash-Next, Qwen3.8-27B, and GLM-5.3-Flash. These are discovery labels, not sufficient model identities. Each supported deployment must identify its exact local weights, quantization, tokenizer, chat template, serving runtime, and measured capabilities. Official model cards exist for these targets [S17–S21], but their hosted service settings and benchmark results must not be assumed to describe a particular local serving configuration.
 
@@ -15,7 +19,7 @@ Initial harness targets are Pi, Prime Agent, OpenCode v2 (the user's `opencode2`
 
 The initial host is the user's maxed-out Strix Halo. Start with an already-operational Qwen deployment and a lightweight control plane. Expand to other owner-controlled local workers as capacity permits. Do not assume that every named checkpoint can run on the Strix Halo, or that all five can stay resident concurrently. An unavailable or oversized deployment is marked `not_available_locally` or `capacity_blocked`, never replaced with a cloud endpoint.
 
-All model inference is local: task execution, routing, embeddings, summarization, judges, candidate generation, reflection, and synthetic test generation. All traces, patches, source snapshots, and evaluation records remain local. External Git providers are optional enterprise integrations, not inference dependencies. A strict disconnected mode uses only local Git and artifact mirrors.
+All model inference is local: task execution, routing, embeddings, summarization, judges, candidate generation, reflection, and synthetic test generation. All traces, patches, source snapshots, and evaluation records remain local. Use local Git snapshots and explicitly imported fixtures; provider write-back and webhook services are outside scope. A strict disconnected mode uses only local Git and artifact mirrors.
 
 The earlier conversational prompt styles, reasoning budgets, and score examples are hypotheses, not measured defaults. This project must discover compatibility and establish its own baselines before assigning preferred configurations.
 
@@ -33,7 +37,7 @@ The deliverable is a reproducible **execution bundle**, not a folder of Markdown
 
 ```
 model deployment + harness build + base prompt
-+ organization policy + project instructions + agent graph
++ local safety policy + project instructions + agent graph
 + selected skill variants + tool implementations
 + context and memory policies + inference configuration
 + compiler/APM locks + sandbox image + hardware envelope
@@ -47,7 +51,7 @@ Success means the system can prove an improvement, safely keep the incumbent whe
 
 **Local-only execution.** Network enforcement, not prompts, must restrict inference destinations. Disallow cloud fallbacks and external telemetry. Test all subprocesses and sidecars, including compaction, title generation, embedding, judge, and optimizer paths. A private-looking URL alone is not proof of locality; deployments must resolve to registered local endpoints, authenticate where appropriate, and be protected against redirects and DNS changes.
 
-**Immutable production bundles.** A run is bound to a signed, content-addressed bundle at admission. A mutable channel such as `stable` resolves once. Never overwrite a shared skill directory while a run is using it. Record explicit child runs for model escalation or restarted attempts.
+**Immutable production bundles.** A run is bound to a content-addressed bundle at admission. The local active-profile pointer resolves once. Evidence and explicit owner confirmation are required for activation, not a signing service. Never overwrite a shared skill directory while a run is using it. Record explicit child runs for model escalation or restarted attempts.
 
 **Independent verification.** Agent narration, harness exit status, and tool process exit codes are not sufficient evidence of task success. A trusted verifier evaluates a frozen output snapshot in a separate environment.
 
@@ -57,7 +61,7 @@ Success means the system can prove an improvement, safely keep the incumbent whe
 
 **Honest observability.** Missing events, incomplete artifacts, estimated token counts, and unsupported model capabilities are explicit. A skill being available or read does not prove that it caused an outcome.
 
-**Controlled side effects.** Evaluation and shadow runs cannot publish comments, push branches, trigger real deployments, or scan unapproved targets. Live writes flow through a separate permissioned publisher.
+**Controlled side effects.** Evaluation and shadow runs cannot publish comments, push branches, trigger real deployments, or scan unapproved targets. The owner handles remote publishing outside HOP; evaluation emits local patches and findings.
 
 **Trace-derived content is untrusted.** Repository text, CI logs, tool outputs, and trajectories can contain instructions or secrets. Optimizer access is read-only, scoped, redacted where required, and separated from promotion credentials.
 
@@ -65,14 +69,14 @@ Success means the system can prove an improvement, safely keep the incumbent whe
 
 Implement a modular monolith first, with separate worker processes and strong trust boundaries. Do not start with a fleet of microservices, a custom model server, or a replacement agent loop.
 
-Recommended implementation choices are Python for the control plane, schema validation, scheduling, evaluation, optimization, and command-line interface; TypeScript for harness plugins where the harness requires it. Use FastAPI, Pydantic, PostgreSQL, and a pinned Python dependency lock. Choose exact supported language and dependency versions during the compatibility spike rather than installing unpinned `latest` packages.
+Recommended implementation choices are Python for the control plane, schema validation, scheduling, evaluation, optimization, and command-line interface; TypeScript for harness plugins where the harness requires it. Use argparse, Pydantic, PyYAML, SQLite, filesystem artifacts, JSONL evidence, and pinned offline dependencies. No HTTP service or database server is required. Choose exact supported language and dependency versions during the compatibility spike rather than installing unpinned `latest` packages.
 
-PostgreSQL holds registry metadata, job state, outcomes, approvals, and a transactional outbox. A content-addressed local filesystem holds large artifacts initially; an object-store interface permits an internal S3-compatible service later. Workers use durable leases, fencing tokens, heartbeats, cancellation, and idempotency. Do not claim exactly-once execution: side effects require reconciliation and idempotency keys.
+SQLite holds durable local run and attempt state. A content-addressed local filesystem holds artifacts. No PostgreSQL, S3, or remote worker fleet is planned. Workers use durable leases, fencing tokens, heartbeats, cancellation, and idempotency. Do not claim exactly-once execution: side effects require reconciliation and idempotency keys.
 
-The telemetry stack is OpenTelemetry Collector, Tempo, Prometheus, and Grafana, self-hosted. Tempo receives trace projections; PostgreSQL and the artifact store retain authoritative evaluation records. Grafana documents a Collector-to-Tempo pipeline [S15]. Pin the OpenTelemetry GenAI convention revision and map it through a compatibility module because that specification has its own evolving repository [S14].
+JSONL trajectories and local artifacts are authoritative evidence; local OpenTelemetry files are a projection. Existing collector/dashboard examples are optional compatibility material, not required services or release gates. Pin the OpenTelemetry GenAI convention revision and map it through a compatibility module because that specification has its own evolving repository [S14].
 
 ```
-CLI / internal UI / Git and CI integrations
+Local CLI / owner-controlled Git snapshots
                    |
               task admission
                    |
@@ -92,7 +96,7 @@ CLI / internal UI / Git and CI integrations
               /               \
      trusted verifier       OTel projection
               |               |
-      evaluation ledger   Tempo / Grafana
+      evaluation ledger   local trace files
               |
        local candidate optimizer
               |
@@ -100,7 +104,7 @@ CLI / internal UI / Git and CI integrations
               |
        sealed promotion evaluation
               |
-     approval -> signed release -> canary
+     owner confirmation -> local activation
               |
        active profiles and rollback
 ```
@@ -129,7 +133,7 @@ agent-optimization/
   profiles/models/ profiles/harnesses/ profiles/workflows/
   benchmarks/development/ benchmarks/validation/
   tests/unit/ contract/ integration/ security/ e2e/
-  deploy/compose/ deploy/kubernetes/ dashboards/
+  scripts/                 offline setup and local checks
   docs/adr/ docs/runbooks/
 ```
 
@@ -139,7 +143,7 @@ The sealed holdout is a separate evaluator-owned store, not a readable directory
 
 Define the following versioned contracts before implementing adapters. Validate them at API admission, worker admission, and artifact import.
 
-**ModelDeployment.** Discovery label; family; source artifact provenance; weight manifest hashes; tokenizer and chat-template hashes; quantization recipe and format; server image/build; parser implementation; inference settings; context limits measured locally; capabilities and their test evidence; hardware and memory envelope; local endpoint reference; status. License metadata is recorded for organizational review, not treated as a legal conclusion.
+**ModelDeployment.** Discovery label; family; source artifact provenance; weight manifest hashes; tokenizer and chat-template hashes; quantization recipe and format; server image/build; parser implementation; inference settings; context limits measured locally; capabilities and their test evidence; hardware and memory envelope; local endpoint reference; status. License metadata is recorded for owner review, not treated as a legal conclusion.
 
 **HarnessBuild.** Source repository/revision, binary and dependency hashes, adapter revision, protocol version, configuration schema, supported interception points, permission surfaces, restart/resume semantics, home/config isolation behavior, built-in prompts/skills, and telemetry limitations.
 
@@ -151,28 +155,15 @@ Define the following versioned contracts before implementing adapters. Validate 
 
 **TaskSpec.** Workflow, source provenance, repository snapshot, build environment digest, public prompt, acceptance requirements, permissions, budgets, benchmark split, replay fixtures, data classification, and an opaque verifier reference. Hidden verifier content never enters the task payload delivered to the agent.
 
-**ExecutionBundle.** Fully resolved dependencies and compiled files, effective prompt provenance, model/harness identities, policy IDs, selected skill variants, APM state, sandbox/tools, approved resource envelope, source map, and content digest. Promotion evidence and signatures refer to that digest.
+**ExecutionBundle.** Fully resolved dependencies and compiled files, effective prompt provenance, model/harness identities, policy IDs, selected skill variants, APM state, sandbox/tools, approved resource envelope, source map, and content digest. Confirmation and local activation evidence refer to that digest.
 
 **Run and TrajectoryEvent.** Logical task ID, run and attempt IDs, parent/child relationships, bundle digest, timestamps, source sequence numbers, trusted observer identity, trace/span links, artifact references, and completeness status.
 
 **EvaluationResult.** Verifier build, test and fixture hashes, pass/fail/inconclusive/error results, workflow-specific measurements, unsupported/missing measurements, confidence intervals, contamination checks, and attribution limits.
 
-**Candidate and Release.** Parent bundles, exact diff, candidate generator model/prompt, optimization dataset membership, mutation permissions, evaluation report, approvals, channel assignment, revocation and rollback target.
+**Candidate and Release.** Parent bundles, exact diff, candidate generator model/prompt, optimization dataset membership, mutation permissions, evaluation report, owner confirmation, local activation history, and rollback target.
 
-Suggested APIs to build, not existing product commands:
-
-```
-POST /v1/models/register          POST /v1/models/{id}/probe
-POST /v1/tasks                   POST /v1/runs
-GET  /v1/runs/{id}/events         POST /v1/runs/{id}/cancel
-GET  /v1/runs/{id}/artifacts      POST /v1/evaluations
-POST /v1/optimization-jobs       GET  /v1/candidates/{id}
-POST /v1/releases/prepare        POST /v1/releases/{id}/approve
-POST /v1/channels/{id}/promote    POST /v1/channels/{id}/rollback
-GET  /v1/workers                 GET  /v1/compatibility
-```
-
-All mutations require scoped authorization and idempotency keys where retried. Task IDs, run IDs, and repository names are not authorization boundaries by themselves. Separate tenant/repository permissions must be checked.
+All mutations require scoped authorization and idempotency keys where retried. Task IDs, run IDs, and repository names are not authorization boundaries by themselves. The owner explicitly selects paths; workers receive per-run capabilities. There are no tenant, role, account, or team settings.
 
 ## 5. Model identity and local serving compatibility
 
@@ -230,7 +221,7 @@ Do not depend on undocumented preview internals without a maintained adapter bou
 
 APM remains a packaging and dependency-management component. Its documented lockfile and frozen installation behavior provide useful dependency pinning [S01–S02]. Do not make the platform's optimizer, model registry, task scheduler, or promotion authority depend on APM's internal implementation.
 
-Compiler inputs are semantic skills, agent contracts, organization policy, project instructions, model compatibility, and harness capabilities. Compiler outputs are a content-addressed bundle, harness-native configuration, explicit enabled/disabled skill catalog, source map, and compatibility report.
+Compiler inputs are semantic skills, agent contracts, local safety policy, project instructions, model compatibility, and harness capabilities. Compiler outputs are a content-addressed bundle, harness-native configuration, explicit enabled/disabled skill catalog, source map, and compatibility report.
 
 Support deterministic transformations for file layout and tool bindings. Do not use an LLM during release compilation: LLM rewrites belong in candidate generation, followed by evaluation and an approved immutable source revision. The same input hashes must compile to identical output bytes.
 
@@ -245,13 +236,13 @@ Evaluate executable behavior, not only Markdown quality. A shorter description t
 
 Use APM only for targets supported by the pinned version; independently qualify its OpenCode v2 output. Provide platform-owned exporters for Pi, Prime, and DeepSeek Harness wherever APM lacks a verified native target. Run packaging in an isolated build directory, never against an active developer workspace.
 
-Promotion creates a signed release manifest binding bundle digest, lockfiles, all executable resources, model/harness compatibility, verifier versions, and evaluation evidence. Frozen APM installation is not proof of runtime model identity, behavioral quality, or a complete air-gapped environment. Mirror required Git and package artifacts locally and test disconnected replay.
+Local activation creates a content-addressed manifest binding bundle digest, lockfiles, all executable resources, model/harness compatibility, verifier versions, and evaluation evidence. Frozen APM installation is not proof of runtime model identity, behavioral quality, or a complete air-gapped environment. Mirror required Git and package artifacts locally and test disconnected replay.
 
-Distribution is pull-based desired-state reconciliation. A node fetches an approved channel, verifies signatures/hashes, stages files, checks compatibility, and atomically activates them for new sessions. Drift produces a visible diff and quarantine or repair decision; it must not silently overwrite a developer's uncommitted work. Old bundles stay available for rollback and active sessions.
+Local activation resolves an owner-confirmed bundle, verifies hashes, stages files, checks compatibility, and atomically activates them for new sessions. Drift produces a visible diff and quarantine or repair decision; it must not silently overwrite a developer's uncommitted work. Old bundles stay available for rollback and active sessions.
 
-## 8. Enterprise workflow packs
+## 8. Personal Development Workflow Packs
 
-Build six initial workflow packs with independent permissions, outputs, and verifiers.
+Core packs cover coding/refactoring, debugging, local diff review, and test/dependency maintenance. Local build repair is optional. Standalone defensive-scanner workflows are outside scope; code-safety regression tests remain mandatory. Each enabled pack still needs passing, failing, and inconclusive examples with independent verification.
 
 | Pack | Typical tasks | Independent success evidence |
 |---|---|---|
@@ -259,10 +250,9 @@ Build six initial workflow packs with independent permissions, outputs, and veri
 | Debugging | Reproduce bugs, inspect logs, fix concurrency/data/config faults | Reproducer fails on baseline and passes on patch, negative tests, regression suite |
 | PR/MR review | Correctness, maintainability, security, missing-test findings | Validated findings with exact file/line evidence, precision, recall on labeled cases, abstention on clean changes |
 | CI and build engineering | Broken pipelines, packaging failures, dependency issues, flaky jobs | Pinned local pipeline reproduction, repaired intended stages, no removed checks, fixture provenance |
-| Defensive security | SAST triage, dependency/IaC/container findings, authorization bugs, hardening | Reproducible authorized findings, safe repair, scanner/rule evidence, security and functional tests |
 | Test and dependency maintenance | Test generation, migrations, upgrades, coverage gaps | Mutation/fault detection, edge-case behavior, compatibility, clean dependency/build output |
 
-Start with languages represented by the actual pilot repositories. Use C#/.NET, Python, TypeScript, and Go as candidate initial tracks, not a claim about uninspected repositories. Add Java, C/C++, Rust, shell, and infrastructure templates as needed.
+Start with languages represented by the owner's actual repositories. Use C#/.NET, Python, TypeScript, and Go as candidate initial tracks, not a claim about uninspected repositories. Add Java, C/C++, Rust, shell, and infrastructure templates as needed.
 
 Coding runs emit a patch and completion evidence. Review runs emit structured findings rather than modifying the branch. CI runs work against recorded logs and recreated environments. Security tasks are restricted to authorized repositories and isolated lab targets, with network scanning and exploitation disabled by default.
 
@@ -270,9 +260,10 @@ For review benchmarks, include clean changes, severity calibration, plausible bu
 
 For CI benchmarks, distinguish product failure, flaky test, infrastructure failure, toolchain mismatch, and missing fixture. Disabling tests, loosening quality gates, or hiding errors cannot count as repairing the pipeline.
 
-For security tooling, use pluggable local scanners with pinned rules and database snapshots. Mirror vulnerability data through a controlled update process. Trivy documents air-gapped operation and the required local database handling [S16]. Record database freshness so an offline scanner's lack of findings is not misrepresented as current coverage.
+Standalone scanner/database management is outside scope. Local code-review and
+adversarial regression fixtures still test secrets, policy bypass, and unsafe code.
 
-Git integration should first read task/PR/MR metadata and materialize local snapshots. Add controlled write-back for review comments or draft branches only after approval. Support provider adapters for GitLab, GitHub, and Azure DevOps without embedding provider-specific behavior in the optimizer.
+Review local commits and diffs, or explicitly imported PR/MR snapshots. Emit findings locally. Provider comment publishing, webhooks, corporate CI administration, and GitHub/GitLab/Azure DevOps integration services are outside scope.
 
 ## 9. Benchmark task packages and evaluation integrity
 
@@ -305,7 +296,7 @@ Classify outcomes as `pass`, `fail`, `inconclusive`, `infra_error`, `cancelled`,
 
 Every supported model/harness/workflow starts with these arms:
 
-A. Native harness plus mandatory organization policy, necessary project instructions, and fixed tools; no optional platform skills.
+A. Native harness plus mandatory local safety policy, necessary project instructions, and fixed tools; no optional platform skills.
 B. Canonical skill set with automatic selection.
 C. Current approved model-specific bundle.
 D. Proposed candidate bundle.
@@ -381,7 +372,7 @@ An observer outage causes durable buffering. A run with an unrecoverable ledger 
 
 ### Investigation UI
 
-Provide run search by workflow/model/harness/bundle and a trajectory viewer with source-linked skill events, code diffs, tool output, subagent tree, verifier evidence, and resource timeline. Provide paired-run comparison, skill activation confusion matrices, candidate ancestry, and promotion rationale. A Grafana trace view links back to the run's immutable artifacts.
+Provide run search by workflow/model/harness/bundle and a trajectory viewer with source-linked skill events, code diffs, tool output, subagent tree, verifier evidence, and resource timeline. Provide paired-run comparison, skill activation confusion matrices, candidate ancestry, and promotion rationale. CLI investigation links back to the run's immutable artifacts.
 
 Distinguish three operations: viewing a recorded trajectory, re-executing a task with a model, and re-evaluating a frozen patch. Recorded downstream tool outputs cannot be reused as valid counterfactual evidence when a candidate would have taken different actions.
 
@@ -404,7 +395,7 @@ Use staged search to avoid the full model × harness × skill × prompt × param
 
 GEPA is a suitable optional search backend because its documented interface supports trace-informed reflective optimization of text parameters and adapter-based evaluation [S13]. Keep it behind `OptimizerBackend`; the platform owns execution, scoring, permissions, datasets, and promotion. Explicitly configure all reflection and evaluation calls to local deployments rather than copying hosted-model defaults from examples.
 
-Candidate generation receives redacted development failure records, allowed source files, and an explicit mutation schema. It writes a candidate branch or artifact diff, not the live bundle. Record the proposer model deployment, prompt, seed, parent candidate, source cases, changed fields, and compute budget. Candidate-generating jobs cannot access release signing keys.
+Candidate generation receives redacted development failure records, allowed source files, and an explicit mutation schema. It writes a candidate branch or artifact diff, not the live bundle. Record the proposer model deployment, prompt, seed, parent candidate, source cases, changed fields, and compute budget. Candidate-generating jobs cannot change the owner's active-profile pointer or access host credentials.
 
 Reject invalid candidates before model runs: schema errors, broken dependencies, executable test failures, forbidden file changes, policy changes, embedded credentials, prompt/catalog over-budget, missing provenance, or unsafe imports. Skill scripts are untrusted candidate code and run only in the external sandbox.
 
@@ -430,7 +421,7 @@ Triggers include approved production feedback, failure/incident clusters, repeat
 
 Pipeline: collect -> scrub -> provenance check -> deduplicate -> curate cases -> assign splits -> generate candidate -> validate -> confirm -> approve -> canary -> promote -> monitor -> retire/rollback.
 
-Use safe exploration only in isolated offline or shadow runs initially. Shadow runs execute on snapshots with side effects disabled. Production bandit experiments are a later opt-in feature limited to already approved profiles and low-risk tasks, with recorded assignment probabilities and human intervention controls.
+Use safe exploration only in isolated offline or shadow runs initially. Shadow runs execute on snapshots with side effects disabled. Live traffic experiments and production bandit routing are outside scope; the owner may explicitly try a confirmed profile on a local task.
 
 ## 14. New-model and infrastructure-change lifecycle
 
@@ -451,21 +442,21 @@ Measure capacity and protocol compatibility before importing historical skills. 
 
 Approve only tested workflow × harness × runtime-envelope combinations. Partial qualification is acceptable and must be visible. Build a dependency graph so a tokenizer/template/parser/server/quantization/toolchain change invalidates only the affected approvals, with broader regression runs for shared policy/compiler changes.
 
-Canary and rollback use immutable bundle digests. Prefer a small supervised cohort or designated repository set before broad deployment. Do not determine success only from live merge rate; use delayed regressions, verified task outcomes, and intervention signals. Keep the prior model artifacts available until rollback retention expires.
+Canary and rollback use immutable bundle digests. Use an explicitly selected local trial task before changing the default profile. Do not determine success only from live merge rate; use delayed regressions, verified task outcomes, and intervention signals. Keep the prior model artifacts available until rollback retention expires.
 
 ## 15. Security and isolation architecture
 
-Separate the control plane, untrusted agent workers, trusted verifier workers, and release publisher by identity, filesystem, network, and credentials. A registry signature prevents undetected artifact replacement but does not make an artifact safe to execute.
+Separate the control plane, untrusted agent workers, and trusted verifier workers by process authority, filesystem, network, and credentials. One owner does not make untrusted code safe. Content hashes detect changes but do not establish that code is safe.
 
 Use rootless containers for approved ordinary code workloads where the threat model permits, and VM-backed or Kata-class isolation for untrusted repositories/security fixtures after validating hardware support. Never mount host SSH agents, broad Git credentials, the container runtime socket, release keys, or hidden test storage into an agent worker. Nested untrusted tests still require containment.
 
-Mount promoted bundles read-only; provide per-run writable workspace, home, cache, session, memory, and temporary directories. Namespace retrieval indexes and embeddings by tenant/repository and benchmark split. Shared read-only package caches are allowed only if data provenance and contamination controls are explicit.
+Mount promoted bundles read-only; provide per-run writable workspace, home, cache, session, memory, and temporary directories. Separate retrieval indexes and embeddings by project and benchmark split; there is no tenant dimension. Shared read-only package caches are allowed only if data provenance and contamination controls are explicit.
 
 Apply egress policy at the host/network boundary. Permit only registered inference, internal package mirrors, approved tool services, and approved Git connectors for the given mode. Test hostname redirects, proxy environment variables, IPv6, DNS, child processes, and tool downloads. Disable unattended harness/package updates and session-sharing integrations.
 
 Code execution and shell commands need hard time, process, disk, memory, and output limits. Quota limits apply across all descendants. A local model can still issue destructive commands; model provenance does not replace sandboxing or authorization.
 
-A separate write broker receives proposed branch pushes, comments, and CI actions. It verifies task authorization and approved intent, applies idempotency, and never blindly executes text from the model. Security remediation requires review before merging or deploying. Defensive scanning scope is explicitly declared; no autonomous probing of public targets.
+HOP emits local patches and findings; external pushes, comments, and CI actions remain owner operations outside HOP. Security remediation requires review before merging or deploying. Defensive scanning scope is explicitly declared; no autonomous probing of public targets.
 
 Adversarial tests include malicious repository instructions, forged test logs, fake tool-call JSON, secret disclosure requests, unauthorized paths, hidden-test access, policy edits, malicious package lifecycle scripts, worker escape attempts in controlled fixtures, and observer outage. These tests are defensive and run within authorized lab environments.
 
@@ -473,11 +464,11 @@ Adversarial tests include malicious repository instructions, forged test logs, f
 
 Define task and run state machines with transition guards. Leases carry fencing tokens so a replaced worker cannot finalize or publish an old attempt. Cancellation propagates to model requests, child agents, shell processes, and the sandbox. Orphan processes are reconciled on startup.
 
-Use transactional state-plus-outbox writes for changes that trigger jobs. Content artifacts are staged, hashed, and atomically finalized before records reference them as complete. Keep recoverable partial artifacts labeled incomplete. Publishing and comment writes need deduplication keys and provider-side reconciliation where possible.
+Use transactional state-plus-outbox writes for changes that trigger jobs. Content artifacts are staged, hashed, and atomically finalized before records reference them as complete. Keep recoverable partial artifacts labeled incomplete. External publishing and comment writes are outside this tool.
 
 Worker restarts should recover durable ingestion cursors and resume only when the harness explicitly supports safe continuation. Otherwise create a new attempt on a clean snapshot, retaining the failed attempt. Never silently append a new model run to the old run's timing metrics.
 
-Back up PostgreSQL, bundle artifacts, benchmark manifests, local model manifests, and signing trust metadata. Test restore and a frozen offline evaluation. A backup that restores only the database but not its referenced content is not adequate.
+Back up SQLite, bundle artifacts, benchmark manifests, local model manifests, and local activation history. Test restore and a frozen offline evaluation. A backup that restores only the database but not its referenced content is not adequate.
 
 For the local workstation, enforce separate resource pools for interactive serving, benchmarks, verification, and optimization. Use model-residency-aware scheduling and avoid overlapping heavyweight actor/judge/reflection processes. Measure instrumentation overhead and expose it; do not claim an arbitrary low overhead target without measurements.
 
@@ -505,7 +496,7 @@ These are dependency-ordered milestones, not calendar estimates. Detailed work i
 
 Create the repository, pinned toolchain, schemas, architecture decisions, trust-boundary model, local endpoint registry, and integration matrix. Record actual source/build identities for each harness and available model deployment. Produce findings instead of guessing unsupported interfaces.
 
-Exit: the CLI validates a draft target profile, refuses unresolved release input, and identifies a real local Qwen/Pi pair; the threat model covers worker, verifier, telemetry, and publisher boundaries.
+Exit: the CLI validates a draft target profile, refuses unresolved release input, and identifies a real local Qwen/Pi pair; the threat model covers worker, verifier, and telemetry boundaries.
 
 ### M1 — Minimal vertical slice
 
@@ -515,23 +506,23 @@ Exit: a task can pass, fail, timeout, be cancelled, and survive an observer reco
 
 ### M2 — Trace and trajectory evaluation
 
-Complete event schema, spool/recovery, source maps, redaction, resource accounting, subagent links, Grafana integration, trajectory view, paired comparison, and failure taxonomy.
+Complete event schema, spool/recovery, source maps, redaction, resource accounting, subagent links, local trace export, trajectory view, paired comparison, and failure taxonomy.
 
 Exit: every promotion-eligible run has linked model/tool/skill/verifier evidence; injected missing events prevent eligibility. A secrets fixture does not leak into ordinary logs, spans, metrics, or reports.
 
 ### M3 — Canonical skills, compiler, and APM
 
-Implement SkillSpec, variant generation inputs, deterministic compilation, native exporters, isolated APM packaging, lock verification, source maps, signed bundles, and atomic local activation.
+Implement SkillSpec, variant generation inputs, deterministic compilation, native exporters, isolated APM packaging, lock verification, source maps, and content integrity. Local activation remains M8 work.
 
 Exit: identical inputs generate identical bundles; changing a script or reference changes identity; concurrent model profiles do not overwrite one another; a tampered bundle is refused.
 
-### M4 — Enterprise benchmark packs
+### M4 — Personal Development Packs
 
-Add the six workflow packs, task snapshot imports, protected evaluator storage, development/validation/holdout partitions, deterministic verifiers, local judge calibration, and controlled reporting.
+Add the four core workflow packs, optional local build fixtures, task snapshot imports, protected evaluator storage, development/validation/holdout partitions, deterministic verifiers, local judge calibration, and controlled reporting.
 
 Exit: representative coding/debug/CI/test tasks have reproducible verification; clean reviews are rewarded for justified abstention; security and CI cases cannot pass by suppressing checks.
 
-### M5 — All harness integrations
+### M5 — Optional Harness Integrations
 
 Qualify Prime, OpenCode v2, and DeepSeek Harness through the shared adapter suite. Handle Prime state/refinement and OpenCode durable event recovery explicitly. Add subagent accounting and permission inheritance.
 
@@ -551,9 +542,9 @@ Exit: the platform can produce a candidate, reject an invalid mutation, compare 
 
 ### M8 — Promotion, deployment, and rollback
 
-Implement sealed confirmation, approvals, signing, desired-state channels, atomic activation, drift detection, shadow runs, supervised canary, and rollback. Add enterprise read/write brokers with fine-grained scopes.
+Implement sealed confirmation, explicit owner confirmation, an atomic local active-profile pointer, snapshot-only trial runs, and rollback. No signing service, approval chain, fleet channels, or provider write broker is required.
 
-Exit: a deliberately regressed bundle cannot promote; a signed but incompatible bundle is refused; stable can roll back without rewriting active sessions or duplicating external writes.
+Exit: a regressed or incompatible bundle cannot activate; the owner can restore the previous local bundle without rewriting active sessions. Evaluation performs no external writes.
 
 ### M9 — Continuous lifecycle and new-model onboarding
 
@@ -561,11 +552,11 @@ Add local artifact discovery/import events, dependency invalidation, failure clu
 
 Exit: importing a changed model artifact creates a new qualified baseline and candidate process rather than inheriting approval; a live failure can become a curated development case without exposing sealed data.
 
-### M10 — Enterprise hardening and operational readiness
+### M10 — Local Reliability and Safety
 
-Complete tenant/repository authorization, retention, audit, restore testing, load fairness, disaster recovery, malicious-input suites, offline deployment manifests, runbooks, and measured instrumentation overhead.
+Complete owner-only local storage permissions, worker capability isolation, retention, backup/restore, protection of interactive capacity, malicious-input suites, offline installation, runbooks, and measured overhead. No tenant authorization, Kubernetes, or organizational audit service is required.
 
-Exit: reproduce a release evaluation from restored local artifacts with external network denied, exercise cancellation and rollback, and demonstrate authorization boundaries across repositories.
+Exit: reproduce a release evaluation from restored local artifacts with external network denied, exercise cancellation and rollback, and show that workers cannot access unrelated owner files or hidden evaluator data.
 
 ## 19. Coding-agent work protocol
 
@@ -575,21 +566,21 @@ A practical split is a lead integration agent, an execution/adapters agent, a te
 
 For every work item, the agent must inspect the relevant pinned upstream contract, implement the smallest vertical change, add unit and adversarial/contract tests, run available validations, record exact results, update the runbook/ADR when behavior changes, and leave a reviewable patch. Do not mark unavailable model tests as passing. Do not merge their own security-sensitive changes without independent review.
 
-Initial coding-agent instruction:
+Historical initial instruction, superseded by the foundation gate in BACKLOG.yaml:
 
 > Implement M0 and M1 only. Establish the contracts, external sandbox boundary, local inference adapter, Pi adapter, durable run ledger, and one independently verified debugging workflow. Do not start prompt optimization, distributed orchestration, or automatic promotion until a clean end-to-end run is reproducible and telemetry completeness is testable. Treat all `hop` commands in this plan as interfaces to implement (`aop` remains only as a deprecated alias).
 
 ## 20. Definition of done for the complete platform
 
-The platform is complete when all four harness adapters are implemented and qualified against available local targets or explicitly blocked with evidence; all five requested model labels have lifecycle entries; each of the six enterprise workflows has reproducible evaluation tasks and verifiers; every promotion-eligible run has attributable skill/model/tool/verifier evidence; and a full candidate-to-retirement lifecycle works without hosted inference.
+The single-user tool is complete when the selected local model and Pi baseline are qualified, the four core workflows have reproducible tasks and verifiers, eligible runs have attributable evidence, and the local candidate-to-activation-to-rollback lifecycle works. Additional models, harnesses, local build packs, and GEPA are opt-in with explicit status; unavailable optional features do not gate the core release.
 
-It must demonstrate skill selection optimization, instruction optimization, executable skill validation, skill-set ablation, model-specific bundles, new-model requalification, safe session learning, controlled production feedback, dynamic selection among approved bundles, signed distribution, rollback, and offline recovery.
+It must demonstrate skill selection optimization, instruction optimization, executable skill validation, skill-set ablation, model-specific bundles, new-model requalification, safe session learning, controlled production feedback, dynamic selection among approved bundles, local activation, rollback, and offline recovery.
 
 A release demonstration should include: one successful repair; one correctly rejected bad patch; one clean PR with no invented findings; one false security finding rejected by evidence; one CI attempt prevented from disabling checks; one incomplete-telemetry run blocked from promotion; one prompt-injected repository kept within permissions; one neutral/harmful skill removal experiment; and one model/quantization change requiring re-evaluation. Skill benefit is measured, not assumed: the demonstration may legitimately retain the incumbent when no improvement is established.
 
 ## 21. Evidence and current upstream references
 
-The architecture, thresholds, backlog, contract names, and `hop` interface are design proposals. No enterprise benchmark was executed while preparing this plan. Sources below establish current upstream capabilities; integration tests must pin the precise versions actually used.
+The architecture, thresholds, backlog, contract names, and `hop` interface are design proposals. No new workflow benchmark was executed while revising this scope. Sources below establish current upstream capabilities; integration tests must pin the precise versions actually used.
 
 S01. APM install and frozen replay: `https://microsoft.github.io/apm/reference/cli/install/`
 

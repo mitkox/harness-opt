@@ -1,0 +1,194 @@
+#!/usr/bin/env python3
+"""Offline development entry point. Never downloads or updates dependencies."""
+
+from __future__ import annotations
+
+import argparse
+import hashlib
+import json
+import os
+import platform
+import re
+import shutil
+import subprocess
+import sys
+import tempfile
+import venv
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[1]
+
+
+def python():
+    for name in (".venv", ".venv-m1"):
+        candidate = (ROOT / name).resolve() / "bin/python"
+        if candidate.exists():
+            return str(candidate)
+    raise ValueError("No environment. Run scripts/dev bootstrap with an approved wheelhouse.")
+
+
+def run(command, **kwargs):
+    return subprocess.run(
+        command,
+        cwd=ROOT,
+        env={**os.environ, "PYTHONPATH": str(ROOT / "src")},
+        check=False,
+        **kwargs,
+    ).returncode
+
+
+def bootstrap(args):
+    if (
+        sys.version_info[:2] != (3, 14)
+        or platform.system() != "Linux"
+        or platform.machine() != "x86_64"
+        or platform.python_implementation() != "CPython"
+    ):
+        raise ValueError(
+            "Offline wheelhouse currently evidenced for CPython 3.14/Linux x86-64 only."
+        )
+    wheelhouse = Path(
+        os.environ.get(
+            "HOP_WHEELHOUSE", os.environ.get("AOP_WHEELHOUSE", str(ROOT / ".vendor/wheels"))
+        )
+    ).resolve()
+    target = Path(
+        os.environ.get("HOP_LOCK_VENV", os.environ.get("AOP_LOCK_VENV", str(ROOT / ".venv")))
+    )
+    if not target.is_absolute():
+        target = ROOT / target
+    if target.parent.resolve() != ROOT or not target.name.startswith(".venv"):
+        raise ValueError("Environment link must be a .venv-prefixed path in this workspace.")
+    if target.exists() and not target.is_symlink():
+        raise ValueError(
+            f"Preserving existing directory {target}; choose a new HOP_LOCK_VENV link."
+        )
+    if target.is_symlink():
+        previous = target.resolve()
+        if previous.parent != ROOT / ".venvs" or not (previous / "pyvenv.cfg").exists():
+            raise ValueError("Refusing to replace an environment link not managed by scripts/dev.")
+    lock = ROOT / ("requirements-runtime.lock" if args.runtime else "requirements.lock")
+    if not wheelhouse.is_dir():
+        raise ValueError(f"Missing approved wheelhouse: {wheelhouse}. No packages downloaded.")
+    blocks = re.split(r"(?m)(?=^[A-Za-z0-9_-]+==)", lock.read_text())
+    wheels = list(wheelhouse.glob("*.whl"))
+    for block in blocks:
+        match = re.match(r"([A-Za-z0-9_-]+)==([^\s\\]+)", block)
+        if not match:
+            continue
+        name, version = match.groups()
+        prefix = name.lower().replace("-", "_") + "-" + version + "-"
+        hashes = set(re.findall(r"--hash=sha256:([0-9a-f]{64})", block))
+        candidates = [p for p in wheels if p.name.lower().startswith(prefix)]
+        if not candidates or not hashes:
+            raise ValueError(f"Missing pinned wheel or hash for {name}=={version}")
+        if not any(hashlib.sha256(p.read_bytes()).hexdigest() in hashes for p in candidates):
+            raise ValueError(f"Wheel integrity check failed for {name}=={version}")
+    parent = ROOT / ".venvs"
+    parent.mkdir(exist_ok=True)
+    directory = Path(tempfile.mkdtemp(prefix="env-", dir=parent))
+    published = False
+    try:
+        venv.EnvBuilder(with_pip=True, symlinks=True).create(directory)
+        executable = str(directory / "bin/python")
+        command = [
+            executable,
+            "-m",
+            "pip",
+            "install",
+            "--disable-pip-version-check",
+            "--no-cache-dir",
+            "--no-index",
+            "--find-links",
+            str(wheelhouse),
+            "--require-hashes",
+            "-r",
+            str(lock),
+        ]
+        if run(command):
+            raise ValueError("Offline installation failed; previous environment preserved.")
+        if run([executable, "-m", "hop.cli", "--help"], stdout=subprocess.DEVNULL):
+            raise ValueError("New environment failed CLI validation.")
+        if run([executable, "-c", "import pydantic, yaml, pytest"]):
+            raise ValueError("New environment lacks required runtime/verifier dependencies.")
+        if args.run_tests and run([executable, "-m", "pytest", "tests", "-m", "not live", "-q"]):
+            raise ValueError("New environment failed tests; previous environment preserved.")
+        link = ROOT / (target.name + ".pending")
+        if link.exists() or link.is_symlink():
+            raise ValueError(f"Pending environment switch exists: {link}")
+        created_link = False
+        try:
+            link.symlink_to(directory)
+            created_link = True
+            os.replace(link, target)
+        finally:
+            if created_link and link.is_symlink():
+                link.unlink()
+        published = True
+        print(json.dumps({"environment": str(target), "runtime_only": args.runtime}))
+        return 0
+    finally:
+        if not published:
+            shutil.rmtree(directory)
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    sub = parser.add_subparsers(dest="command", required=True)
+    build = sub.add_parser("bootstrap", help="Build and validate a new offline environment")
+    build.add_argument("--runtime", action="store_true")
+    build.add_argument("--run-tests", action="store_true")
+    test = sub.add_parser("test", help="Run a selected test suite")
+    test.add_argument(
+        "--suite", choices=("unit", "contract", "sandbox", "all", "live"), default="unit"
+    )
+    sub.add_parser("check", help="Run static checks without changing source")
+    sub.add_parser("acceptance", help="Run all available gates, failing on any blocked gate")
+    args = parser.parse_args()
+    try:
+        if args.command == "bootstrap":
+            if args.runtime and args.run_tests:
+                raise ValueError("Runtime-only environments do not include test dependencies.")
+            return bootstrap(args)
+        if args.command == "test":
+            marker = "not live" if args.suite == "all" else args.suite
+            return run([python(), "-m", "pytest", "tests", "-m", marker, "-o", "addopts=", "-q"])
+        if args.command == "acceptance":
+            status = run([sys.executable, str(Path(__file__)), "check"])
+            tests = run([python(), "-m", "pytest", "tests", "-m", "not live", "-q"])
+            print(
+                "BLOCKED: live local-model acceptance and independent boundary review required.",
+                file=sys.stderr,
+            )
+            return status or tests or 3
+        statuses = []
+        tools = json.loads((ROOT / "development-tools.lock.json").read_text())["tools"]
+        for command in (
+            ["ruff", "check", "src", "tests", "scripts/dev"],
+            ["ruff", "format", "--check", "src", "tests", "scripts/dev"],
+            ["mypy", "src/hop"],
+        ):
+            executable = shutil.which(command[0])
+            identity = tools.get(command[0], {})
+            if not executable or not identity.get("sha256"):
+                print(
+                    f"BLOCKED: approved offline {command[0]} unavailable or unpinned",
+                    file=sys.stderr,
+                )
+                statuses.append(3)
+            elif hashlib.sha256(Path(executable).read_bytes()).hexdigest() != identity["sha256"]:
+                print(
+                    f"BLOCKED: {command[0]} build does not match the approved local pin",
+                    file=sys.stderr,
+                )
+                statuses.append(3)
+            else:
+                statuses.append(run([executable, *command[1:]]))
+        return next((status for status in statuses if status), 0)
+    except (OSError, ValueError) as exc:
+        print(f"BLOCKED: {exc}", file=sys.stderr)
+        return 3
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

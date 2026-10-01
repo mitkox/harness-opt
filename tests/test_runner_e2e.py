@@ -3,13 +3,15 @@
 The scripted harness makes pass/fail/timeout/cancel/scope and infra-error
 paths deterministic without a GPU. Real verifier isolation still runs.
 """
+
 import json
 import os
+import sqlite3
 import threading
 import time
+from pathlib import Path
 
 import jsonschema
-import pytest
 
 from hop.runner import Runner
 from hop.runstore import RunStore
@@ -20,42 +22,50 @@ def _runner(tmp_path, artifacts=None):
 
 
 def test_fail_arm_baseline_unfixed(tmp_path):
-    rep = _runner(tmp_path).execute("debug-offbyone", harness="scripted:succeed",
-                                    idempotency_key="e2e-fail")
+    rep = _runner(tmp_path).execute(
+        "debug-offbyone", harness="scripted:succeed", idempotency_key="e2e-fail"
+    )
     assert rep["outcome"] == "fail" and rep["verdict"] == "fail"
-    assert rep["model_deployment_id"].startswith("qwen-flash-next")
-    types = [json.loads(line)["event_type"]
-             for line in open(f"{rep['run_dir']}/events.jsonl") if line.strip()]
+    assert rep["model_deployment_id"] == "fixture-local"
+    types = [
+        json.loads(line)["event_type"]
+        for line in Path(f"{rep['run_dir']}/events.jsonl").read_text().splitlines(keepends=True)
+        if line.strip()
+    ]
     assert "run.admitted" in types and "harness.accepted" in types
     assert "evaluation.recorded" in types and "output.frozen" in types
     assert rep["completeness"]["complete"] is True
 
 
 def test_repair_arm_passes(tmp_path):
-    rep = _runner(tmp_path).execute("debug-offbyone", harness="scripted:repair",
-                                    idempotency_key="e2e-repair")
+    rep = _runner(tmp_path).execute(
+        "debug-offbyone", harness="scripted:repair", idempotency_key="e2e-repair"
+    )
     assert rep["outcome"] == "pass" and rep["verdict"] == "pass"
     assert rep["error_class"] == ""
 
 
 def test_scope_violation_is_rejected(tmp_path):
-    rep = _runner(tmp_path).execute("debug-offbyone", harness="scripted:scope_violation",
-                                    idempotency_key="e2e-scope")
+    rep = _runner(tmp_path).execute(
+        "debug-offbyone", harness="scripted:scope_violation", idempotency_key="e2e-scope"
+    )
     assert rep["outcome"] == "fail" and rep["error_class"] == "scope_violation"
-    scope = json.load(open(f"{rep['run_dir']}/scope.json"))
+    scope = json.loads(Path(f"{rep['run_dir']}/scope.json").read_text())
     assert any(v["path"] == "reproducer_visible.py" for v in scope["violations"])
 
 
 def test_forged_success_claim_still_fails(tmp_path):
-    rep = _runner(tmp_path).execute("debug-offbyone", harness="scripted:claim_success",
-                                    idempotency_key="e2e-forge")
+    rep = _runner(tmp_path).execute(
+        "debug-offbyone", harness="scripted:claim_success", idempotency_key="e2e-forge"
+    )
     assert rep["outcome"] == "fail"
     assert "trust me" in rep["agent_claim"]
 
 
 def test_timeout_arm(tmp_path):
-    rep = _runner(tmp_path).execute("debug-offbyone", harness="scripted:hang",
-                                    timeout_s=1.0, idempotency_key="e2e-timeout")
+    rep = _runner(tmp_path).execute(
+        "debug-offbyone", harness="scripted:hang", timeout_s=1.0, idempotency_key="e2e-timeout"
+    )
     assert rep["outcome"] == "timeout" and rep["verdict"] == "inconclusive"
 
 
@@ -67,8 +77,12 @@ def test_cancellation_has_durable_artifact(tmp_path):
 
     def run():
         box["rep"] = runner.execute(
-            "debug-offbyone", harness="scripted:hang", timeout_s=60,
-            cancel_file=cancel_file, idempotency_key="e2e-cancel")
+            "debug-offbyone",
+            harness="scripted:hang",
+            timeout_s=60,
+            cancel_file=cancel_file,
+            idempotency_key="e2e-cancel",
+        )
 
     thread = threading.Thread(target=run)
     thread.start()
@@ -79,9 +93,10 @@ def test_cancellation_has_durable_artifact(tmp_path):
     rep = box["rep"]
     assert rep["outcome"] == "cancelled" and rep["verdict"] == "inconclusive"
     run_dir = rep["run_dir"]
-    cancel = json.load(open(f"{run_dir}/cancellation.json"))
+    cancel = json.loads(Path(f"{run_dir}/cancellation.json").read_text())
     assert cancel["requested"] is True and cancel["terminal_status"] == "cancelled"
     from hop.trajectories import EventLedger
+
     ledger = EventLedger(f"{run_dir}/events.jsonl")
     events = ledger.read_all()
     assert any(e.event_type == "cancel.requested" for e in events)
@@ -95,19 +110,58 @@ def test_cancellation_has_durable_artifact(tmp_path):
 
 def test_duplicate_admission_is_idempotent(tmp_path):
     runner = _runner(tmp_path)
-    first = runner.execute("debug-offbyone", harness="scripted:repair",
-                           idempotency_key="dup-key")
-    second = runner.execute("debug-offbyone", harness="scripted:succeed",
-                            idempotency_key="dup-key")
+    first = runner.execute("debug-offbyone", harness="scripted:repair", idempotency_key="dup-key")
+    second = runner.execute("debug-offbyone", harness="scripted:succeed", idempotency_key="dup-key")
     assert second.get("idempotent_replay") is True
     assert second["run_id"] == first["run_id"]
     assert second["outcome"] == first["outcome"]
 
 
+def test_interrupt_has_cancelled_terminal_state(tmp_path, monkeypatch):
+    runner = _runner(tmp_path)
+
+    def interrupt(_ctx):
+        raise KeyboardInterrupt
+
+    monkeypatch.setattr(runner, "_prepare_run", interrupt)
+    try:
+        report = runner.execute("debug-offbyone", harness="scripted:repair")
+        assert report["outcome"] == "cancelled"
+        assert report["verdict"] == "inconclusive"
+        assert runner.store.get(report["run_id"]).status.value == "cancelled"
+        assert (
+            json.loads(Path(report["run_dir"], "report.json").read_text())["outcome"] == "cancelled"
+        )
+    finally:
+        runner.close()
+
+
+def test_terminal_store_failure_does_not_hide_original_error(tmp_path, monkeypatch):
+    runner = _runner(tmp_path)
+
+    def fail(_ctx):
+        raise OSError("fixture execution failure api_key=synthetic_secret_123")
+
+    def disk_full(*_args):
+        raise sqlite3.OperationalError("fixture database or disk is full")
+
+    monkeypatch.setattr(runner, "_prepare_run", fail)
+    monkeypatch.setattr(runner.store, "mark_infra_error", disk_full)
+    try:
+        report = runner.execute("debug-offbyone", harness="scripted:repair")
+        assert report["outcome"] == "infra_error"
+        assert "fixture execution failure" in report["error"]["message"]
+        assert "synthetic_secret_123" not in json.dumps(report)
+        assert report["error"]["terminal_store_error"] == "OperationalError"
+    finally:
+        runner.close()
+
+
 def test_every_run_pins_input_identity(tmp_path):
-    rep = _runner(tmp_path).execute("debug-wordcount", harness="scripted:repair",
-                                    idempotency_key="e2e-pin")
-    manifest = json.load(open(f"{rep['run_dir']}/manifest.json"))
+    rep = _runner(tmp_path).execute(
+        "debug-wordcount", harness="scripted:repair", idempotency_key="e2e-pin"
+    )
+    manifest = json.loads(Path(f"{rep['run_dir']}/manifest.json").read_text())
     assert manifest["bundle"]["digest"].startswith("sha256:")
     assert manifest["model"]["deployment_id"]
     assert manifest["model"]["weight_shards"], "weight-shard manifest must be recorded"
@@ -124,12 +178,13 @@ def test_every_run_pins_input_identity(tmp_path):
 
 
 def test_emitted_events_validate_against_published_schema(tmp_path):
-    rep = _runner(tmp_path).execute("debug-offbyone", harness="scripted:repair",
-                                    idempotency_key="e2e-schema")
-    schema = json.load(open("specs/trajectory-event.schema.json"))
+    rep = _runner(tmp_path).execute(
+        "debug-offbyone", harness="scripted:repair", idempotency_key="e2e-schema"
+    )
+    schema = json.loads(Path("specs/trajectory-event.schema.json").read_text())
     checker = jsonschema.FormatChecker()
     count = 0
-    for line in open(f"{rep['run_dir']}/events.jsonl"):
+    for line in Path(f"{rep['run_dir']}/events.jsonl").read_text().splitlines(keepends=True):
         if not line.strip():
             continue
         jsonschema.validate(json.loads(line), schema, format_checker=checker)
@@ -141,8 +196,9 @@ def test_missing_verifier_fixture_is_infra_error(tmp_path, monkeypatch):
     empty_root = tmp_path / "verifier-root"
     os.makedirs(empty_root / "hidden-tests")
     monkeypatch.setattr("hop.runner.HIDDEN_ROOT", str(empty_root / "hidden-tests"))
-    rep = _runner(tmp_path).execute("debug-offbyone", harness="scripted:succeed",
-                                    idempotency_key="e2e-nofix")
+    rep = _runner(tmp_path).execute(
+        "debug-offbyone", harness="scripted:succeed", idempotency_key="e2e-nofix"
+    )
     assert rep["outcome"] == "infra_error" and rep["verdict"] == "error"
     assert rep["error_class"] == "missing_verifier_fixture"
     assert os.path.exists(f"{rep['run_dir']}/report.json")
@@ -154,8 +210,9 @@ def test_invalid_verifier_fixture_is_infra_error(tmp_path, monkeypatch):
     os.makedirs(root)
     (root / "verifier.json").write_text('{"verifier_id": "x"}')
     monkeypatch.setattr("hop.runner.HIDDEN_ROOT", str(tmp_path / "verifier-root" / "hidden-tests"))
-    rep = _runner(tmp_path).execute("debug-offbyone", harness="scripted:succeed",
-                                    idempotency_key="e2e-badfix")
+    rep = _runner(tmp_path).execute(
+        "debug-offbyone", harness="scripted:succeed", idempotency_key="e2e-badfix"
+    )
     assert rep["outcome"] == "infra_error"
     assert rep["error_class"] == "invalid_verifier_fixture"
 
@@ -170,7 +227,8 @@ class _BrokenArtifacts:
 
 def test_storage_failure_is_durable_infra_error(tmp_path):
     rep = _runner(tmp_path, artifacts=_BrokenArtifacts()).execute(
-        "debug-offbyone", harness="scripted:succeed", idempotency_key="e2e-storage")
+        "debug-offbyone", harness="scripted:succeed", idempotency_key="e2e-storage"
+    )
     assert rep["outcome"] == "infra_error" and rep["error_class"] == "storage_failure"
     assert os.path.exists(f"{rep['run_dir']}/report.json")
 
@@ -180,7 +238,8 @@ def test_adapter_prepare_failure_is_infra_error(tmp_path, monkeypatch):
         raise RuntimeError("prepare failed")
 
     monkeypatch.setattr("hop.harnesses.scripted.ScriptedHarness.prepare", boom)
-    rep = _runner(tmp_path).execute("debug-offbyone", harness="scripted:succeed",
-                                    idempotency_key="e2e-prepare")
+    rep = _runner(tmp_path).execute(
+        "debug-offbyone", harness="scripted:succeed", idempotency_key="e2e-prepare"
+    )
     assert rep["outcome"] == "infra_error"
     assert rep["error_class"] == "adapter_prepare_failure"

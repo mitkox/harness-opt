@@ -2,9 +2,17 @@
 
 **Harness Optimization Platform.**
 
+A CLI-first tool for one developer doing local coding. One machine, local
+models, local repositories, SQLite, and files. No accounts, teams, tenants,
+enterprise settings, cloud services, or required dashboard stack.
+
 HOP evaluates and eventually optimizes complete local coding-agent
 configurations across models, harnesses, skills, prompts, tools, and runtime
 settings.
+
+`master` is the default development branch. It contains work in progress,
+not a release-qualified optimization system. Use the milestone acceptance
+records to distinguish delivered behavior from planned capabilities.
 
 ## Core idea
 
@@ -18,22 +26,18 @@ model
         ↓
        HOP
         ↓
-observe
-evaluate
-qualify
-optimize
-promote
+observe -> verify -> compare
         ↓
-       APM
-        ↓
-distribute approved sets
+future: optimize -> confirm -> activate locally -> rollback
+
+optional: export a locked profile with APM
 ```
 
 HOP binds one immutable **execution bundle** — model deployment, harness
 build, prompt, skills, tools, and runtime configuration — to every run,
-observes the full trajectory, and judges the outcome with an independent
-trusted verifier. Better configurations are kept, inconclusive ones are not,
-and regressions roll back.
+observes the trajectory, and judges the outcome with a trusted verifier in a
+separate process. Optimization, local activation, and rollback remain planned;
+the current system records and compares evidence without claiming improvement.
 
 ## HOP is not another coding-agent harness
 
@@ -46,7 +50,8 @@ HOP operates **above** harnesses such as:
 
 It does not replace their agent loops. It wraps their headless interfaces,
 runs them in isolated workspaces against local models, and records what
-happened. Only the Pi adapter is implemented; the others are planned (M5).
+happened. Only the Pi adapter is implemented; the others are optional future
+integrations (M5), not requirements for local coding with Pi.
 
 ```text
 HOP
@@ -62,7 +67,7 @@ APM
   distribute
 ```
 
-APM is the downstream packaging/distribution layer, not the optimizer
+APM is an optional packaging/export layer, not the optimizer
 itself. M3 implements the HOP-to-APM export as a distribution target; HOP
 remains authoritative for profile, component, and evaluation identity.
 
@@ -70,6 +75,19 @@ Current scope is **local models and local inference only**. Supported/target
 model families are DeepSeek, Qwen, and GLM. There is no hosted API fallback.
 
 ## Status: alpha / active development
+
+The HOP 0.2 foundation review is **in progress, not release-qualified**.
+The CLI/devex and integrity changes have non-live regression evidence; open
+security findings, independent review, offline type tooling, and current live
+qualification still block advancement to M4. Start with the
+[runbook](docs/runbook.md), [review](docs/foundation-review.md), and
+[acceptance matrix](docs/acceptance-foundation.md).
+
+Latest recorded scope validation: **284 non-live tests passed**, with lint and
+formatting passing. Type checking remains blocked on approved offline tooling;
+current Pi/local-model qualification and independent boundary review remain
+outstanding. See [the validation report](docs/single-user-delivery.md). A merge
+into `master` does not waive these gates or authorize M4 to begin.
 
 Implemented (M0–M3 plus the AOP → HOP rename):
 
@@ -85,8 +103,9 @@ Implemented (M0–M3 plus the AOP → HOP rename):
 - telemetry completeness (outcome-aware policy; incomplete runs cannot pass)
 - secret redaction and data classification
 - replay metadata and checks
-- HOP CLI (`hop`; deprecated `aop` alias retained until M4)
-- Pi integration (headless JSONL adapter, qualified via live probes)
+- HOP CLI (`hop`; deprecated `aop` alias retained through 0.2)
+- Pi integration (headless JSONL adapter; historical probes qualified 0.85.1,
+  not the latest observed 1.0.0 build)
 - immutable versioned component registry (prompts, skills, agents, policies,
   overlays, hooks, MCP) with content-addressed identity and tamper detection
 - deterministic profile resolution, lockfiles, variant selection, and
@@ -96,12 +115,12 @@ Implemented (M0–M3 plus the AOP → HOP rename):
 
 Planned (not implemented — automatic optimization does not exist yet):
 
-- enterprise workflow eval packs
+- local coding, debugging, diff-review, and test/dependency evaluation packs
 - additional harness adapters (Prime Agent, OpenCode v2, DeepSeek Harness)
 - model qualification
 - skill/prompt optimization
 - dynamic profile optimization
-- promotion/canary/rollback
+- owner-confirmed local activation, trial tasks, and rollback
 
 ## Roadmap
 
@@ -112,11 +131,12 @@ Planned (not implemented — automatic optimization does not exist yet):
 | M2 | Trace and trajectory evaluation | ✅ done (`m2-observability`) |
 | — | AOP → HOP namespace migration | ✅ done (`hop-namespace`) |
 | M3 | Canonical skills, compiler, and APM | ✅ done (profiles/compiler/APM) |
-| M4 | Enterprise benchmark packs | ⬜ next |
-| M5 | All harness integrations | ⬜ planned |
+| Foundation | HOP-R01-R05 review and simplification | In progress; acceptance blocked |
+| M4 | Local coding evaluation packs | ⬜ blocked on foundation |
+| M5 | Optional harness integrations | ⬜ planned |
 | M6 | Model matrix and fair benchmarking | ⬜ planned |
 | M7 | First optimization loop | ⬜ planned |
-| M8 | Promotion, deployment, and rollback | ⬜ planned |
+| M8 | Owner-confirmed local activation and rollback | ⬜ planned |
 | M9+ | Dynamic routing / lifecycle hardening | ⬜ planned |
 
 ## Architecture
@@ -145,27 +165,32 @@ repository, or other runs. Inference endpoints must resolve to loopback.
 
 ## Local developer setup
 
-Prerequisites: Python 3.11+, `bwrap`, Node with the
-`@earendil-works/pi-coding-agent` harness (`pi` on `PATH`), and a local
-OpenAI-compatible server (for example `llama-server`) on loopback.
+The evidenced offline combination is Python 3.14 on Linux x86-64, plus an
+approved wheelhouse. Live execution additionally requires a qualified Pi
+build, `bwrap`, and a registered local model. Other combinations require
+qualification before support is claimed.
 
 ```bash
-git clone https://github.com/mitkox/harness-opt.git
+git clone --branch master https://github.com/mitkox/harness-opt.git
 cd harness-opt
-scripts/build_lock_env.sh --run-tests
+HOP_WHEELHOUSE=/path/to/approved/wheels scripts/dev bootstrap
+./hop --help
+scripts/dev test --suite all
+scripts/dev check
 ```
 
-This builds `.venv-m1` from the pinned offline wheelhouse (`.vendor/wheels`
-plus `requirements.lock`; no network access) and runs the full suite.
-`pip install -e .` is intentionally not the workflow here: the offline lock
-environment is built with `scripts/build_lock_env.sh` instead, which does
-not require setuptools or network access.
+Bootstrap stages a versioned environment and switches `.venv` only after
+validation. Existing environments are retained. `--runtime` omits developer-only
+schema tooling but retains pytest for trusted verification; `--run-tests`
+validates a developer environment before switching.
+No manual `PYTHONPATH`, editable install, or package download is required.
+Static type checking currently reports blocked pending approved offline tools.
 
 Register the machine's real deployments and harnesses:
 
 ```bash
-PYTHONPATH=src .venv-m1/bin/python scripts/discover.py
-PYTHONPATH=src .venv-m1/bin/python -m hop.cli discover
+PYTHONPATH=src .venv/bin/python scripts/discover.py
+./hop discover
 ```
 
 `profiles/models/local-inventory.json` and
@@ -177,35 +202,38 @@ by `scripts/discover.py`. Synthetic placeholders for new contributors live in
 
 ## Usage
 
-All commands below were tested against the M2 tree:
+The current CLI has real nested command groups:
 
 ```bash
-hop --help
-hop discover
-hop validate-profile --model qwen-flash-next
+./hop doctor
+./hop init
+./hop deployment list
 
 # M3: components, profiles, compiler, APM
-hop registry import components
-hop component list --type skill
-hop profile validate examples/profiles/coding.yaml
-hop profile explain examples/profiles/debugging.yaml
-hop profile lock examples/profiles/coding.yaml
-hop profile compile examples/profiles/coding.yaml --out /tmp/pi-out
-hop run --case debug-offbyone --profile examples/profiles/debugging.yaml
-hop profile export examples/profiles/coding.yaml --target apm --out /tmp/apm
-hop profile verify-export /tmp/apm --profile examples/profiles/coding.yaml
+./hop registry import components
+./hop component list --type skill
+./hop profile validate examples/profiles/coding.yaml
+./hop profile explain examples/profiles/debugging.yaml
+./hop profile lock examples/profiles/coding.yaml --out /tmp/coding.hop.lock
+./hop profile compile examples/profiles/coding.yaml --out /tmp/pi-out
+./hop run start --case debug-offbyone --model REGISTERED_DEPLOYMENT
+./hop profile export examples/profiles/coding.yaml --target apm --out /tmp/apm
+./hop profile verify-export /tmp/apm --profile examples/profiles/coding.yaml
 
 # run investigation
-hop run show <run-id>
-hop run trajectory <run-id>
-hop run completeness <run-id>
-hop run replay-check <run-id>
+./hop run list
+./hop run show RUN_ID
+./hop run trajectory RUN_ID --cursor 0 --limit 100
+./hop run completeness RUN_ID
+./hop run replay-check RUN_ID
+./hop run compare LEFT_RUN RIGHT_RUN
 ```
 
 More investigation verbs: `artifacts`, `trace`, `verify`, `skills`, `tools`
-(for example `hop run trace <run-id>`). With an uninstalled checkout, prefix
-with `PYTHONPATH=src` (for example
-`PYTHONPATH=src python3 -m hop.cli --help`).
+(for example `./hop run trace RUN_ID`). Redirected output defaults to JSON;
+use `--format text|json` to choose. See the runbook for path precedence and
+exit codes. Legacy command forms, `aop`, and `AOP_*` remain through 0.2;
+removal is targeted for 0.3 only after M4 acceptance and migration documentation.
 
 A passing run ends with `outcome: pass` and `verdict: pass` from the trusted
 verifier; agent text claiming success never decides the result. Failing runs
@@ -243,13 +271,16 @@ tests/              unit, contract, security, and e2e tests
   no promotion. M3 adds profiles, deterministic compilation, and APM export
   only.
 - Exported APM provenance is tamper-evident (digests) but not signed;
-  production signing is deferred to the promotion milestone.
+  signing infrastructure is outside the single-user scope.
 - `.hidden/` is an interim in-repo hidden-test location enforced by mount
   namespaces, not sealed evaluator-owned storage (M4).
-- Isolation is `bwrap` user namespaces, not containers/VMs; the agent worker
-  shares host networking restricted to loopback inference.
-- PostgreSQL, multi-node scheduling, and the release publisher are deferred
-  per the ADRs.
+- Isolation uses `bwrap` namespaces. The Pi worker shares host networking;
+  inference endpoint checks do not enforce general OS-level worker egress.
+  Aggregate descendant quotas and verifier current-case protection also remain
+  open security findings. Do not treat this as hostile-workload qualification.
+- PostgreSQL, multi-node scheduling, remote publishers, and organizational
+  administration are out of scope, not deferred requirements. See
+  [the single-user decision](docs/adr/ADR-011-single-user.md).
 
 License: Apache-2.0 (`LICENSE`). Security reports: see `SECURITY.md`.
 Contributions: see `CONTRIBUTING.md`.

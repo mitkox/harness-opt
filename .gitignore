@@ -7,6 +7,9 @@ runs/
 .ruff_cache/
 .vendor/
 .venv*/
+.venv
+.venv.pending
+.venv-*
 venv/
 .env
 *.egg-info/

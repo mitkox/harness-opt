@@ -4,24 +4,47 @@ Network enforcement, not prompts, restricts inference destinations:
 only registered loopback endpoints are allowed; cloud fallback,
 redirects off-localhost, and proxy-mediated exfiltration fail closed.
 """
+
 from __future__ import annotations
 
 import ipaddress
 import os
 from urllib.parse import urlparse
 
-POLICY_ID = "local-default-v1"
+POLICY_ID = "local-default-v2"
 
 # Environment variables that must never reach an agent worker: credentials
 # and anything that could reroute traffic off the host.
-SCRUB_ENV_PREFIXES = ("OPENAI_", "ANTHROPIC_", "AWS_", "AZURE_", "GOOGLE_", "GEMINI_",
-                      "QWEN_", "XIAOMI_", "CLOUDFLARE_", "HF_", "HUGGINGFACE_",
-                      "GITHUB_", "GITLAB_")
+SCRUB_ENV_PREFIXES = (
+    "OPENAI_",
+    "ANTHROPIC_",
+    "AWS_",
+    "AZURE_",
+    "GOOGLE_",
+    "GEMINI_",
+    "QWEN_",
+    "XIAOMI_",
+    "CLOUDFLARE_",
+    "HF_",
+    "HUGGINGFACE_",
+    "GITHUB_",
+    "GITLAB_",
+)
 SCRUB_ENV_EXACT = {
-    "API_KEY", "OPENAI_API_KEY", "ANTHROPIC_API_KEY", "HF_TOKEN",
-    "HTTP_PROXY", "HTTPS_PROXY", "http_proxy", "https_proxy",
-    "ALL_PROXY", "all_proxy", "NO_PROXY", "no_proxy",
-    "SSH_AUTH_SOCK", "GIT_ASKPASS",
+    "API_KEY",
+    "OPENAI_API_KEY",
+    "ANTHROPIC_API_KEY",
+    "HF_TOKEN",
+    "HTTP_PROXY",
+    "HTTPS_PROXY",
+    "http_proxy",
+    "https_proxy",
+    "ALL_PROXY",
+    "all_proxy",
+    "NO_PROXY",
+    "no_proxy",
+    "SSH_AUTH_SOCK",
+    "GIT_ASKPASS",
     # Endpoint redirection for Pi is controlled by the deployment record only.
     # Both the canonical and legacy spellings are refused (M1 local-only).
     "HOP_PI_BASE_URL",
@@ -29,6 +52,21 @@ SCRUB_ENV_EXACT = {
 }
 
 ALLOWED_HOSTS = {"127.0.0.1", "localhost", "::1"}
+WORKER_ENV_KEYS = {
+    "PATH",
+    "LANG",
+    "LC_ALL",
+    "LC_CTYPE",
+    "TZ",
+    "TERM",
+    "NO_COLOR",
+    "HOME",
+    "XDG_CACHE_HOME",
+    "TMPDIR",
+    "PI_CODING_AGENT_DIR",
+    "PI_OFFLINE",
+    "PI_CODING_AGENT_SESSION_DIR",
+}
 
 
 def is_loopback_url(url: str) -> bool:
@@ -58,6 +96,8 @@ def scrub_worker_env(env: dict[str, str]) -> dict[str, str]:
     """Remove credentials, proxies, and agent-socket inheritance for workers."""
     clean: dict[str, str] = {}
     for key, value in env.items():
+        if key not in WORKER_ENV_KEYS:
+            continue
         if key in SCRUB_ENV_EXACT:
             continue
         if key.startswith(SCRUB_ENV_PREFIXES):

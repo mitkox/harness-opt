@@ -1,4 +1,5 @@
 """Storage / ledger / runstore tests (AOP-005, AOP-006). Hermetic."""
+
 import pytest
 
 from hop.contracts.records import (
@@ -21,10 +22,17 @@ def _uid(n):
 
 def _evt(eid, source, seq, run="r1"):
     return TrajectoryEvent(
-        event_id=eid, event_type="test.event", run_id=run, attempt_id="a1",
-        source=EventSource(id=source, authority="synthetic_fixture"), source_sequence=seq,
-        observed_at="2026-09-12T00:00:00Z", bundle_digest=DIGEST,
-        trace_id="1" * 32, span_id="2" * 16)
+        event_id=eid,
+        event_type="test.event",
+        run_id=run,
+        attempt_id="a1",
+        source=EventSource(id=source, authority="synthetic_fixture"),
+        source_sequence=seq,
+        observed_at="2026-09-12T00:00:00Z",
+        bundle_digest=DIGEST,
+        trace_id="1" * 32,
+        span_id="2" * 16,
+    )
 
 
 def test_artifact_tamper_fails(tmp_path):
@@ -36,8 +44,10 @@ def test_artifact_tamper_fails(tmp_path):
         store.get(ref.digest, "run2")
     # tamper: flip a byte in the blob
     import os
-    blob = os.path.join(str(tmp_path), "blobs", ref.digest.split(":")[1][:2],
-                        ref.digest.split(":")[1])
+
+    blob = os.path.join(
+        str(tmp_path), "blobs", ref.digest.split(":")[1][:2], ref.digest.split(":")[1]
+    )
     with open(blob, "r+b") as fh:
         fh.seek(0)
         fh.write(b"X")
@@ -48,8 +58,9 @@ def test_artifact_tamper_fails(tmp_path):
 
 def test_interrupted_write_not_complete(tmp_path):
     store = ArtifactStore(str(tmp_path))
-    partials = [f for _, _, fs in __import__("os").walk(str(tmp_path)) for f in fs
-                if f.endswith(".partial")]
+    partials = [
+        f for _, _, fs in __import__("os").walk(str(tmp_path)) for f in fs if f.endswith(".partial")
+    ]
     assert partials == []
     store.put(b"data", "run1")
     assert store.verify(store.put(b"data", "run1").digest) is True
@@ -105,8 +116,9 @@ def test_ledger_gap_detected(tmp_path):
 
 def test_runstore_idempotent_and_fenced(tmp_path):
     store = RunStore(str(tmp_path / "ledger.db"))
-    rec = RunRecord(run_id="r1", task_id="t", case_id="c",
-                    bundle_digest=DIGEST, idempotency_key="k1")
+    rec = RunRecord(
+        run_id="r1", task_id="t", case_id="c", bundle_digest=DIGEST, idempotency_key="k1"
+    )
     _, created = store.admit(rec)
     assert created is True
     same, created2 = store.admit(rec)

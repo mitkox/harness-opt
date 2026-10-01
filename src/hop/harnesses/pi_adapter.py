@@ -10,6 +10,7 @@ parameters derive from the registered ``ModelDeployment``. ``HOP_PI_BASE_URL``
 (and the legacy ``AOP_PI_BASE_URL``) have no authority here and are scrubbed
 from the worker environment.
 """
+
 from __future__ import annotations
 
 import hashlib
@@ -23,7 +24,7 @@ import time
 from ..contracts.base import new_id
 from ..contracts.harness import HarnessCapabilities, HarnessName
 from ..contracts.model import ModelDeployment
-from ..policy import assert_local_url, scrub_worker_env
+from ..policy import assert_local_url
 from ..sandbox import SandboxLayout, SandboxSpec, spawn_isolated
 from .base import HarnessOutput, PreparedSession
 
@@ -34,8 +35,15 @@ PROTOCOL = "pi-jsonl-v3"
 CLAIM_TYPES = {"message_update", "message_end"}
 
 # Help flags that evidence the headless/streaming/model-selection contract.
-REQUIRED_HELP_FLAGS = ("--print", "--mode", "--provider", "--model", "--approve",
-                       "--session-dir", "--no-session")
+REQUIRED_HELP_FLAGS = (
+    "--print",
+    "--mode",
+    "--provider",
+    "--model",
+    "--approve",
+    "--session-dir",
+    "--no-session",
+)
 
 
 def _sha256_file(path: str) -> str:
@@ -76,9 +84,14 @@ def harness_executable_digest(executable: str) -> dict:
 class PiJsonAdapter:
     adapter_revision = ADAPTER_REVISION
 
-    def __init__(self, deployment: ModelDeployment | None = None,
-                 executable: str = "pi", provider: str = "hop_local",
-                 spec: SandboxSpec | None = None, compiled_dir: str = ""):
+    def __init__(
+        self,
+        deployment: ModelDeployment | None = None,
+        executable: str = "pi",
+        provider: str = "hop_local",
+        spec: SandboxSpec | None = None,
+        compiled_dir: str = "",
+    ):
         self.deployment = deployment
         self.executable = executable
         self.provider = provider
@@ -101,17 +114,21 @@ class PiJsonAdapter:
         supports_headless = supports_streaming = supports_selection = False
         if path:
             try:
-                vp = subprocess.run([path, "--version"], capture_output=True, text=True,
-                                    timeout=15)
+                vp = subprocess.run(
+                    [path, "--version"], check=False, capture_output=True, text=True, timeout=15
+                )
                 version = (vp.stdout + vp.stderr).strip()[:200]
                 evidence["version"] = {"exit_code": vp.returncode, "output": version}
-                hp = subprocess.run([path, "--help"], capture_output=True, text=True,
-                                    timeout=20)
+                hp = subprocess.run(
+                    [path, "--help"], check=False, capture_output=True, text=True, timeout=20
+                )
                 help_text = hp.stdout + hp.stderr
                 flags = {flag: (flag in help_text) for flag in REQUIRED_HELP_FLAGS}
-                evidence["help"] = {"exit_code": hp.returncode, "flags": flags,
-                                    "help_sha256": hashlib.sha256(
-                                        help_text.encode()).hexdigest()}
+                evidence["help"] = {
+                    "exit_code": hp.returncode,
+                    "flags": flags,
+                    "help_sha256": hashlib.sha256(help_text.encode()).hexdigest(),
+                }
                 supports_headless = bool(flags.get("--print") and flags.get("--mode"))
                 supports_streaming = supports_headless and "--mode" in help_text
                 supports_selection = bool(flags.get("--provider") and flags.get("--model"))
@@ -120,19 +137,21 @@ class PiJsonAdapter:
                 evidence["error"] = str(exc)
         exe = harness_executable_digest(self.executable)
         evidence["executable"] = exe
-        probe_digest = hashlib.sha256(
-            json.dumps(evidence, sort_keys=True).encode()).hexdigest()
+        probe_digest = hashlib.sha256(json.dumps(evidence, sort_keys=True).encode()).hexdigest()
         return HarnessCapabilities(
-            harness=HarnessName.PI, build_version=version or "unknown",
+            harness=HarnessName.PI,
+            build_version=version or "unknown",
             adapter_revision=ADAPTER_REVISION,
             supports_headless=supports_headless,
             supports_streaming_events=supports_streaming,
             supports_cancellation=False,  # only a live termination probe may set this
             supports_session_export=supports_headless,
-            supports_isolated_home=True, supports_model_selection=supports_selection,
+            supports_isolated_home=True,
+            supports_model_selection=supports_selection,
             executable_path=exe.get("realpath", ""),
             executable_sha256=exe.get("sha256", ""),
-            probe_evidence=evidence, probe_digest="sha256:" + probe_digest,
+            probe_evidence=evidence,
+            probe_digest="sha256:" + probe_digest,
             unsupported={} if ok else {"all": "pi headless probe failed or executable missing"},
         )
 
@@ -142,11 +161,26 @@ class PiJsonAdapter:
         if not path:
             return {"ok": False, "reason": "executable not found"}
         import signal
+
         proc = subprocess.Popen(
-            [path, "-p", "--mode", "json", "--offline", "--no-session",
-             "--provider", self.provider, "--model", self.model or "probe", "probe"],
-            stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-            start_new_session=True, text=True)
+            [
+                path,
+                "-p",
+                "--mode",
+                "json",
+                "--offline",
+                "--no-session",
+                "--provider",
+                self.provider,
+                "--model",
+                self.model or "probe",
+                "probe",
+            ],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            start_new_session=True,
+            text=True,
+        )
         time.sleep(1.0)
         was_running = proc.poll() is None
         terminated = True
@@ -163,8 +197,12 @@ class PiJsonAdapter:
                 except (ProcessLookupError, PermissionError):
                     pass
                 terminated = False
-        evidence = {"ok": terminated, "was_running": was_running,
-                    "exit_code": proc.returncode, "executable": path}
+        evidence = {
+            "ok": terminated,
+            "was_running": was_running,
+            "exit_code": proc.returncode,
+            "executable": path,
+        }
         if proc.stdout is not None:
             try:
                 proc.stdout.close()
@@ -184,10 +222,16 @@ class PiJsonAdapter:
         with open(os.path.join(config_dir, "models.json"), "w") as fh:
             json.dump(self._local_models_config(), fh, indent=2)
         with open(os.path.join(config_dir, "settings.json"), "w") as fh:
-            json.dump({
-                "defaultProvider": self.provider, "defaultModel": self.model,
-                "quietStartup": True, "enableInstallTelemetry": False,
-            }, fh, indent=2)
+            json.dump(
+                {
+                    "defaultProvider": self.provider,
+                    "defaultModel": self.model,
+                    "quietStartup": True,
+                    "enableInstallTelemetry": False,
+                },
+                fh,
+                indent=2,
+            )
         system_prompt = ""
         skill_dirs: list[str] = []
         if self.compiled_dir:
@@ -197,17 +241,23 @@ class PiJsonAdapter:
                     system_prompt = fh.read()
             skills_root = os.path.join(self.compiled_dir, "skills")
             if os.path.isdir(skills_root):
-                skill_dirs = [os.path.join(skills_root, name)
-                              for name in sorted(os.listdir(skills_root))
-                              if os.path.isdir(os.path.join(skills_root, name))]
+                skill_dirs = [
+                    os.path.join(skills_root, name)
+                    for name in sorted(os.listdir(skills_root))
+                    if os.path.isdir(os.path.join(skills_root, name))
+                ]
         return PreparedSession(
-            session_id=new_id("pi"), harness="pi", layout_root=layout_root,
+            session_id=new_id("pi"),
+            harness="pi",
+            layout_root=layout_root,
             extra_env={
                 "PI_CODING_AGENT_DIR": config_dir,
                 "PI_CODING_AGENT_SESSION_DIR": session_dir,
                 "PI_OFFLINE": "1",
             },
-            system_prompt=system_prompt, skill_dirs=skill_dirs)
+            system_prompt=system_prompt,
+            skill_dirs=skill_dirs,
+        )
 
     def _local_models_config(self) -> dict:
         """Provider config is derived ONLY from the registered deployment record."""
@@ -218,27 +268,60 @@ class PiJsonAdapter:
         base = assert_local_url(self.deployment.endpoint.base_url)
         context = self.deployment.context_length_configured or 8192
         serving = self.deployment.serving_config or {}
-        return {"providers": {self.provider: {
-            "name": f"{self.provider} (local HOP)",
-            "baseUrl": base, "api": "openai-completions", "apiKey": "local",
-            "models": [{"id": self.model, "name": self.model,
-                        "reasoning": bool(serving.get("reasoning", False)),
-                        "input": ["text"], "contextWindow": context,
-                        "maxTokens": int(serving.get("max_tokens", 8192))}]}}}
+        return {
+            "providers": {
+                self.provider: {
+                    "name": f"{self.provider} (local HOP)",
+                    "baseUrl": base,
+                    "api": "openai-completions",
+                    "apiKey": "local",
+                    "models": [
+                        {
+                            "id": self.model,
+                            "name": self.model,
+                            "reasoning": bool(serving.get("reasoning", False)),
+                            "input": ["text"],
+                            "contextWindow": context,
+                            "maxTokens": int(serving.get("max_tokens", 8192)),
+                        }
+                    ],
+                }
+            }
+        }
 
-    def start(self, task_prompt: str, session: PreparedSession, workspace: str,
-              stdout_path: str, stderr_path: str, timeout_s: float,
-              cancel: threading.Event, on_native_event=None) -> HarnessOutput:
-        layout = SandboxLayout(root=session.layout_root, workspace=workspace,
-                               home=os.path.join(session.layout_root, "home"),
-                               cache=os.path.join(session.layout_root, "cache"),
-                               session=os.path.join(session.layout_root, "session"),
-                               tmp=os.path.join(session.layout_root, "tmp"))
+    def start(
+        self,
+        task_prompt: str,
+        session: PreparedSession,
+        workspace: str,
+        stdout_path: str,
+        stderr_path: str,
+        timeout_s: float,
+        cancel: threading.Event,
+        on_native_event=None,
+    ) -> HarnessOutput:
+        layout = SandboxLayout(
+            root=session.layout_root,
+            workspace=workspace,
+            home=os.path.join(session.layout_root, "home"),
+            cache=os.path.join(session.layout_root, "cache"),
+            session=os.path.join(session.layout_root, "session"),
+            tmp=os.path.join(session.layout_root, "tmp"),
+        )
         for path in (layout.home, layout.cache, layout.tmp):
             os.makedirs(path, exist_ok=True)
-        cmd = [self.executable, "-p", "--mode", "json",
-               "--provider", self.provider, "--model", self.model,
-               "--session-dir", os.path.join(session.layout_root, "session")]
+        cmd = [
+            self.executable,
+            "-p",
+            "--mode",
+            "json",
+            "--provider",
+            self.provider,
+            "--model",
+            self.model,
+            "--session-dir",
+            os.path.join(session.layout_root, "session"),
+        ]
         # M3 compiled profile: system prompt text + one --skill per compiled
         # skill directory. The compiled artifact is the source of truth.
         if session.system_prompt:
@@ -246,9 +329,16 @@ class PiJsonAdapter:
         for skill_dir in session.skill_dirs:
             cmd += ["--skill", skill_dir]
         cmd += ["--approve", task_prompt]
-        result = spawn_isolated(cmd, layout, self.spec, extra_env=session.extra_env,
-                                timeout_s=timeout_s, cancel=cancel,
-                                stdout_path=stdout_path, stderr_path=stderr_path)
+        result = spawn_isolated(
+            cmd,
+            layout,
+            self.spec,
+            extra_env=session.extra_env,
+            timeout_s=timeout_s,
+            cancel=cancel,
+            stdout_path=stdout_path,
+            stderr_path=stderr_path,
+        )
         if on_native_event is not None:
             for raw in _read_jsonl(stdout_path):
                 on_native_event(raw)
@@ -260,8 +350,11 @@ class PiJsonAdapter:
             status = "exited"
         else:
             status = "crashed"
-        return HarnessOutput(terminal_status=status, exit_code=result.exit_code,
-                             agent_claim=_extract_last_text(stdout_path))
+        return HarnessOutput(
+            terminal_status=status,
+            exit_code=result.exit_code,
+            agent_claim=_extract_last_text(stdout_path),
+        )
 
 
 def _read_jsonl(path: str):
@@ -284,9 +377,11 @@ def _extract_last_text(stdout_path: str) -> str:
     for raw in _read_jsonl(stdout_path):
         msg = raw.get("message") or {}
         content = msg.get("content") or []
-        texts = [c.get("text", "") for c in content
-                 if isinstance(c, dict) and c.get("type") == "text"
-                 and msg.get("role") == "assistant"]
+        texts = [
+            c.get("text", "")
+            for c in content
+            if isinstance(c, dict) and c.get("type") == "text" and msg.get("role") == "assistant"
+        ]
         if texts:
             last = "\n".join(texts)
         for upd in [raw.get("assistantMessageEvent") or {}]:

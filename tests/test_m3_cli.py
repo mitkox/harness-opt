@@ -1,4 +1,5 @@
 """M3 CLI surface tests (component / skill / registry / profile)."""
+
 import json
 
 import pytest
@@ -86,15 +87,14 @@ def test_profile_compile_and_export_verify(home, capsys, tmp_path):
     assert main(["profile", "export", PR_REVIEW, "--out", str(export_dir)]) == 0
     exported = _json(capsys)
     assert exported["package_digest"].startswith("sha256:")
-    assert main(["profile", "verify-export", str(export_dir),
-                 "--profile", PR_REVIEW]) == 0
+    assert main(["profile", "verify-export", str(export_dir), "--profile", PR_REVIEW]) == 0
     assert _json(capsys)["ok"] is True
 
 
 def test_profile_materialize_by_digest(home, capsys, tmp_path):
     main(["registry", "import", "components"])
     capsys.readouterr()
-    main(["profile", "lock", PR_REVIEW])
+    main(["profile", "lock", PR_REVIEW, "--out", str(tmp_path / "review.hop.lock")])
     capsys.readouterr()
     assert main(["profile", "validate", PR_REVIEW]) == 0
     digest = _json(capsys)["profile_digest"]
