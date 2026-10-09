@@ -190,3 +190,101 @@ def test_first_evidence_write_failure_is_terminal(tmp_path, monkeypatch, synthet
     report_path = Path(report["run_dir"]) / "report.json"
     assert report_path.exists(), "a failed first event write must still leave terminal evidence"
     assert json.loads(report_path.read_text())["outcome"] == "infra_error"
+
+
+def _repo_root() -> str:
+    return str(Path(__file__).resolve().parents[1])
+
+
+def test_evaluation_splits_verbs_are_reachable_and_deterministic(tmp_path, capsys):
+    root = str(tmp_path / "vault")
+    assign = [
+        "evaluation",
+        "splits",
+        "assign",
+        "--group-id",
+        "group-0000000000000001",
+        "--group-id",
+        "group-0000000000000002",
+        "--root",
+        root,
+        "--repository-root",
+        _repo_root(),
+        "--format",
+        "json",
+    ]
+    assert main(assign) == EXIT_OK
+    first = capsys.readouterr().out
+    assert main(assign) == EXIT_OK
+    assert capsys.readouterr().out == first, "assign output must be deterministic"
+    payload = json.loads(first)
+    assert payload["action"] == "assign"
+    assert sorted(payload["groups"]) == [
+        "group-0000000000000001",
+        "group-0000000000000002",
+    ]
+
+    assert (
+        main(
+            [
+                "evaluation",
+                "splits",
+                "show",
+                "--root",
+                root,
+                "--repository-root",
+                _repo_root(),
+                "--format",
+                "json",
+            ]
+        )
+        == EXIT_OK
+    )
+    assert json.loads(capsys.readouterr().out)["groups"] == payload["groups"]
+
+    assert (
+        main(
+            [
+                "evaluation",
+                "splits",
+                "ledger",
+                "--root",
+                root,
+                "--repository-root",
+                _repo_root(),
+                "--format",
+                "json",
+            ]
+        )
+        == EXIT_OK
+    )
+    ledger = json.loads(capsys.readouterr().out)
+    assert ledger["verify"]["ok"] is True and ledger["exposure"]["counts"] == {}
+
+
+def test_evaluation_splits_invalid_input_exits_2(tmp_path, capsys):
+    code = main(
+        [
+            "evaluation",
+            "splits",
+            "assign",
+            "--root",
+            str(tmp_path / "vault"),
+            "--repository-root",
+            _repo_root(),
+        ]
+    )
+    assert code == EXIT_USAGE
+    assert "no groups" in capsys.readouterr().err
+
+
+def test_evaluation_splits_help_works_from_another_cwd(tmp_path, monkeypatch, capsys):
+    monkeypatch.chdir(tmp_path)
+    with pytest.raises(SystemExit) as exc:
+        main(["evaluation", "splits", "--help"])
+    assert exc.value.code == 0
+    assert "hop evaluation splits" in capsys.readouterr().out
+    with pytest.raises(SystemExit) as exc:
+        main(["evaluation", "splits", "assign", "--help"])
+    assert exc.value.code == 0
+    assert "group-id" in capsys.readouterr().out

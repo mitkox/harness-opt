@@ -657,6 +657,14 @@ def _main(argv=None, prog: str = "hop", legacy: bool = False) -> int:
     ei.add_argument("--window-minutes", type=int, default=180)
     ei.set_defaults(func=cmd_evaluation_import)
 
+    # -- M4: protected splits, sealed store, access ledger (AOP-020 half B) --
+    # Registered on the shared ``evaluation`` namespace so
+    # ``hop evaluation splits assign|show|ledger`` are reachable. Handlers keep
+    # their own exit codes (0/2/3) and emit JSON when output is redirected.
+    from .evaluation.sealed import cli as evaluation_cli
+
+    evaluation_cli.register_splits_commands(sub.groups["evaluation"])
+
     for name, operation in (
         ("doctor", "doctor"),
         ("init", "init"),
