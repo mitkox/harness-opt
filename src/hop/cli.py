@@ -450,6 +450,7 @@ class CommandGroups:
             "registry",
             "deployment",
             "evaluation",
+            "backup",
         }:
             if namespace not in self.groups:
                 group = self.top.add_parser(
@@ -522,6 +523,41 @@ def cmd_local(args):
         payload, status = commands.compare(paths, args.left, args.right), 0
     else:
         payload, status = commands.deployments(paths), 0
+    _print(payload)
+    return status
+
+
+def cmd_backup(args) -> int:
+    """Local evidence backup/restore (AOP-051).
+
+    Additive wiring over ``hop.backup``: same semantics and exit codes as the
+    documented module entry point (``python -m hop.backup``), emitted through the
+    shared output channel so redirected output is JSON.
+    """
+    from hop import backup
+    from hop.config import Paths
+
+    paths = Paths.resolve(home=args.home or None, runs=getattr(args, "runs", None) or None)
+    try:
+        if args.backup_verb == "create":
+            payload = backup.create_backup(args.destination, paths=paths, force=args.force)
+            status = 0
+        elif args.backup_verb == "verify":
+            payload = backup.verify_backup(args.backup)
+            status = 0 if payload["ok"] else 3
+        elif args.backup_verb == "restore":
+            payload = backup.restore_backup(args.backup, paths=paths, force=args.force)
+            chain = payload.get("chain", {})
+            status = 0 if chain.get("ok", True) else 3
+        else:
+            payload = backup.verify_evidence_chain(paths)
+            # An empty chain returns early without an "ok" key; no runs and no
+            # missing references is healthy, so treat a missing key as ok.
+            status = 0 if payload.get("ok", True) else 3
+    except backup.BackupError as exc:
+        return _report_error(
+            exc.code, str(exc), 2, "Check the backup path and HOP home, then retry."
+        )
     _print(payload)
     return status
 
@@ -664,6 +700,24 @@ def _main(argv=None, prog: str = "hop", legacy: bool = False) -> int:
     from .evaluation.sealed import cli as evaluation_cli
 
     evaluation_cli.register_splits_commands(sub.groups["evaluation"])
+
+    # -- AOP-051: local evidence backup/restore (additive wiring) -------------
+    backup_create = sub.add_parser("backup-create")
+    backup_create.add_argument("--destination", required=True)
+    backup_create.add_argument("--runs", default="")
+    backup_create.add_argument("--force", action="store_true")
+    backup_create.set_defaults(func=cmd_backup, backup_verb="create")
+    backup_verify = sub.add_parser("backup-verify")
+    backup_verify.add_argument("--backup", required=True)
+    backup_verify.set_defaults(func=cmd_backup, backup_verb="verify")
+    backup_restore = sub.add_parser("backup-restore")
+    backup_restore.add_argument("--backup", required=True)
+    backup_restore.add_argument("--runs", default="")
+    backup_restore.add_argument("--force", action="store_true")
+    backup_restore.set_defaults(func=cmd_backup, backup_verb="restore")
+    backup_chain = sub.add_parser("backup-chain")
+    backup_chain.add_argument("--runs", default="")
+    backup_chain.set_defaults(func=cmd_backup, backup_verb="chain")
 
     for name, operation in (
         ("doctor", "doctor"),
