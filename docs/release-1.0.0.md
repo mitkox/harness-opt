@@ -26,8 +26,8 @@ wheelhouse; the install probe runs with `--no-index --require-hashes`).
 
 | Artifact | sha256 |
 | --- | --- |
-| `dist/hop-1.0.0-py3-none-any.whl` | `9acc72e73db5653b3e01ba89ec1d89f6b95fa310b2e81c269574a2efe18edaf8` |
-| `dist/hop-1.0.0.tar.gz` | `a3a26569c3b1bfa798d7bf73336ab12cb9e5fbd4787f26b6c415227ea1353ffa` |
+| `dist/hop-1.0.0-py3-none-any.whl` | `729aeee95c5cf2e83310c64f0383eb7ddaa8803c117e77bb8dafcac72a6f37eb` |
+| `dist/hop-1.0.0.tar.gz` | `b38611e7c2ac231b1e13da4829194e456b831aaa440c259fa4b1a87c9a74a3e2` |
 
 `dist/MANIFEST.sha256` records both digests; the wheelhouse manifest
 (`/home/mitko/dev/esf/worktrees/hop-wheelhouse/MANIFEST.sha256`, 17 dependency
@@ -35,10 +35,29 @@ wheels) was refreshed by the same run. The installed wheel reports
 `hop version: 1.0.0` and exposes exactly one console script (`hop`); the removed
 `aop` alias is absent from `entry_points.txt`.
 
+**Artifact contents.** The wheel stays minimal: `hop/` plus its dist-info (79
+entries, no `docs/`), because the installed CLI diagnostics are self-contained.
+The sdist is the operator-facing artifact and ships the release docs — it
+contains `CHANGELOG.md`, `README.md`, `docs/migration-1.0.md` (the file every
+migration diagnostic points at) and `docs/release-1.0.0.md`, declared in
+`MANIFEST.in`.
+
+**Reproducibility.** Setuptools embeds per-file timestamps in the wheel, so a
+plain rebuild changes the wheel's bytes even when its contents are identical
+(this is why the earlier recorded `9acc72e7…` wheel hash moved; the 79 entries
+and their content digests are byte-identical between builds). Building with
+`SOURCE_DATE_EPOCH=1700000000` makes the wheel byte-reproducible: two
+consecutive builds produced the `729aeee9…` hash above. The sdist's *contents*
+are stable, but its compressed bytes still vary between builds, so its digest is
+recorded as built at this run rather than as a reproducible value.
+
 Qualification probe results from the build: `hop --help` exit 0;
 `hop --workspace <tmp> init` exit 0 (created `hop.toml`); `hop doctor` exit 3 in
 a neutral workspace (expected non-zero: no registered deployment inventory or
-verifier store).
+verifier store). The rebuilt sdist was additionally installed offline in a fresh
+venv and reports `1.0.0` with the same single console script and the same
+migration exit codes; the full record is
+[artifact-qualification.md](verification/artifact-qualification.md).
 
 ## What is in scope for 1.0.0
 

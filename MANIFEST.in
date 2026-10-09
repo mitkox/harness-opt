@@ -1,0 +1,14 @@
+# Files shipped in the source distribution (sdist) in addition to the package.
+#
+# The wheel stays minimal: it carries only `hop/` and its dist-info, because the
+# installed CLI diagnostics are self-contained (they name the replacement
+# spelling and point at docs/migration-1.0.md). The sdist is the artifact an
+# operator unpacks, so it carries the release-facing docs:
+#   docs/migration-1.0.md   — required by every 1.0 migration diagnostic
+#   docs/release-1.0.0.md   — release description and artifact hashes
+#   CHANGELOG.md            — release history
+#   README.md               — already included by setuptools; listed explicitly
+include README.md
+include CHANGELOG.md
+include docs/migration-1.0.md
+include docs/release-1.0.0.md
