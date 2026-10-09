@@ -73,10 +73,7 @@ def lock_wheelhouse():
 
 def approved_wheelhouse():
     wheelhouse = Path(
-        os.environ.get(
-            "HOP_WHEELHOUSE",
-            os.environ.get("AOP_WHEELHOUSE", lock_wheelhouse() or str(ROOT / ".vendor/wheels")),
-        )
+        os.environ.get("HOP_WHEELHOUSE", lock_wheelhouse() or str(ROOT / ".vendor/wheels"))
     ).resolve()
     if not wheelhouse.is_dir():
         raise ToolUnavailable(f"approved wheelhouse is missing: {wheelhouse}")
@@ -164,14 +161,26 @@ def resolve_approved_tool(tools, name, kind):
                 f"approved offline {name} is not pinned (status={pin.get('status', 'absent')}); "
                 "no PATH substitute is accepted"
             )
-        interpreter = pin.get("interpreter")
+        override_var = f"HOP_{name.upper()}_PYTHON"
+        interpreter = os.environ.get(override_var, "") or pin.get("interpreter")
         if not isinstance(interpreter, str) or not Path(interpreter).is_absolute():
-            raise ToolUnavailable(f"approved offline {name} needs an absolute pinned interpreter")
+            raise ToolUnavailable(
+                f"approved offline {name} needs an absolute pinned interpreter; "
+                f"set {override_var} to an approved copy"
+            )
         resolved = Path(interpreter).resolve()
         if not resolved.is_file():
-            raise ToolUnavailable(f"approved offline {name} interpreter is missing: {interpreter}")
+            raise ToolUnavailable(
+                f"approved offline {name} interpreter is missing: {interpreter}; "
+                f"set {override_var} to an approved copy of "
+                f"{pin.get('interpreter_version', 'the pinned version')} "
+                "(it must match the pinned sha256)"
+            )
         if hashlib.sha256(resolved.read_bytes()).hexdigest() != pin.get("interpreter_sha256"):
-            raise ToolUnavailable(f"{name} interpreter does not match the approved pin")
+            raise ToolUnavailable(
+                f"{name} interpreter does not match the approved pin; "
+                f"{override_var} must point at the same approved build"
+            )
         wheelhouse = approved_wheelhouse()
         manifest_name = pin.get("manifest")
         if not manifest_name or Path(manifest_name).name != manifest_name:
@@ -182,7 +191,7 @@ def resolve_approved_tool(tools, name, kind):
         if hashlib.sha256(manifest.read_bytes()).hexdigest() != pin.get("manifest_sha256"):
             raise ToolUnavailable(f"{name} manifest does not match the approved pin")
         verify_manifest(manifest, name)
-        return [interpreter, "-m", pin.get("module") or name]
+        return [str(resolved), "-m", pin.get("module") or name]
     raise ToolUnavailable(f"approved offline {name} uses an unknown pin kind {kind!r}")
 
 
@@ -197,14 +206,9 @@ def bootstrap(args):
             "Offline wheelhouse currently evidenced for CPython 3.14/Linux x86-64 only."
         )
     wheelhouse = Path(
-        os.environ.get(
-            "HOP_WHEELHOUSE",
-            os.environ.get("AOP_WHEELHOUSE", lock_wheelhouse() or str(ROOT / ".vendor/wheels")),
-        )
+        os.environ.get("HOP_WHEELHOUSE", lock_wheelhouse() or str(ROOT / ".vendor/wheels"))
     ).resolve()
-    target = Path(
-        os.environ.get("HOP_LOCK_VENV", os.environ.get("AOP_LOCK_VENV", str(ROOT / ".venv")))
-    )
+    target = Path(os.environ.get("HOP_LOCK_VENV", str(ROOT / ".venv")))
     if not target.is_absolute():
         target = ROOT / target
     if target.parent.resolve() != ROOT or not target.name.startswith(".venv"):
@@ -290,8 +294,18 @@ def bootstrap_tools(args):
         for name, pin in sorted(tools.items())
         if isinstance(pin, dict) and pin.get("kind") == "wheel_artifact"
     ]
-    if not pins:
+    all_pins = sorted(name for name, pin in tools.items() if isinstance(pin, dict))
+    if not all_pins:
         raise ToolUnavailable("no approved offline tool artifacts are configured")
+    if not pins:
+        local = all_pins
+        print(
+            "no approved offline wheel-artifact tools to build; local pins resolve in place: "
+            f"{', '.join(local) or 'none'}. Relocate the approved toolchain with "
+            "HOP_WHEELHOUSE / HOP_MYPY_PYTHON (both hash-verified; a PATH tool is never "
+            "accepted). See README.md."
+        )
+        return 0
     wheelhouse = approved_wheelhouse()
     lines = []
     for name, pin in pins:

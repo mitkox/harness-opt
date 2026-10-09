@@ -23,7 +23,7 @@ explicitly **not** part of this release.
 Built on branch **`release/1.0.0`** (tree at `4e12329` plus the `MANIFEST.in` fix in this change set) with
 
 ```sh
-SOURCE_DATE_EPOCH=1700000000 HOP_WHEELHOUSE=/home/mitko/dev/esf/worktrees/hop-wheelhouse \
+SOURCE_DATE_EPOCH=1700000000 HOP_WHEELHOUSE=/path/to/approved/wheelhouse \
   scripts/build_release.sh
 ```
 
@@ -36,7 +36,7 @@ wheelhouse; the install probe runs with `--no-index --require-hashes`).
 | `dist/hop-1.0.0.tar.gz` | `ca8e8d917c420cf5b1687e30348c5792f742253dcfb9b013d16b21ff99df07bd` |
 
 `dist/MANIFEST.sha256` records both digests; the wheelhouse manifest
-(`/home/mitko/dev/esf/worktrees/hop-wheelhouse/MANIFEST.sha256`, 17 dependency
+(`<wheelhouse>/MANIFEST.sha256`, 17 dependency
 wheels) was refreshed by the same run. The installed wheel reports
 `hop version: 1.0.0` and exposes exactly one console script (`hop`); the removed
 `aop` alias is absent from `entry_points.txt`.

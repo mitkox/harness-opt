@@ -207,11 +207,28 @@ validation. Existing environments are retained. `--runtime` omits developer-only
 schema tooling but retains pytest for trusted verification; `--run-tests`
 validates a developer environment before switching.
 No manual `PYTHONPATH`, editable install, or package download is required.
-Type checking is pinned to an approved offline `local_environment`
-(`development-tools.lock.json`) and `scripts/dev check` exits 0 at the accepted
-tip; the cp313-interpreter deviation and the CI-vs-local difference are recorded
-in `development-tools.lock.json` and the internal verification records (not
-published); see [release-1.0.0.md](docs/release-1.0.0.md).
+
+**Relocating the approved toolchain.** The pins in
+`development-tools.lock.json` name the maintainer's evidenced paths. An operator
+who keeps the same approved artifacts elsewhere points at them with documented
+environment overrides — the verification is unchanged and still fails closed:
+
+| Variable | Meaning |
+| --- | --- |
+| `HOP_WHEELHOUSE` | Approved local wheelhouse (wheels + `MANIFEST.sha256`). |
+| `HOP_MYPY_PYTHON` | Approved copy of the pinned mypy interpreter (mypy 2.3.1, CPython 3.13.13). |
+| `HOP_TOOLS_VENV` | Where the pinned wheel-artifact tool environment is built. |
+| `HOP_LOCK_VENV` | The `.venv` link `scripts/dev bootstrap` switches. |
+
+`HOP_MYPY_PYTHON` must point at the *same* approved build: its sha256 is still
+compared with `interpreter_sha256`, and the pinned library manifest is still
+verified file by file. A wrong copy, a missing pin, or a `mypy` found only on
+`PATH` is refused with a message naming the override. Type checking is pinned to
+an approved offline `local_environment` (`development-tools.lock.json`) and
+`scripts/dev check` exits 0 at the accepted tip; the cp313-interpreter deviation
+and the CI-vs-local difference are recorded in `development-tools.lock.json` and
+the internal verification records (not published); see
+[release-1.0.0.md](docs/release-1.0.0.md).
 
 Register the machine's real deployments and harnesses:
 

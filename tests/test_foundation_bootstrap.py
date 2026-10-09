@@ -266,3 +266,68 @@ def test_bootstrap_tools_refuses_without_approved_artifacts(dev, monkeypatch, ca
     assert dev.main() == 3
     assert "BLOCKED" in capsys.readouterr().err
     assert not (dev.ROOT / ".venvs").exists()
+
+
+# --- documented toolchain overrides (1.0): hash-verified relocation ----------
+
+
+def test_mypy_override_with_matching_hash_is_accepted(dev, monkeypatch):
+    pin, interpreter, _manifest, _library = _local_environment_pin(dev)
+    relocated = dev.ROOT / "relocated-python"
+    relocated.write_bytes(interpreter.read_bytes())  # the same approved build
+    relocated.chmod(0o755)
+    monkeypatch.setenv("HOP_MYPY_PYTHON", str(relocated))
+    _write_tools_lock(dev, {"mypy": pin})
+    assert dev.resolve_approved_tool(dev.load_tools(), "mypy", "local_environment") == [
+        str(relocated.resolve()),
+        "-m",
+        "mypy",
+    ]
+
+
+def test_mypy_override_with_wrong_hash_is_refused(dev, monkeypatch):
+    pin, _interpreter, _manifest, _library = _local_environment_pin(dev)
+    impostor = dev.ROOT / "impostor-python"
+    impostor.write_bytes(b"#!/bin/sh\necho not the approved mypy\n")
+    impostor.chmod(0o755)
+    monkeypatch.setenv("HOP_MYPY_PYTHON", str(impostor))
+    _write_tools_lock(dev, {"mypy": pin})
+    with pytest.raises(dev.ToolUnavailable, match="does not match the approved pin"):
+        dev.resolve_approved_tool(dev.load_tools(), "mypy", "local_environment")
+
+
+def test_missing_pinned_interpreter_names_the_documented_override(dev, monkeypatch):
+    pin, interpreter, _manifest, _library = _local_environment_pin(dev)
+    interpreter.unlink()
+    monkeypatch.delenv("HOP_MYPY_PYTHON", raising=False)
+    _write_tools_lock(dev, {"mypy": pin})
+    with pytest.raises(dev.ToolUnavailable, match="HOP_MYPY_PYTHON"):
+        dev.resolve_approved_tool(dev.load_tools(), "mypy", "local_environment")
+
+
+def test_mypy_never_accepts_a_path_binary(dev, monkeypatch):
+    pin, interpreter, _manifest, _library = _local_environment_pin(dev)
+    interpreter.unlink()
+    monkeypatch.delenv("HOP_MYPY_PYTHON", raising=False)
+    monkeypatch.setattr(dev.shutil, "which", lambda name: "/usr/local/bin/mypy")
+    _write_tools_lock(dev, {"mypy": pin})
+    with pytest.raises(dev.ToolUnavailable, match="HOP_MYPY_PYTHON"):
+        dev.resolve_approved_tool(dev.load_tools(), "mypy", "local_environment")
+
+
+def test_bootstrap_tools_without_wheel_pins_reports_local_pins(dev, capsys):
+    pin, _interpreter, _manifest, _library = _local_environment_pin(dev)
+    _write_tools_lock(dev, {"mypy": pin})
+    assert dev.bootstrap_tools(SimpleNamespace()) == 0
+    out = capsys.readouterr().out
+    assert "local pins resolve in place" in out
+    assert "HOP_MYPY_PYTHON" in out
+
+
+def test_wheelhouse_override_ignores_the_retired_aop_variable(dev, monkeypatch):
+    legacy = dev.ROOT / "legacy-wheelhouse"
+    legacy.mkdir()
+    (dev.ROOT / ".vendor/wheels").mkdir(parents=True, exist_ok=True)
+    monkeypatch.delenv("HOP_WHEELHOUSE", raising=False)
+    monkeypatch.setenv("AOP_WHEELHOUSE", str(legacy))
+    assert dev.approved_wheelhouse() == (dev.ROOT / ".vendor/wheels").resolve()

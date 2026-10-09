@@ -3,6 +3,12 @@
   "platform": "linux-x86_64",
   "python": "3.14",
   "wheelhouse": "/home/mitko/dev/esf/worktrees/hop-wheelhouse",
+  "documented_overrides": {
+    "HOP_WHEELHOUSE": "Approved local wheelhouse (wheels + MANIFEST.sha256). Replaces the pinned wheelhouse path; the manifest and every wheel hash are still verified.",
+    "HOP_MYPY_PYTHON": "Approved copy of the pinned mypy interpreter (local_environment). Replaces the pinned interpreter path; the file must still match interpreter_sha256. A PATH mypy is never accepted.",
+    "HOP_TOOLS_VENV": "Target directory for the pinned wheel-artifact tool environment.",
+    "HOP_LOCK_VENV": "Target .venv link used by scripts/dev bootstrap."
+  },
   "tools": {
     "ruff": {
       "name": "ruff",
