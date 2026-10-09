@@ -44,11 +44,11 @@ class ToolUnavailable(ValueError):
 SHA256 = re.compile(r"[0-9a-f]{64}")
 
 # name, pin kind, arguments. The kind is the resolution contract: a wheel_artifact
-# is only ever executed from the approved wheelhouse environment, never from PATH.
+# or local_environment is only ever executed from its approved artifact, never from PATH.
 CHECK_COMMANDS = (
     ("ruff", "local_binary", ("check", "src", "tests", "scripts/dev")),
     ("ruff", "local_binary", ("format", "--check", "src", "tests", "scripts/dev")),
-    ("mypy", "wheel_artifact", ("src/hop",)),
+    ("mypy", "local_environment", ("--python-version", "3.14", "src/hop")),
 )
 
 
@@ -62,10 +62,20 @@ def load_tools():
     return lock.get("tools") or {}
 
 
+def lock_wheelhouse():
+    path = ROOT / "development-tools.lock.json"
+    try:
+        value = json.loads(path.read_text()).get("wheelhouse")
+    except (OSError, ValueError):
+        return None
+    return value if isinstance(value, str) and value else None
+
+
 def approved_wheelhouse():
     wheelhouse = Path(
         os.environ.get(
-            "HOP_WHEELHOUSE", os.environ.get("AOP_WHEELHOUSE", str(ROOT / ".vendor/wheels"))
+            "HOP_WHEELHOUSE",
+            os.environ.get("AOP_WHEELHOUSE", lock_wheelhouse() or str(ROOT / ".vendor/wheels")),
         )
     ).resolve()
     if not wheelhouse.is_dir():
@@ -93,6 +103,21 @@ def verified_artifact(wheelhouse, name, entry):
     if hashlib.sha256(artifact.read_bytes()).hexdigest() != digest:
         raise ToolUnavailable(f"{name} wheel integrity check failed: {artifact}")
     return artifact
+
+
+def verify_manifest(manifest, name):
+    """Verify every file named by an approved artifact manifest, failing closed."""
+    for number, line in enumerate(manifest.read_text().splitlines(), 1):
+        if not line.strip():
+            continue
+        digest, separator, path = line.partition("  ")
+        target = Path(path)
+        if separator != "  " or not SHA256.fullmatch(digest) or not target.is_absolute():
+            raise ToolUnavailable(f"approved offline {name} manifest line {number} is malformed")
+        if not target.is_file():
+            raise ToolUnavailable(f"approved offline {name} manifest file is missing: {target}")
+        if hashlib.sha256(target.read_bytes()).hexdigest() != digest:
+            raise ToolUnavailable(f"{name} manifest integrity check failed: {target}")
 
 
 def resolve_approved_tool(tools, name, kind):
@@ -133,6 +158,31 @@ def resolve_approved_tool(tools, name, kind):
                 "(run scripts/dev bootstrap-tools)"
             )
         return [str(interpreter), "-m", pin.get("module") or name]
+    if kind == "local_environment":
+        if pin.get("status") != "pinned_local_environment":
+            raise ToolUnavailable(
+                f"approved offline {name} is not pinned (status={pin.get('status', 'absent')}); "
+                "no PATH substitute is accepted"
+            )
+        interpreter = pin.get("interpreter")
+        if not isinstance(interpreter, str) or not Path(interpreter).is_absolute():
+            raise ToolUnavailable(f"approved offline {name} needs an absolute pinned interpreter")
+        resolved = Path(interpreter).resolve()
+        if not resolved.is_file():
+            raise ToolUnavailable(f"approved offline {name} interpreter is missing: {interpreter}")
+        if hashlib.sha256(resolved.read_bytes()).hexdigest() != pin.get("interpreter_sha256"):
+            raise ToolUnavailable(f"{name} interpreter does not match the approved pin")
+        wheelhouse = approved_wheelhouse()
+        manifest_name = pin.get("manifest")
+        if not manifest_name or Path(manifest_name).name != manifest_name:
+            raise ToolUnavailable(f"approved offline {name} needs a manifest file name")
+        manifest = wheelhouse / manifest_name
+        if not manifest.is_file():
+            raise ToolUnavailable(f"approved offline {name} manifest is missing: {manifest}")
+        if hashlib.sha256(manifest.read_bytes()).hexdigest() != pin.get("manifest_sha256"):
+            raise ToolUnavailable(f"{name} manifest does not match the approved pin")
+        verify_manifest(manifest, name)
+        return [interpreter, "-m", pin.get("module") or name]
     raise ToolUnavailable(f"approved offline {name} uses an unknown pin kind {kind!r}")
 
 
@@ -148,7 +198,8 @@ def bootstrap(args):
         )
     wheelhouse = Path(
         os.environ.get(
-            "HOP_WHEELHOUSE", os.environ.get("AOP_WHEELHOUSE", str(ROOT / ".vendor/wheels"))
+            "HOP_WHEELHOUSE",
+            os.environ.get("AOP_WHEELHOUSE", lock_wheelhouse() or str(ROOT / ".vendor/wheels")),
         )
     ).resolve()
     target = Path(

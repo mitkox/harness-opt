@@ -30,10 +30,13 @@ the developer environment. `--run-tests` tests a replacement before switching;
 it needs usable local sockets and bubblewrap. A failure preserves the old link.
 `scripts/build_lock_env.sh` delegates to this non-destructive bootstrap.
 
-`development-tools.lock.json` pins the observed Ruff binary. Mypy and its offline
-transitive lock are not supplied; `check` returns BLOCKED until an administrator
-imports and pins approved artifacts. An arbitrary executable on PATH is not
-accepted as a pinned tool. No type-check success is currently claimed.
+`development-tools.lock.json` pins the local Ruff binary (0.16.10) and the approved
+offline mypy environment (mypy 2.3.1, hash-verified interpreter plus a file manifest;
+see `docs/verification/o1-request.md`). Neither tool is ever taken from an
+unverified `PATH` binary, and `bootstrap-tools` installs only pinned wheel artifacts.
+`check` no longer returns BLOCKED, but it does not currently exit 0: it reports the
+source's real type findings (45 errors in 13 files at the time of writing). A red
+type gate is a product result, not a toolchain failure, and must not be suppressed.
 
 ## Workspace and First Run
 
