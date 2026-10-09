@@ -23,7 +23,7 @@ Evidence column distinguishes *verified at this tip* from *historical (run
 
 | Priority | Finding | Disposition and Evidence |
 |---|---|---|
-| High | Worker environment denylisting inherited arbitrary shell functions and host configuration. | Fixed: explicit allowlist, hostile-environment boundary regression exists (`tests/security/test_boundaries.py`). Not executable in this pass: the test needs user namespaces, blocked on the host by AppArmor and absent `bwrap` in the Cube template. Historical run passed it. |
+| High | Worker environment denylisting inherited arbitrary shell functions and host configuration. | Fixed: explicit allowlist, hostile-environment boundary regression exists (`tests/security/test_boundaries.py`). Not executable in *this* pass: the test needs user namespaces; the host denies them (`apparmor_restrict_unprivileged_userns=1`) and the default Cube workspace does not install `bwrap`. In Cube eb9 `bwrap` installs and works, so the sandbox-marked suite is executable there once the workspace installs it (independent-verifier, task-5); this pass did not use such a workspace. |
 | High | Run admission and attempt fencing used separately locked reads/writes; independent SQLite connections could lose updates. | Fixed: BEGIN IMMEDIATE transactions; concurrent admission and unique-token regressions pass in the 203-passing unit suite at this tip (`tests/test_foundation_integrity.py`). |
 | High | Artifact owner/digest paths could escape their store; existing corrupt blobs could acquire new references. | Fixed: identifier/digest/containment checks, symlink-escape and tampered-blob regressions, atomic reference publication; covered by the unit suite at this tip. |
 | High | A failed first event write could be read as legacy data without an integrity chain. | Fixed: durable pending marker and atomic chain publication; interrupted writes remain incomplete. Automated pending-write recovery remains unqualified (see HOP-R04). |
@@ -68,12 +68,15 @@ attributed to the execution environment, not to product behavior:
 * **ESF Cube, revision `4ba5b1a`**, template `tpl-eb9b6ee957064ac09b80cd8e`
   (run `hop-gate-baseline-4ba5b1a3`, recorded by `factory-delivery` in
   `.factory/hop-v1/evidence.md`): `pytest-nonlive` exit 1 with **18 failed +
-  7 errors**. Root causes: (1) `bwrap` is absent in the template, so HOP's
-  hardened runner fails closed with `SandboxUnavailable`; (2) the template
-  interpreter is CPython **3.12.12** while the pinned offline wheelhouse is
-  evidenced for **CPython 3.14/Linux x86-64**, producing the three
-  `test_foundation_bootstrap.py` failures. Neither root cause is a product
-  defect; both are delivery-tooling/template gaps owned by WP-0.2/WP-1.2/WP-1.4.
+  7 errors**. Root causes: (1) the default Cube workspace does not install
+  `bwrap`, so HOP's hardened runner fails closed with `SandboxUnavailable`
+  (`bwrap` is installable in the template and the sandbox suite is green there
+  once installed -- independent-verifier task-5, probe-2-probe-hop-eb9, 76
+  passed); (2) the template interpreter is CPython **3.12.12** while the pinned
+  offline wheelhouse is evidenced for **CPython 3.14/Linux x86-64**, producing
+  the three `test_foundation_bootstrap.py` failures. Neither root cause is a
+  product defect; both are gate-environment/toolchain gaps owned by WP-0.2b and
+  WP-1.2.
 * **Host (this session), tip `f5dc9ed`**: `scripts/dev test --suite unit` is
   green (203 passed, 92 deselected, exit 0). `--suite contract` is 1 failed /
   14 passed and `--suite all` is 17 failed / 270 passed / 7 errors; every
@@ -100,15 +103,37 @@ Design inputs already committed: `docs/adr/ADR-012-worker-egress-broker.md`,
 
 ### Independent review of the boundary records
 
-Status: **PENDING** — `independent-verifier` sign-off is required before
-HOP-R01 can be recorded as closed.
+Status: **SIGNED** — `independent-verifier`, 2026-10-09, revision `f5dc9ed`
+(review text `5006cf7`; full detail in `docs/verification/reviews.md`, R-004).
+The reviewer independently reproduced the OPEN dispositions, confirmed
+`git diff 4ba5b1a..f5dc9ed -- src/hop` and the boundary tests are empty, and
+required one evidence-text clarification (which is applied above).
 
 ```
-Reviewer: ____________________   Date: ____________
+Reviewer: independent-verifier (task-5 / task-9 independent verification)
+Date: 2026-10-09
 Revision reviewed: f5dc9ed03d8eae1de9d0fdadb39fae4e6e73369a
-Verdict: OPEN findings correctly reported; no enforcement claimed that is not
-in effect.  [ ] agree   [ ] disagree (attach specifics)
+Verdict: [x] agree   [ ] disagree
 ```
+
+Attestation (verbatim):
+
+> Reviewed as independent-verifier at f5dc9ed03d8eae1de9d0fdadb39fae4e6e73369a
+> (review text 5006cf7): all three High boundary findings are correctly OPEN
+> with no enforcement claimed that is not in effect, the bwrap
+> present-but-unusable misclassification and the three closures are correctly
+> assigned to task-9, and no boundary test was weakened — subject to the single
+> evidence-text clarification above.
+
+Carried to task-9 from the same review (`docs/verification/reviews.md`, R-002):
+
+* ADR-012 §Decision 1 references `ATTEMPT_KIND == "agent"`, which does not exist
+  anywhere in `src/hop` at `f5dc9ed`; task-9 must introduce the guard or name the
+  real enforcement point.
+* ADR-013's "expected local outcome is unavailable until the Cube template is
+  probed" now has its probe: Cube `eb9` and `e0b` both have a writable, fully
+  delegated cgroup v2 root. The blocked path remains correct for the host, but
+  must not be used to describe the Cube gate environment.
 
 ## Review Coverage
 

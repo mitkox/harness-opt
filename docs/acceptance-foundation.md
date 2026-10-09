@@ -47,10 +47,13 @@ Commands run from the delivery worktree with the pinned offline environment
 Both red sets are attributed to the execution environment, not to product
 behavior, and neither is hidden or converted into a pass:
 
-1. **Cube template `tpl-eb9b6ee957064ac09b80cd8e`: `bwrap` absent.** HOP's
-   hardened runner fails closed with `hop.sandbox.SandboxUnavailable: bwrap
-   missing; refusing to run unisolated`, producing the runner/verification/
+1. **Cube workspace on `tpl-eb9b6ee957064ac09b80cd8e`: `bwrap` not installed.**
+   HOP's hardened runner fails closed with `hop.sandbox.SandboxUnavailable:
+   bwrap missing; refusing to run unisolated`, producing the runner/verification/
    inference/boundary failures and `error_class='verifier_sandbox_unavailable'`.
+   `bwrap` is installable in this template and the sandbox-marked suite is green
+   there once installed (independent-verifier task-5); the gate workspace had not
+   installed it.
 2. **Cube template interpreter CPython 3.12.12 vs the CPython 3.14/Linux
    x86-64 wheelhouse.** The three `test_foundation_bootstrap.py` failures follow
    directly from the offline wheelhouse refusing a non-3.14 interpreter.
@@ -100,7 +103,7 @@ re-measured** in this pass.
 
 | Not executed | Reason |
 |---|---|
-| All namespace-dependent tests (sandbox marker): the 17 host failures + 7 fixture errors, and the Cube 18 failures + 7 errors | No usable user namespaces in either execution environment (host AppArmor restriction; Cube template has no `bwrap`). Re-run required on a namespace-capable host/template. |
+| All namespace-dependent tests (sandbox marker): the 17 host failures + 7 fixture errors, and the Cube 18 failures + 7 errors | No usable user namespaces in either environment used in this pass: the host denies them via AppArmor, and the default Cube workspace does not install `bwrap` (installable there). Re-run required on a namespace-capable workspace/template. |
 | `scripts/dev test --suite live` / installed-Pi contract | Owner input O2 (loopback local model) absent; Pi version requalification is owned by HOP-R04/task-9. Historical observation (Pi 1.0.0 vs the 0.85.1 assertion) remains unrequalified. |
 | `scripts/dev check` type checking | Approved offline `mypy` artifact not available (HOP-R02, owner input O1). Recorded as BLOCKED, exit 3 - not a pass. |
 | `HOP_WHEELHOUSE=... scripts/dev bootstrap --run-tests` | Not re-run in this pass. On the current environments it cannot pass, because it runs the full non-live suite (same namespace limitation); the historical 2026-10-01 pass is retained as history, not as a current result. |
