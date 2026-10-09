@@ -146,7 +146,7 @@ def test_poisoned_trajectory_cannot_claim_verifier_authority(tmp_path):
 def test_hidden_material_in_the_candidate_snapshot_is_contamination(tmp_path):
     snapshot = tmp_path / "snapshot"
     shutil.copytree(FIXTURES / "verifier/snapshot", snapshot)
-    shutil.copy(FIXTURES / "verifier/hidden/test_probe.py", snapshot / "test_probe.py")
+    shutil.copy(FIXTURES / "verifier/hidden/probe_case.py", snapshot / "test_probe.py")
     result = verification.run_verification(
         "adv-contamination",
         "a1",
@@ -160,7 +160,7 @@ def test_hidden_material_in_the_candidate_snapshot_is_contamination(tmp_path):
         "verifier_integrity.hidden_material_in_snapshot",
         "hidden material in the candidate snapshot must be refused",
         f"verdict={result.verdict.value} error_class={result.error_class}",
-        "tests/fixtures/adversarial/verifier/hidden/test_probe.py",
+        "tests/fixtures/adversarial/verifier/hidden/probe_case.py",
     )
 
 

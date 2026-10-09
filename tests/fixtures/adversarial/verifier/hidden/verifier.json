@@ -2,13 +2,13 @@
   "verifier_id": "adversarial-probe",
   "version": "1",
   "test_files": [
-    "test_probe.py"
+    "probe_case.py"
   ],
   "expected_tests": [
-    "test_probe.py::test_always_fails"
+    "probe_case.py::test_always_fails"
   ],
   "mandatory_tests": [
-    "test_probe.py::test_always_fails"
+    "probe_case.py::test_always_fails"
   ],
   "minimum_test_count": 1
 }
