@@ -38,7 +38,7 @@
     "provenance_path": {"type": "string"},
     "repository_manifest_path": {"type": "string"},
     "environment_lock_path": {"type": "string"},
-    "content_digest": {"type": "string"},
+    "content_digest": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
     "created_at": {"type": "string"}
   }
 }

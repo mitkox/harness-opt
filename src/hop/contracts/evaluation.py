@@ -20,7 +20,7 @@ from __future__ import annotations
 
 from typing import Annotated
 
-from pydantic import BaseModel, ConfigDict, Field, StringConstraints
+from pydantic import BaseModel, ConfigDict, Field, StringConstraints, model_validator
 
 from .base import AopBase
 
@@ -133,5 +133,20 @@ class CasePackage(AopBase):
     provenance_path: str = Field(default="")
     repository_manifest_path: str = Field(default="")
     environment_lock_path: str = Field(default="")
-    content_digest: str = Field(default="")
+    content_digest: str = Field(default="", pattern=SHA256_PATTERN)
     created_at: str = Field(default="")
+
+    @model_validator(mode="after")
+    def _require_digest_for_assigned_packages(self) -> CasePackage:
+        """A package with an assigned hidden_ref must carry its content digest.
+
+        ``hidden_ref == "unassigned"`` is the explicitly incomplete in-memory
+        placeholder used before a package is imported or sealed; every real
+        package (importer output or a loaded on-disk package) must carry a
+        patterned ``content_digest`` so tamper checks have a trusted value.
+        """
+        if self.hidden_ref != "unassigned" and not self.content_digest:
+            raise ValueError(
+                "content_digest is required for a case package with an assigned hidden_ref"
+            )
+        return self

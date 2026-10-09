@@ -298,3 +298,35 @@ def test_explicit_group_unknown_sha_is_a_typed_error(tmp_path):
     )
     with pytest.raises(GroupingError, match="unknown commits"):
         group_commits([fact], explicit_groups=[["f" * 40]])
+
+
+def _assigned_package_kwargs():
+    return {
+        "case_id": "case-" + "ab" * 8,
+        "group_id": "group-" + "0" * 16,
+        "root": "pkg",
+        "task_path": "task.yaml",
+        "hidden_ref": "sealed-unassigned:case-" + "ab" * 8,
+    }
+
+
+def test_assigned_package_requires_patterned_content_digest():
+    """A-5: a real package must carry a sha256 content digest."""
+    with pytest.raises(ValidationError):
+        CasePackage(**_assigned_package_kwargs())
+    with pytest.raises(ValidationError):
+        CasePackage(**_assigned_package_kwargs(), content_digest="not-a-digest")
+    package = CasePackage(**_assigned_package_kwargs(), content_digest="sha256:" + "11" * 32)
+    assert package.content_digest == "sha256:" + "11" * 32
+
+
+def test_unassigned_placeholder_may_omit_content_digest():
+    """The explicitly incomplete in-memory placeholder stays constructible."""
+    package = CasePackage(
+        case_id="case-" + "ab" * 8,
+        group_id="group-" + "0" * 16,
+        root="pkg",
+        task_path="task.yaml",
+        hidden_ref="unassigned",
+    )
+    assert package.content_digest == ""
