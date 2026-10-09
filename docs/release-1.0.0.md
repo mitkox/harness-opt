@@ -89,12 +89,21 @@ acceptance records remain byte-identical and readable.
 - Owner-confirmed local activation and rollback (M8).
 - Optional local build-repair fixtures (AOP-023) and calibrated local judges
   (AOP-026).
-- The M10 end-to-end lifecycle acceptance demonstration (AOP-054) and overhead /
-  resource-fairness measurement (AOP-053) remain open; AOP-054 is blocked on the
-  G8 live-acceptance items.
-- **Live local-model acceptance remains unexecuted** (no qualified local
-  deployment in this environment), and the pinned Pi requalification is
-  unexecuted. No result here is inferred from fixtures.
+- Live local-model acceptance was **executed and passed** at
+  `138a4ef` (`run-58f5589ef776`: `outcome: pass`, `verdict: pass`,
+  `agent_seconds 47.71`, Pi 1.1.0 qualified, deployment
+  `qwen-flash-next-IQ2_S_-_2.5_bpw`); see
+  `docs/evidence/1.0/live-model-acceptance.md`. It is re-run at the frozen sha
+  by the freeze gate (WP-5.1). The pinned Pi 1.1.0 build was requalified
+  (task-19). Nothing here is inferred from fixtures.
+- The M10 end-to-end lifecycle demonstration (AOP-054) is delivered with gate
+  `hop-gate-task32-674b991`: import → protected splits → frozen evaluation →
+  trajectory/completeness → profile compile → APM export → evidence read-back,
+  plus the four special cases. Its host-side scripted evaluation leg is
+  **honestly blocked** (`verifier_sandbox_unavailable`, `telemetry_incomplete`),
+  and the trusted-verifier path is evidenced by the Cube sandbox lane.
+- Overhead and resource fairness (AOP-053) are measured (gate
+  `hop-gate-task31-4cfb317`), including the 120-run bounded-cardinality soak.
 
 ## Verification and evidence
 
