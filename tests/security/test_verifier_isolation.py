@@ -285,6 +285,10 @@ def test_real_environment_is_evidenced_or_explicitly_blocked(tmp_path):
         "log_tail": res.details.get("log_tail", "")[-2000:],
         "stderr_tail": res.details.get("stderr_tail", "")[-2000:],
         "candidate_worker": res.details.get("candidate_worker", {}),
+        "collection_errors": res.details.get("verification", {})
+        .get("report", {})
+        .get("collection_errors", []),
+        "report_collected": res.details.get("verification", {}).get("report", {}).get("collected"),
     }
     assert res.details["isolation"]["candidate_mounts_hidden_tests"] is False
     assert res.details["isolation"]["trusted_host_imports_candidate"] is False

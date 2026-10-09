@@ -51,7 +51,7 @@ from .sandbox import (
 PLUGIN_SOURCE = '''"""Verifier-owned pytest plugin: machine-readable per-test report."""
 import json
 
-_STATE = {"collected": [], "deselected": [], "outcomes": {}}
+_STATE = {"collected": [], "deselected": [], "outcomes": {}, "collection_errors": []}
 _RANK = {"passed": 0, "skipped": 1, "failed": 2, "error": 3}
 
 
@@ -65,6 +65,14 @@ def pytest_collection_modifyitems(session, config, items):
 
 def pytest_deselected(items):
     _STATE["deselected"] = [item.nodeid for item in items]
+
+
+def pytest_collectreport(report):
+    if report.failed:
+        _STATE["collection_errors"].append({
+            "nodeid": report.nodeid,
+            "longrepr": str(getattr(report, "longrepr", ""))[:2000],
+        })
 
 
 def _record(nodeid, outcome):
@@ -97,6 +105,7 @@ def pytest_sessionfinish(session, exitstatus):
         return
     data = {"schema_version": 1, "collected": _STATE["collected"],
             "deselected": _STATE["deselected"], "outcomes": _STATE["outcomes"],
+            "collection_errors": _STATE["collection_errors"],
             "exitstatus": int(exitstatus)}
     tmp = path + ".partial"
     with open(tmp, "w") as fh:
@@ -635,6 +644,7 @@ def evaluate_report(report: dict, manifest: dict) -> tuple[Verdict, RunOutcome, 
         "collected": collected,
         "deselected": deselected,
         "outcomes": outcomes,
+        "collection_errors": list(report.get("collection_errors", [])),
     }
 
     def reject(
