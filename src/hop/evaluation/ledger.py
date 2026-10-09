@@ -51,10 +51,11 @@ class AccessEntry:
     content_digest: str
     prev: str
     digest: str = ""
+    reason: str = ""
     schema_version: int = LEDGER_SCHEMA_VERSION
 
     def core(self) -> dict:
-        return {
+        payload = {
             "schema_version": self.schema_version,
             "seq": self.seq,
             "ts": self.ts,
@@ -68,6 +69,11 @@ class AccessEntry:
             "outcome": self.outcome,
             "content_digest": self.content_digest,
         }
+        # Only present when set, so entries written before this field existed
+        # keep the same digest.
+        if self.reason:
+            payload["reason"] = self.reason
+        return payload
 
     def compute_digest(self) -> str:
         return hashlib.sha256(
@@ -115,6 +121,7 @@ class AccessLedger:
         outcome: str = "granted",
         content_digest: str = "",
         event: str = "read",
+        reason: str = "",
     ) -> AccessEntry:
         with open(self.lock_path, "a") as lock:
             fcntl.flock(lock, fcntl.LOCK_EX)
@@ -134,6 +141,7 @@ class AccessLedger:
                     outcome=outcome,
                     content_digest=content_digest,
                     prev=previous,
+                    reason=reason,
                 )
                 entry.digest = entry.compute_digest()
                 line = json.dumps(
@@ -185,6 +193,7 @@ class AccessLedger:
                         content_digest=str(row.get("content_digest", "")),
                         prev=str(row["prev"]),
                         digest=str(row["digest"]),
+                        reason=str(row.get("reason", "")),
                     )
                 except (KeyError, TypeError, ValueError) as exc:
                     if strict:
@@ -224,7 +233,11 @@ class AccessLedger:
         for entry in entries:
             if entry.event != "read":
                 continue
-            key = entry.case_id or entry.token
+            # Never surface the raw sealed token: unknown-case denials are keyed
+            # by a short hash so CLI/ledger output cannot disclose hidden_ref.
+            key = entry.case_id or (
+                "token:" + hashlib.sha256(entry.token.encode("utf-8")).hexdigest()[:12]
+            )
             if entry.outcome != "granted":
                 report.denied += 1
                 if entry.run_id:

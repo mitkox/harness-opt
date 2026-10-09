@@ -7,6 +7,7 @@ blocks promotion eligibility, and the ledger chain detects tampering.
 
 from __future__ import annotations
 
+import json
 import os
 import stat
 from pathlib import Path
@@ -17,6 +18,7 @@ from hop.evaluation.ledger import AccessLedger, LedgerError
 from hop.evaluation.sealed import (
     SealedAccessDenied,
     SealedCaseNotFound,
+    SealedIntegrityError,
     SealedStore,
 )
 from hop.evaluation.sealed.store import with_hidden_ref
@@ -234,3 +236,117 @@ def test_seal_tree_round_trips_a_hidden_case(tmp_path):
     material = store.read(ref.token, actor="v", role="verifier", purpose="eval", run_id="run-1")
     assert set(material) == {"test_hidden.py", "nested/data.json"}
     assert b"assert True" in material["test_hidden.py"]
+
+
+# ---------------------------------------------------------------------------
+# WP-2.1e integrity hardening (A-1..A-4). Each fails before the fix.
+# ---------------------------------------------------------------------------
+
+
+def test_read_refuses_tampered_material_and_records_denial(tmp_path):
+    store = _store(tmp_path)
+    token = _seal(store)
+    material = Path(store.path_for(token)) / "files" / "hidden" / "test_hidden.py"
+    material.write_bytes(b"TAMPERED")
+    with pytest.raises(SealedIntegrityError):
+        store.read(token, actor="v", role="verifier", purpose="evaluation", run_id="run-1")
+    reads = [entry for entry in store.ledger.entries() if entry.event == "read"]
+    assert [entry.outcome for entry in reads] == ["denied"]
+    assert reads[0].reason.startswith("material_tampered")
+    assert store.promotion_eligible("run-1") is False
+    # The original, untampered material is still recoverable only after repair.
+    material.write_bytes(b"SECRET")
+    assert (
+        store.read(token, actor="v", role="verifier", purpose="evaluation", run_id="run-2")[
+            "hidden/test_hidden.py"
+        ]
+        == b"SECRET"
+    )
+
+
+def test_read_refuses_missing_or_unexpected_sealed_files(tmp_path):
+    store = _store(tmp_path)
+    token = _seal(store)
+    case = Path(store.path_for(token))
+    (case / "files" / "hidden" / "test_hidden.py").unlink()
+    with pytest.raises(SealedIntegrityError):
+        store.read(token, actor="v", role="verifier", purpose="evaluation")
+    (case / "files" / "hidden" / "test_hidden.py").write_bytes(b"SECRET")
+    (case / "files" / "extra.py").write_bytes(b"injected")
+    with pytest.raises(SealedIntegrityError):
+        store.read(token, actor="v", role="verifier", purpose="evaluation")
+
+
+def test_manifest_tamper_is_detected(tmp_path):
+    store = _store(tmp_path)
+    token = _seal(store)
+    manifest_path = Path(store.path_for(token)) / "manifest.json"
+    payload = json.loads(manifest_path.read_text())
+    payload["case_id"] = "case-00000000000000ff"
+    manifest_path.write_text(json.dumps(payload, sort_keys=True, indent=2))
+    with pytest.raises(SealedIntegrityError):
+        store.manifest(token)
+    with pytest.raises(SealedIntegrityError):
+        store.read(token, actor="v", role="verifier", purpose="evaluation")
+    reads = [entry for entry in store.ledger.entries() if entry.event == "read"]
+    assert reads and reads[-1].outcome == "denied"
+
+
+def test_seal_rejects_invalid_case_ids(tmp_path):
+    store = _store(tmp_path)
+    for bad in ("", "case-X", "nope", "case-00000000000000", "case-" + "z" * 16):
+        with pytest.raises(ValueError):
+            store.seal(bad, {"hidden.py": b"x"})
+
+
+def test_exposure_and_cli_never_emit_the_raw_token(tmp_path, capsys):
+    from hop.evaluation.sealed import cli
+
+    store = _store(tmp_path)
+    token = _seal(store)
+    store.read(token, actor="v", role="verifier", purpose="evaluation", run_id="run-1")
+    with pytest.raises(SealedCaseNotFound):
+        store.read("f" * 32, actor="v", role="verifier", purpose="evaluation", run_id="run-2")
+    report = store.exposure()
+    assert token not in json.dumps(report)
+    assert all(len(key) != 32 for key in report["counts"])
+    code = cli.main(
+        [
+            "ledger",
+            "--root",
+            store.root,
+            "--repository-root",
+            str(REPO),
+            "--format",
+            "json",
+        ]
+    )
+    assert code == cli.EXIT_OK
+    assert token not in capsys.readouterr().out
+
+
+def test_reseal_is_atomic_and_records_replacement(tmp_path):
+    store = _store(tmp_path)
+    first = store.seal(CASE, {"hidden.py": b"one"})
+    second = store.seal(CASE, {"hidden.py": b"two"})
+    assert second.token == first.token
+    events = [entry.event for entry in store.ledger.entries()]
+    assert events == ["seal", "seal-replaced"]
+    assert (
+        store.read(second.token, actor="v", role="verifier", purpose="evaluation")["hidden.py"]
+        == b"two"
+    )
+    assert not list(Path(store.cases_root).glob(".stage-*"))
+    assert not list(Path(store.cases_root).glob("*.old-*"))
+
+
+def test_read_refuses_when_the_ledger_cannot_record(tmp_path, monkeypatch):
+    store = _store(tmp_path)
+    token = _seal(store)
+
+    def refuse(*args, **kwargs):
+        raise OSError("fixture ledger unavailable")
+
+    monkeypatch.setattr(store.ledger, "append", refuse)
+    with pytest.raises(SealedAccessDenied):
+        store.read(token, actor="v", role="verifier", purpose="evaluation")

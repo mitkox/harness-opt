@@ -9,6 +9,7 @@ append-only :class:`~hop.evaluation.ledger.AccessLedger`.
 from .store import (
     SealedAccessDenied,
     SealedCaseNotFound,
+    SealedIntegrityError,
     SealedRef,
     SealedStore,
 )
@@ -16,6 +17,7 @@ from .store import (
 __all__ = [
     "SealedAccessDenied",
     "SealedCaseNotFound",
+    "SealedIntegrityError",
     "SealedRef",
     "SealedStore",
 ]

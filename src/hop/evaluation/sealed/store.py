@@ -23,6 +23,7 @@ import os
 import re
 import secrets
 import shutil
+import tempfile
 import time
 from dataclasses import dataclass, field
 
@@ -34,12 +35,19 @@ from ..splits import (
 )
 
 TOKEN_RE = re.compile(r"^[0-9a-f]{32}$")
+# Mirrors hop.contracts.evaluation.CASE_ID_PATTERN; kept local so this module
+# imports in a checkout where the half-A contract is not present.
+CASE_ID_RE = re.compile(r"^case-[0-9a-f]{16}$")
 SEALED_READ_ROLES = frozenset({"verifier"})
 DEFAULT_REPEAT_THRESHOLD = 1
 
 
 class SealedAccessDenied(PermissionError):
     """A non-owner actor attempted to read sealed material."""
+
+
+class SealedIntegrityError(RuntimeError):
+    """Sealed material does not match its manifest (post-seal tampering)."""
 
 
 class SealedCaseNotFound(KeyError):
@@ -75,6 +83,7 @@ class SealedManifest:
     split: str
     created_at: float
     files: dict = field(default_factory=dict)
+    manifest_digest: str = ""
     schema_version: int = 1
 
 
@@ -84,6 +93,22 @@ def _sha256(data: bytes) -> str:
 
 def _token_for(case_id: str, salt: str = "") -> str:
     return hashlib.sha256(f"sealed:{salt}:{case_id}".encode()).hexdigest()[:32]
+
+
+def _manifest_core(payload: dict) -> dict:
+    """Canonical manifest content covered by ``manifest_digest``."""
+    return {
+        "schema_version": int(payload.get("schema_version", 1)),
+        "token": str(payload.get("token", "")),
+        "case_id": str(payload.get("case_id", "")),
+        "split": str(payload.get("split", "")),
+        "created_at": float(payload.get("created_at", 0.0)),
+        "files": dict(payload.get("files", {})),
+    }
+
+
+def _manifest_digest(core: dict) -> str:
+    return _sha256(json.dumps(core, sort_keys=True, separators=(",", ":")).encode())
 
 
 def with_hidden_ref(package, token: str, *, split: str = Split.SEALED.value):
@@ -164,54 +189,75 @@ class SealedStore:
         actor: str = "importer",
         purpose: str = "seal",
     ) -> SealedRef:
-        """Seal evaluator material; returns the opaque hidden_ref token."""
+        """Seal evaluator material; returns the opaque hidden_ref token.
+
+        The case is staged in a temporary directory and swapped in with
+        ``os.replace`` so a crash can never leave a half-written case, and an
+        existing case supersede is recorded as a ``seal-replaced`` event.
+        """
         if split != Split.SEALED.value:
             raise ValueError("only sealed-evaluator cases may enter the sealed store")
+        if not CASE_ID_RE.fullmatch(case_id):
+            raise ValueError(f"invalid case_id for the sealed store: {case_id!r}")
         if not files:
             raise ValueError("refusing to seal an empty case")
-        token = self.token_for(case_id) if self.salt else _token_for(case_id)
-        case_dir = self.path_for(token)
-        if os.path.isdir(case_dir):
-            shutil.rmtree(case_dir)
-        files_dir = os.path.join(case_dir, "files")
-        os.makedirs(files_dir, mode=0o700)
-        manifest_files: dict[str, str] = {}
-        for rel, data in sorted(files.items()):
+        for rel in files:
             if rel.startswith("/") or ".." in rel.split("/"):
                 raise ValueError(f"refusing unsafe sealed path: {rel!r}")
-            destination = os.path.join(files_dir, rel)
-            os.makedirs(os.path.dirname(destination) or files_dir, mode=0o700, exist_ok=True)
-            fd = os.open(destination, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+        token = self.token_for(case_id) if self.salt else _token_for(case_id)
+        case_dir = self.path_for(token)
+        replaced = os.path.isdir(case_dir)
+        stage = tempfile.mkdtemp(dir=self.cases_root, prefix=".stage-")
+        try:
+            files_dir = os.path.join(stage, "files")
+            os.makedirs(files_dir, mode=0o700)
+            manifest_files: dict[str, str] = {}
+            for rel, data in sorted(files.items()):
+                destination = os.path.join(files_dir, rel)
+                os.makedirs(os.path.dirname(destination) or files_dir, mode=0o700, exist_ok=True)
+                fd = os.open(destination, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+                try:
+                    os.write(fd, data)
+                    os.fsync(fd)
+                finally:
+                    os.close(fd)
+                manifest_files[rel] = _sha256(data)
+            core = {
+                "schema_version": 1,
+                "token": token,
+                "case_id": case_id,
+                "split": split,
+                "created_at": round(time.time(), 6),
+                "files": manifest_files,
+            }
+            manifest_digest = _manifest_digest(core)
+            payload = {**core, "manifest_digest": manifest_digest}
+            manifest_bytes = json.dumps(payload, sort_keys=True, indent=2).encode("utf-8")
+            manifest_path = os.path.join(stage, "manifest.json")
+            fd = os.open(manifest_path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
             try:
-                os.write(fd, data)
+                os.write(fd, manifest_bytes)
                 os.fsync(fd)
             finally:
                 os.close(fd)
-            manifest_files[rel] = _sha256(data)
-        manifest = SealedManifest(
-            token=token,
-            case_id=case_id,
-            split=split,
-            created_at=round(time.time(), 6),
-            files=manifest_files,
-        )
-        payload = {
-            "schema_version": manifest.schema_version,
-            "token": manifest.token,
-            "case_id": manifest.case_id,
-            "split": manifest.split,
-            "created_at": manifest.created_at,
-            "files": manifest.files,
-        }
-        manifest_bytes = json.dumps(payload, sort_keys=True, indent=2).encode("utf-8")
-        manifest_digest = _sha256(manifest_bytes)
-        manifest_path = os.path.join(case_dir, "manifest.json")
-        fd = os.open(manifest_path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
-        try:
-            os.write(fd, manifest_bytes)
-            os.fsync(fd)
+            backup = ""
+            if replaced:
+                backup = f"{case_dir}.old-{os.getpid()}"
+                if os.path.isdir(backup):
+                    shutil.rmtree(backup)
+                os.replace(case_dir, backup)
+            try:
+                os.replace(stage, case_dir)
+            except OSError:
+                if backup and not os.path.isdir(case_dir):
+                    os.replace(backup, case_dir)
+                raise
+            if backup:
+                shutil.rmtree(backup, ignore_errors=True)
+            stage = ""
         finally:
-            os.close(fd)
+            if stage and os.path.isdir(stage):
+                shutil.rmtree(stage, ignore_errors=True)
         self.ledger.append(
             case_id=case_id,
             token=token,
@@ -220,7 +266,7 @@ class SealedStore:
             purpose=purpose,
             outcome="granted",
             content_digest=manifest_digest,
-            event="seal",
+            event="seal-replaced" if replaced else "seal",
         )
         return SealedRef(
             token=token,
@@ -251,11 +297,49 @@ class SealedStore:
 
     # -- reader ------------------------------------------------------------
     def manifest(self, token: str) -> dict:
+        """Read and integrity-check the manifest (A-3)."""
         path = os.path.join(self.path_for(token), "manifest.json")
         if not os.path.isfile(path):
             raise SealedCaseNotFound(token)
         with open(path, encoding="utf-8") as fh:
-            return json.load(fh)
+            payload = json.load(fh)
+        recorded = str(payload.get("manifest_digest", ""))
+        recomputed = _manifest_digest(_manifest_core(payload))
+        if recorded != recomputed:
+            raise SealedIntegrityError(
+                f"sealed manifest for {payload.get('case_id', '')!r} is tampered"
+            )
+        return payload
+
+    def verify_material(self, token: str) -> dict:
+        """Compare every sealed file (and the manifest) against its digest."""
+        path = self.path_for(token)
+        manifest = self.manifest(token)
+        files_dir = os.path.join(path, "files")
+        expected = {
+            str(rel): str(digest) for rel, digest in dict(manifest.get("files", {})).items()
+        }
+        observed: dict[str, str] = {}
+        for dirpath, _dirnames, filenames in os.walk(files_dir):
+            for name in filenames:
+                full = os.path.join(dirpath, name)
+                rel = os.path.relpath(full, files_dir).replace(os.sep, "/")
+                with open(full, "rb") as fh:
+                    observed[rel] = _sha256(fh.read())
+        problems: list[str] = []
+        for rel, digest in sorted(expected.items()):
+            if rel not in observed:
+                problems.append(f"missing:{rel}")
+            elif observed[rel] != digest:
+                problems.append(f"mismatch:{rel}")
+        for rel in sorted(set(observed) - set(expected)):
+            problems.append(f"unexpected:{rel}")
+        return {
+            "case_id": str(manifest.get("case_id", "")),
+            "ok": not problems,
+            "problems": problems,
+            "files": len(expected),
+        }
 
     def read(
         self,
@@ -271,31 +355,33 @@ class SealedStore:
         path = self.path_for(token)
         manifest_path = os.path.join(path, "manifest.json")
         if not os.path.isfile(manifest_path):
-            self.ledger.append(
-                case_id="",
-                token=token,
-                actor=actor,
-                role=role,
-                purpose=purpose,
-                run_id=run_id,
-                outcome="denied",
-                event="read",
-            )
+            self._deny(token, actor, role, purpose, run_id, "missing_case")
             raise SealedCaseNotFound(token)
-        manifest = self.manifest(token)
+        try:
+            manifest = self.manifest(token)
+        except SealedIntegrityError:
+            self._deny(token, actor, role, purpose, run_id, "manifest_tampered")
+            raise
         case_id = str(manifest.get("case_id", ""))
         if role not in SEALED_READ_ROLES:
-            self.ledger.append(
-                case_id=case_id,
-                token=token,
-                actor=actor,
-                role=role,
-                purpose=purpose,
-                run_id=run_id,
-                outcome="denied",
-                event="read",
-            )
+            self._deny(token, actor, role, purpose, run_id, "role_refused", case_id=case_id)
             raise SealedAccessDenied(f"role {role!r} may not read sealed case {case_id!r}")
+        integrity = self.verify_material(token)
+        if not integrity["ok"]:
+            self._deny(
+                token,
+                actor,
+                role,
+                purpose,
+                run_id,
+                "material_tampered",
+                case_id=case_id,
+                detail=",".join(integrity["problems"])[:200],
+            )
+            raise SealedIntegrityError(
+                f"sealed case {case_id!r} failed integrity verification: "
+                + ",".join(integrity["problems"])
+            )
         files_dir = os.path.join(path, "files")
         material: dict[str, bytes] = {}
         for rel in sorted(manifest.get("files", {})):
@@ -305,18 +391,51 @@ class SealedStore:
         digest = _sha256(
             b"".join(rel.encode("utf-8") + b"\0" + material[rel] for rel in sorted(material))
         )
-        self.ledger.append(
-            case_id=case_id,
-            token=token,
-            actor=actor,
-            role=role,
-            purpose=purpose,
-            run_id=run_id,
-            outcome="granted",
-            content_digest=digest,
-            event="read",
-        )
+        try:
+            self.ledger.append(
+                case_id=case_id,
+                token=token,
+                actor=actor,
+                role=role,
+                purpose=purpose,
+                run_id=run_id,
+                outcome="granted",
+                content_digest=digest,
+                event="read",
+            )
+        except OSError as exc:
+            # Fail closed: material is never returned without a durable record.
+            raise SealedAccessDenied(
+                f"cannot record a sealed read for {case_id!r}; refusing unrecorded access"
+            ) from exc
         return material
+
+    def _deny(
+        self,
+        token: str,
+        actor: str,
+        role: str,
+        purpose: str,
+        run_id: str,
+        reason: str,
+        *,
+        case_id: str = "",
+        detail: str = "",
+    ) -> None:
+        try:
+            self.ledger.append(
+                case_id=case_id,
+                token=token,
+                actor=actor,
+                role=role,
+                purpose=purpose,
+                run_id=run_id,
+                outcome="denied",
+                reason=f"{reason}:{detail}" if detail else reason,
+                event="read",
+            )
+        except OSError:
+            pass
 
     # -- exposure policy ---------------------------------------------------
     def exposure(self) -> dict:
