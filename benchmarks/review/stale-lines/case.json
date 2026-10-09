@@ -1,0 +1,23 @@
+{
+  "case_id": "stale-lines",
+  "expects": {
+    "outcome": "fail"
+  },
+  "labels": [
+    {
+      "path": "src/handler.py",
+      "line": 3,
+      "rule": "missing-key-check",
+      "severity": "medium"
+    }
+  ],
+  "findings": [
+    {
+      "path": "src/handler.py",
+      "line": 99,
+      "rule": "missing-key-check",
+      "severity": "medium",
+      "message": "line from an older revision"
+    }
+  ]
+}

@@ -1,0 +1,30 @@
+{
+  "case_id": "plausible-false-positive",
+  "expects": {
+    "outcome": "fail"
+  },
+  "labels": [
+    {
+      "path": "src/service.py",
+      "line": 2,
+      "rule": "unvalidated-response",
+      "severity": "high"
+    }
+  ],
+  "findings": [
+    {
+      "path": "src/service.py",
+      "line": 2,
+      "rule": "unvalidated-response",
+      "severity": "high",
+      "message": "response is not validated"
+    },
+    {
+      "path": "src/service.py",
+      "line": 5,
+      "rule": "unused-import",
+      "severity": "low",
+      "message": "plausible but not labeled"
+    }
+  ]
+}
