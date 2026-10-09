@@ -21,7 +21,7 @@ import traceback
 import uuid
 from functools import lru_cache, partial
 
-import yaml
+import yaml  # type: ignore[import-untyped]
 
 from .bundle import compile_bundle, harness_build_digest, model_deployment_digest
 from .config import Paths, current_paths
@@ -44,7 +44,17 @@ from .files import atomic_json, identifier
 from .harnesses.pi_adapter import PiJsonAdapter
 from .harnesses.scripted import ScriptedHarness
 from .inference import verify_served_model
-from .lifecycle import CancellationWatch, ExecutedRun, PreparedRun, RunContext, VerifiedRun
+from .lifecycle import (
+    CancellationWatch,
+    ExecutedRun,
+    HarnessLifecycle,
+    PreparedRun,
+    ProfileIdentityKw,
+    RunContext,
+    RunRequest,
+    RunResult,
+    VerifiedRun,
+)
 from .runstore import RunStore
 from .sandbox import SandboxSpec, assert_no_hidden_material, prepare_layout
 from .storage import ArtifactStore
@@ -58,7 +68,7 @@ from .telemetry.observe import (
 from .telemetry.redaction import sanitize_attributes
 from .telemetry.spool import SpoolQueue
 from .telemetry.taxonomy import assert_known_event
-from .telemetry.tracing import RunTracer
+from .telemetry.tracing import RunTracer, Span
 from .trajectories import REQUIRED_PREFIX_EVENTS, TERMINAL_EVENTS, EventLedger
 from .verification import (
     VerifierSetupError,
@@ -523,13 +533,6 @@ class Runner:
             compiled_target=(profile_target if profile_info else ""),
             compiled_target_digest=(profile_info["artifact_digest"] if profile_info else ""),
         )
-        profile_kw = {
-            "profile_id": (profile_info["profile_id"] if profile_info else ""),
-            "profile_digest": (profile_info["profile_digest"] if profile_info else ""),
-            "lock_digest": (profile_info["lock_digest"] if profile_info else ""),
-            "compiled_target": (profile_target if profile_info else ""),
-            "compiled_target_digest": (profile_info["artifact_digest"] if profile_info else ""),
-        }
         hidden_root = (
             str(self.paths.verifier / "hidden-tests") if self._explicit_paths else HIDDEN_ROOT
         )
@@ -583,66 +586,10 @@ class Runner:
         wf = tracer.start(
             "workflow.run", {"aop.run_id": run_id, "aop.bundle_digest": bundle.digest}
         )
-        adm = tracer.start("admission.resolve", {"aop.task_id": task["task_id"]})
-        emit = partial(self._emit, ledger, seq, run_id, attempt.attempt_id, bundle.digest)
-        ident = {
-            "task_id": task["task_id"],
-            "bundle": bundle.digest,
-            "model_deployment_digest": model_digest,
-            "harness_digest": harness_build.harness_digest,
-            "repo_snapshot_digest": repo_digest,
-            "environment_digest": env_digest,
-            "trace_id": tracer.trace_id,
-        }
-        emit(
-            "aop-runner",
-            EventAuthority.PLATFORM_OBSERVATION,
-            "run.admitted",
-            ident,
-            trace_id=tracer.trace_id,
-            span_id=adm.span_id,
-            parent_span_id=wf.span_id,
-            model_digest=model_digest,
-            harness_digest=harness_build.harness_digest,
-            repo_digest=repo_digest,
-            env_digest=env_digest,
-            **profile_kw,
-        )
-        tracer.finish(adm)
-        emit(
-            "aop-runner",
-            EventAuthority.PLATFORM_OBSERVATION,
-            "run.started",
-            {"queue_delay_s": round(time.monotonic() - t0, 3)},
-            trace_id=tracer.trace_id,
-            span_id=wf.span_id,
-            model_digest=model_digest,
-            harness_digest=harness_build.harness_digest,
-            repo_digest=repo_digest,
-            env_digest=env_digest,
-            **profile_kw,
-        )
         # Prompt/context snapshot as content-addressed artifact (never inline).
         # Best-effort here: the snapshot-stage write later is the strict one
         # (storage failures surface as durable infra_error there).
         prompt_ref = self._artifact_ref_or_none(prompt.encode(), run_id, "confidential")
-        emit(
-            "aop-runner",
-            EventAuthority.PLATFORM_OBSERVATION,
-            "context.prepared",
-            {
-                "prompt_digest": (prompt_ref.digest if prompt_ref else ""),
-                "prompt_bytes": (prompt_ref.size_bytes if prompt_ref else 0),
-            },
-            trace_id=tracer.trace_id,
-            span_id=wf.span_id,
-            model_digest=model_digest,
-            harness_digest=harness_build.harness_digest,
-            repo_digest=repo_digest,
-            env_digest=env_digest,
-            payload_refs=([prompt_ref.digest] if prompt_ref else []),
-            **profile_kw,
-        )
         # Skill catalog exposure (M2 records exposure separately from use).
         skill_entries = [
             SkillCatalogEntry(
@@ -657,34 +604,6 @@ class Runner:
             skill_catalog_digest(skill_entries)
             if skill_entries
             else ("sha256:" + hashlib.sha256(b"empty-catalog").hexdigest())
-        )
-        emit(
-            "aop-runner",
-            EventAuthority.PLATFORM_OBSERVATION,
-            "skill.catalog_exposed",
-            {
-                "skills": [e.skill_id for e in skill_entries],
-                "catalog_digest": catalog_digest,
-                "note": "exposure is not selection, loading, or execution",
-            },
-            trace_id=tracer.trace_id,
-            span_id=wf.span_id,
-            model_digest=model_digest,
-            harness_digest=harness_build.harness_digest,
-            payload_refs=([catalog_digest] if skill_entries else []),
-            **profile_kw,
-        )
-        emit(
-            "aop-runner",
-            EventAuthority.PLATFORM_OBSERVATION,
-            "agent.started",
-            {"agent_id": "agent-1", "harness": harness},
-            agent_id="agent-1",
-            trace_id=tracer.trace_id,
-            span_id=wf.span_id,
-            model_digest=model_digest,
-            harness_digest=harness_build.harness_digest,
-            **profile_kw,
         )
         spool = SpoolQueue(
             os.path.join(self.runs_dir, "_spool"), os.path.join(self.runs_dir, "_collector")
@@ -736,12 +655,129 @@ class Runner:
         except BaseException as exc:  # noqa: BLE001 - every failure is terminal & recorded
             return self._infra_error(ctx, "unclassified_infra_error", exc)
 
+    def execute_request(self, request: RunRequest) -> RunResult:
+        """Typed public entry point; legacy command handlers route through it."""
+        return RunResult(
+            request,
+            self.execute(
+                request.case_id,
+                model_alias=request.model_alias,
+                harness=request.harness,
+                timeout_s=request.timeout_s,
+                idempotency_key=request.idempotency_key,
+                profile=request.profile,
+                profile_target=request.profile_target,
+                variant_overrides=request.variant_overrides,
+            ),
+        )
+
     # -- main lifecycle ----------------------------------------------------
     def _run_inner(self, ctx: RunContext) -> dict:
+        # Prefix evidence lives inside the terminal-evidence guard: a failure
+        # writing the very first events must still produce a durable report
+        # instead of escaping execute() without terminal evidence.
+        self._emit_prefix_evidence(ctx)
         prepared = self._prepare_run(ctx)
         execution = self._execute_run(ctx, prepared)
         verification = self._verify_run(ctx, prepared, execution)
         return self._finalize_run(ctx, prepared, execution, verification)
+
+    def _emit_prefix_evidence(self, ctx: RunContext) -> None:
+        """Emit run.admitted/started, context.prepared, catalog and agent.started."""
+        emit = self._events(ctx)
+        profile_kw = ProfileIdentityKw(
+            profile_id=(ctx.profile_info["profile_id"] if ctx.profile_info else ""),
+            profile_digest=(ctx.profile_info["profile_digest"] if ctx.profile_info else ""),
+            lock_digest=(ctx.profile_info["lock_digest"] if ctx.profile_info else ""),
+            compiled_target=(ctx.profile_target if ctx.profile_info else ""),
+            compiled_target_digest=(
+                ctx.profile_info["artifact_digest"] if ctx.profile_info else ""
+            ),
+        )
+        ident = {
+            "task_id": ctx.task["task_id"],
+            "bundle": ctx.bundle.digest,
+            "model_deployment_digest": ctx.model_digest,
+            "harness_digest": ctx.harness_build.harness_digest,
+            "repo_snapshot_digest": ctx.repo_digest,
+            "environment_digest": ctx.env_digest,
+            "trace_id": ctx.tracer.trace_id,
+        }
+        adm = ctx.tracer.start("admission.resolve", {"aop.task_id": ctx.task["task_id"]})
+        emit(
+            "aop-runner",
+            EventAuthority.PLATFORM_OBSERVATION,
+            "run.admitted",
+            ident,
+            trace_id=ctx.tracer.trace_id,
+            span_id=adm.span_id,
+            parent_span_id=ctx.wf.span_id,
+            model_digest=ctx.model_digest,
+            harness_digest=ctx.harness_build.harness_digest,
+            repo_digest=ctx.repo_digest,
+            env_digest=ctx.env_digest,
+            **profile_kw,
+        )
+        ctx.tracer.finish(adm)
+        emit(
+            "aop-runner",
+            EventAuthority.PLATFORM_OBSERVATION,
+            "run.started",
+            {"queue_delay_s": round(time.monotonic() - ctx.t0, 3)},
+            trace_id=ctx.tracer.trace_id,
+            span_id=ctx.wf.span_id,
+            model_digest=ctx.model_digest,
+            harness_digest=ctx.harness_build.harness_digest,
+            repo_digest=ctx.repo_digest,
+            env_digest=ctx.env_digest,
+            **profile_kw,
+        )
+        emit(
+            "aop-runner",
+            EventAuthority.PLATFORM_OBSERVATION,
+            "context.prepared",
+            {
+                "prompt_digest": (ctx.prompt_ref.digest if ctx.prompt_ref else ""),
+                "prompt_bytes": (ctx.prompt_ref.size_bytes if ctx.prompt_ref else 0),
+            },
+            trace_id=ctx.tracer.trace_id,
+            span_id=ctx.wf.span_id,
+            model_digest=ctx.model_digest,
+            harness_digest=ctx.harness_build.harness_digest,
+            repo_digest=ctx.repo_digest,
+            env_digest=ctx.env_digest,
+            payload_refs=([ctx.prompt_ref.digest] if ctx.prompt_ref else []),
+            **profile_kw,
+        )
+        skill_entries = [s.split("@")[0] for s in ctx.bundle.skill_variant_ids]
+        emit(
+            "aop-runner",
+            EventAuthority.PLATFORM_OBSERVATION,
+            "skill.catalog_exposed",
+            {
+                "skills": skill_entries,
+                "catalog_digest": ctx.catalog_digest,
+                "note": "exposure is not selection, loading, or execution",
+            },
+            trace_id=ctx.tracer.trace_id,
+            span_id=ctx.wf.span_id,
+            model_digest=ctx.model_digest,
+            harness_digest=ctx.harness_build.harness_digest,
+            payload_refs=([ctx.catalog_digest] if skill_entries else []),
+            **profile_kw,
+        )
+        emit(
+            "aop-runner",
+            EventAuthority.PLATFORM_OBSERVATION,
+            "agent.started",
+            {"agent_id": "agent-1", "harness": ctx.harness},
+            agent_id="agent-1",
+            trace_id=ctx.tracer.trace_id,
+            span_id=ctx.wf.span_id,
+            model_digest=ctx.model_digest,
+            harness_digest=ctx.harness_build.harness_digest,
+            **profile_kw,
+        )
 
     def _events(self, ctx: RunContext):
         return partial(
@@ -852,7 +888,7 @@ class Runner:
         self.store.set_status(ctx.run_id, RunStatus.RUNNING)
 
         # 2. Adapter preparation.
-        adapter: object
+        adapter: HarnessLifecycle
         if ctx.harness == "pi":
             spec = SandboxSpec(
                 share_network=True, ro_binds=_harness_ro_binds(ctx.harness_build.executable)
@@ -918,7 +954,7 @@ class Runner:
             parent_span_id=agent_span.span_id,
             **{k: v for k, v in prepared.ident_kw.items() if k not in ("trace_id", "span_id")},
         )
-        tool_spans: dict[str, object] = {}
+        tool_spans: dict[str, Span] = {}
         tool_starts: dict[str, float] = {}
         first_token_seen = False
         agent_t0 = time.monotonic()
@@ -1074,7 +1110,9 @@ class Runner:
                 if not isinstance(result, dict):
                     result = {"raw": str(result)[:2000]}
                 start = tool_starts.get(call_id, time.time())
-                tsp = tool_spans.pop(call_id, None)
+                done_span: Span | None = None
+                if call_id in tool_spans:
+                    done_span = tool_spans.pop(call_id)
                 call = normalize_tool_call(
                     tool_name,
                     native_source,
@@ -1107,7 +1145,7 @@ class Runner:
                         "exit_status": call.exit_status,
                     },
                     trace_id=ctx.tracer.trace_id,
-                    span_id=(tsp.span_id if tsp else infer_span.span_id),
+                    span_id=(done_span.span_id if done_span else infer_span.span_id),
                     parent_span_id=agent_span.span_id,
                     tool_id=tool_name,
                     tool_version=native_source,
@@ -1118,8 +1156,8 @@ class Runner:
                         if k not in ("trace_id", "span_id")
                     },
                 )
-                if tsp is not None:
-                    ctx.tracer.finish(tsp)
+                if done_span is not None:
+                    ctx.tracer.finish(done_span)
 
         output = prepared.adapter.start(
             ctx.prompt,
@@ -1460,7 +1498,7 @@ class Runner:
         verification: VerifiedRun,
     ) -> dict:
         emit = self._events(ctx)
-        required = REQUIRED_PREFIX_EVENTS
+        required: tuple[str, ...] = REQUIRED_PREFIX_EVENTS
         if verification.verifier_ran:
             required = required + ("evaluation.recorded",)
         completeness = ctx.ledger.completeness(

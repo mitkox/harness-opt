@@ -9,6 +9,7 @@ import sys
 from contextvars import ContextVar
 
 from .config import Paths, active_paths, current_paths
+from .lifecycle import EXIT_CANCELLED, EXIT_USAGE, LifecycleError, RunRequest
 
 _output_format = ContextVar("hop_output_format", default="json")
 
@@ -30,6 +31,15 @@ def _print(payload) -> None:
             print("  ".join(f"{k}={v}" for k, v in row.items()) if isinstance(row, dict) else row)
     else:
         print(payload)
+
+
+def _report_error(code: str, message: str, exit_code: int, action: str) -> int:
+    """Single diagnostic channel for handler failures (json or text)."""
+    if _output_format.get() == "json":
+        print(json.dumps({"code": code, "error": message, "action": action}), file=sys.stderr)
+    else:
+        print(f"{code}: {message}. {action}", file=sys.stderr)
+    return exit_code
 
 
 def _fail(message: str, code: int = 2) -> int:
@@ -77,7 +87,7 @@ def cmd_discover(_args) -> int:
         if dep["status"] == "qualified":
             pair = dep["deployment_id"]
             break
-    pi = next((h for h in harnesses["harnesses"] if h["harness"] == "pi"), {})
+    pi: dict = next((h for h in harnesses["harnesses"] if h["harness"] == "pi"), {})
     _print(
         {
             "local_pair": {"model": pair, "harness": f"pi@{pi.get('version')}"},
@@ -96,23 +106,31 @@ def cmd_run(args) -> int:
 
         model = load_profile(args.profile).model.deployment_ref
     if not model:
-        return _fail("model_required: supply --model with a registered deployment ID or alias")
+        raise LifecycleError(
+            "model_required",
+            "supply --model with a registered deployment ID or alias",
+            EXIT_USAGE,
+        )
     paths = current_paths()
     overrides = _parse_sets(getattr(args, "set", []))
     runner = Runner(runs_dir=str(paths.runs), hop_home=str(paths.home), paths=paths)
     try:
-        report = runner.execute(
-            args.case,
-            model_alias=model,
-            harness=args.harness,
-            timeout_s=args.timeout,
-            idempotency_key=args.idempotency_key or "",
-            profile=args.profile or "",
-            profile_target=getattr(args, "target", "pi") or "pi",
-            variant_overrides=overrides or None,
+        result = runner.execute_request(
+            RunRequest(
+                case_id=args.case,
+                model_alias=model,
+                harness=args.harness,
+                timeout_s=args.timeout,
+                idempotency_key=args.idempotency_key or "",
+                profile=args.profile or "",
+                profile_target=getattr(args, "target", "pi") or "pi",
+                variant_overrides=overrides or None,
+                legacy=bool(args.legacy),
+            )
         )
     finally:
         runner.close()
+    report = result.report
     keys = [
         "run_id",
         "case_id",
@@ -126,9 +144,7 @@ def cmd_run(args) -> int:
         "profile",
     ]
     _print({k: report[k] for k in keys if k in report})
-    if args.legacy:
-        return 0 if report["outcome"] == "pass" else 1
-    return {"pass": 0, "fail": 1, "cancelled": 130}.get(report["outcome"], 3)
+    return result.exit_code
 
 
 def cmd_report(args) -> int:
@@ -175,8 +191,9 @@ def cmd_run_investigate(args) -> int:
     elif args.sub == "replay-check":
         _print(inv.replay_check(run_dir, runs_dir, run_id))
     else:
-        print(f"unknown run subcommand {args.sub}", file=sys.stderr)
-        return 2
+        raise LifecycleError(
+            "unknown_run_subcommand", f"unknown run subcommand {args.sub}", EXIT_USAGE
+        )
     return 0
 
 
@@ -606,24 +623,19 @@ def _main(argv=None, prog: str = "hop", legacy: bool = False) -> int:
         path_token = active_paths.set(paths)
         args.home = str(paths.home)
         return args.func(args)
+    except LifecycleError as exc:
+        return _report_error(
+            exc.code, str(exc), exc.exit_code, "Check command arguments and run hop doctor."
+        )
     except KeyboardInterrupt:
-        return _fail("cancelled: interrupted by user", 130)
+        return _report_error(
+            "cancelled", "interrupted by user", EXIT_CANCELLED, "Re-run when ready."
+        )
     except (OSError, ValueError, KeyError, TypeError) as exc:
         code = getattr(exc, "code", "invalid_input")
-        if _output_format.get() == "json":
-            print(
-                json.dumps(
-                    {
-                        "code": code,
-                        "error": str(exc),
-                        "action": "Check command arguments and run hop doctor.",
-                    }
-                ),
-                file=sys.stderr,
-            )
-        else:
-            _fail(f"{code}: {exc}. Check command arguments and run hop doctor.")
-        return 2
+        return _report_error(
+            code, str(exc), EXIT_USAGE, "Check command arguments and run hop doctor."
+        )
     finally:
         if path_token is not None:
             active_paths.reset(path_token)
