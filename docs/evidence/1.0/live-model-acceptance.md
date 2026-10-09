@@ -8,15 +8,20 @@ fixtures.
 
 | Field | Value |
 |---|---|
-| Revision | `138a4ef9d76932000084a6341d6e80813230928a` (branch `esf/hop-1.0`) |
+| Revision | `779e73f61f5112b681242e0376ed9c78c6e2d9e1` (frozen branch `esf/hop-1.0`) |
 | Command | `./hop run start --case debug-offbyone --model qwen-flash-next` |
-| Run id | `run-58f5589ef776` |
+| Run id | `run-85d1c3a117ef` |
 | Outcome / verdict | `pass` / `pass` (trusted verifier, not agent narration) |
 | Model deployment | `qwen-flash-next-IQ2_S_-_2.5_bpw` (Qwen/Qwen3.8-Flash-Next, IQ2_S 2.5 bpw, `mitko` at `http://127.0.0.1:8000/v1`) |
 | Harness | `pi` 1.1.0, status `qualified` (sha256 `c44ddd4e…`) |
-| Agent time / total | 47.71 s / 50.66 s |
+| Agent time / total | 44.71 s / 47.72 s |
 | Bundle digest | `sha256:53bffb58b6c7f3a32d162c5f7b08d725d8c71806a8780cdaa5bfd47d34319d6a` |
-| Run directory | `runs/run-58f5589ef776/` |
+| Run directory | `runs/run-85d1c3a117ef/` |
+
+This is the release-bound run: it was executed at the frozen revision. An
+earlier run of the same case before the freeze (`run-58f5589ef776` at
+`138a4ef`, `pass`/`pass`, `agent_seconds 47.71`) is recorded in the "Path to
+green" section below; the frozen run supersedes it for the release.
 
 Raw command output:
 
