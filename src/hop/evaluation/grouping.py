@@ -148,9 +148,7 @@ def group_commits(
     for members in explicit_groups or []:
         unknown = sorted(sha for sha in members if sha not in parent)
         if unknown:
-            raise GroupingError(
-                "explicit group references unknown commits: " + ", ".join(unknown)
-            )
+            raise GroupingError("explicit group references unknown commits: " + ", ".join(unknown))
         present = [sha for sha in members if sha in parent]
         for sha in present[1:]:
             union(present[0], sha)

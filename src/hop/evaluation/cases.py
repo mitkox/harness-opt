@@ -155,9 +155,7 @@ def verify_repository_manifest(manifest: RepositoryManifest) -> str:
         digest.update(b"\0")
     computed = "sha256:" + digest.hexdigest()
     if computed != manifest.digest:
-        raise CaseImportError(
-            "repository manifest digest mismatch: entries were altered"
-        )
+        raise CaseImportError("repository manifest digest mismatch: entries were altered")
     return computed
 
 
