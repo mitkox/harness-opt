@@ -85,7 +85,16 @@ def test_os_exit_zero_is_not_pass(tmp_path):
         fh.write("import os\nos._exit(0)\n")
     res = _run(snap, tmp_path=tmp_path)
     assert res.verdict != Verdict.PASS
-    assert res.error_class == "verification_no_result"
+    # Candidate os._exit(0) now kills only the candidate worker; the trusted
+    # host still writes the authoritative report. This is a task FAIL with a
+    # recorded report, not the historical verification_no_result (which meant
+    # the evaluator process itself died and produced nothing).
+    assert res.outcome.value == "fail"
+    assert res.error_class == "tests_failed"
+    report = res.details.get("verification", {}).get("report", {})
+    outcomes = report.get("outcomes", {})
+    assert outcomes, "the authoritative report must record the failing tests"
+    assert all(outcome != "passed" for outcome in outcomes.values())
 
 
 def test_sitecustomize_does_not_execute(tmp_path):
