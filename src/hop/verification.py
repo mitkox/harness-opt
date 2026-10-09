@@ -536,13 +536,14 @@ def _quota_plan() -> dict:
     probe = probe_cgroup_v2()
     requested = _quota_dimensions()
     enforceable = probe.get("enforceable") or {}
-    available = bool(probe.get("available")) and all(enforceable.get(d) for d in requested)
+    probe_available = bool(probe.get("available"))
+    fully_enforceable = probe_available and all(enforceable.get(d) for d in requested)
     return {
         "requested": requested,
-        "parent": probe.get("parent") if available else "",
+        "parent": probe.get("parent") if probe_available else "",
         "mode": "enforced"
-        if available
-        else ("partial" if probe.get("available") else "unavailable"),
+        if fully_enforceable
+        else ("limited" if probe_available else "unavailable"),
         "probe": probe,
         "unenforced": [d for d in requested if not enforceable.get(d)],
     }

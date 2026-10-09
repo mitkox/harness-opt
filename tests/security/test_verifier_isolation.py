@@ -279,7 +279,13 @@ def test_real_environment_is_evidenced_or_explicitly_blocked(tmp_path):
     if res.error_class == "verifier_sandbox_unavailable":
         assert res.outcome == RunOutcome.INFRA_ERROR
         return
-    assert res.verdict in (Verdict.PASS, Verdict.FAIL), res.details
+    assert res.verdict in (Verdict.PASS, Verdict.FAIL), {
+        "error_class": res.error_class,
+        "verdict": res.verdict.value,
+        "log_tail": res.details.get("log_tail", "")[-2000:],
+        "stderr_tail": res.details.get("stderr_tail", "")[-2000:],
+        "candidate_worker": res.details.get("candidate_worker", {}),
+    }
     assert res.details["isolation"]["candidate_mounts_hidden_tests"] is False
     assert res.details["isolation"]["trusted_host_imports_candidate"] is False
     assert res.details["isolation"]["mode"] == "separate-candidate-namespace"

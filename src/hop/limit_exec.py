@@ -257,58 +257,64 @@ def probe_cgroup_v2(parent: str | None = None) -> dict:
         report["reasons"].append(f"mkdir_denied:{exc.strerror or exc}")
         return report
     try:
+        _, refused = _enable_controllers(base, sorted(set(PROBE_DIMENSIONS)))
+        if refused:
+            report["reasons"].append("controllers_not_delegable:" + ",".join(sorted(refused)))
+        requested = [d for d in PROBE_DIMENSIONS if d != "io"]
+        sample = {
+            "memory": ("memory.max", "67108864"),
+            "pids": ("pids.max", "64"),
+            "cpu": ("cpu.max", f"{DEFAULT_CPU_PERIOD_US} {DEFAULT_CPU_PERIOD_US}"),
+        }
+        # Limits are written into the per-run leaf directly under the delegated
+        # parent -- the exact shape apply_cgroup_limits uses. Enabling the
+        # parent's subtree_control is what makes those files exist.
+        for dimension in requested:
+            if dimension in refused:
+                report["enforceable"][dimension] = False
+                continue
+            filename, value = sample[dimension]
+            report["enforceable"][dimension] = _write_limit(probe_dir, filename, value)
+        io_device = os.environ.get("HOP_QUOTA_IO_DEVICE", "")
+        if "io" in refused:
+            report["enforceable"]["io"] = False
+        elif io_device:
+            report["enforceable"]["io"] = _write_limit(
+                probe_dir, "io.max", f"{io_device} rbps=1048576"
+            )
+        else:
+            report["enforceable"]["io"] = False
+            report["reasons"].append("io_device_not_configured")
+        # Delegation + placement: a nested child must be creatable and a live
+        # process movable into it (placement needs no controller files).
         child = os.path.join(probe_dir, "child")
         try:
             os.mkdir(child)
         except OSError as exc:
             report["reasons"].append(f"child_mkdir:{exc.strerror or exc}")
-            return report
-        requested = [d for d in PROBE_DIMENSIONS if d != "io"]
-        _, refused = _enable_controllers(base, sorted(set(PROBE_DIMENSIONS)))
-        if refused:
-            report["reasons"].append("controllers_not_delegable:" + ",".join(sorted(refused)))
+            child = ""
         child_proc = subprocess.Popen(
             [sys.executable, "-c", "import time; time.sleep(0.5)"],
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
         )
         try:
-            sample = {
-                "memory": ("memory.max", "67108864"),
-                "pids": ("pids.max", "64"),
-                "cpu": ("cpu.max", f"{DEFAULT_CPU_PERIOD_US} {DEFAULT_CPU_PERIOD_US}"),
-            }
-            for dimension in requested:
-                if dimension in refused:
-                    report["enforceable"][dimension] = False
-                    continue
-                filename, value = sample[dimension]
-                report["enforceable"][dimension] = _write_limit(child, filename, value)
-            io_device = os.environ.get("HOP_QUOTA_IO_DEVICE", "")
-            if "io" in refused:
-                report["enforceable"]["io"] = False
-            elif io_device:
-                report["enforceable"]["io"] = _write_limit(
-                    child, "io.max", f"{io_device} rbps=1048576"
-                )
-            else:
-                report["enforceable"]["io"] = False
-                report["reasons"].append("io_device_not_configured")
-            try:
-                _write(os.path.join(child, "cgroup.procs"), str(child_proc.pid))
-                procs = (_read(os.path.join(child, "cgroup.procs")) or "").split()
-                report["placement"] = str(child_proc.pid) in procs
-            except OSError as exc:
-                report["reasons"].append(f"placement_failed:{exc.strerror or exc}")
+            if child:
+                try:
+                    _write(os.path.join(child, "cgroup.procs"), str(child_proc.pid))
+                    procs = (_read(os.path.join(child, "cgroup.procs")) or "").split()
+                    report["placement"] = str(child_proc.pid) in procs
+                except OSError as exc:
+                    report["reasons"].append(f"placement_failed:{exc.strerror or exc}")
         finally:
             try:
                 child_proc.wait(timeout=5)
             except subprocess.TimeoutExpired:
                 child_proc.kill()
                 child_proc.wait()
-        report["kill"] = os.path.exists(os.path.join(child, "cgroup.kill"))
+        report["kill"] = os.path.exists(os.path.join(probe_dir, "cgroup.kill"))
         report["unenforced"] = [d for d, ok in report["enforceable"].items() if not ok]
-        report["available"] = bool(report["enforceable"]) and report["placement"]
+        report["available"] = report["placement"] and any(report["enforceable"].values())
         requested_ok = all(report["enforceable"].get(d) for d in requested)
         report["mode"] = (
             "enforced"
