@@ -315,3 +315,74 @@ namespace, or absent cgroup delegation must be reported as `blocked`/
 `infra_error` (or fail the test), **never** as a silent skip that leaves the
 suite green. A green sandbox suite on a host where the boundary could not be
 created proves nothing and must not be recorded as boundary evidence.
+
+---
+
+# 1.0.0 security sign-off (WP-4.2, task-36)
+
+This section is the release sign-off. The design sections above are the historical
+M1/AOP-003 record and are **not rewritten**; where they say "approved design, not
+implemented", that status is superseded for 1.0.0 by the independent verdicts
+below. Every control cited here points at a review entry in
+`docs/verification/reviews.md`.
+
+## Approved designs: implemented and independently confirmed
+
+| Design | Status in 1.0.0 | Independent evidence |
+|--------|-----------------|----------------------|
+| ADR-012 worker egress broker (no-network worker + per-run broker socket/token) | implemented | R-010 at `105fba5`; broker isolation test in `docs/verification/overhead-report.md`; gate `hop-gate-task31-4cfb317` |
+| ADR-013 aggregate cgroup v2 quotas (enforced/limited/blocked with `unenforced[]`) | implemented; host reports limited/unavailable honestly | R-009 at `1beb23d`; `docs/verification/cube-capabilities.md` |
+| ADR-005 revision: verifier trusted host + candidate namespace | implemented | R-009 at `1beb23d`; R-016 at `3dd6a21`; `hop-gate-task32-674b991` (sandbox 99/0/0/0) |
+| Sealed evaluator storage, splits and access ledger | implemented and adopted in the run/verify path | R-011 at `f412c84`, R-014 at `931d31f`, R-016 at `3dd6a21` |
+| Owner-only storage, worker path isolation, activity history | implemented | R-012 at `53f2084` |
+| Reward-hacking/adversarial suite | implemented | R-018 at `f759151` (fix `b0a00bb`) |
+| Backup/restore of the evidence chain | implemented | R-021 at `a4c5934` |
+| Symlinked interpreter install root; verification RPC socket cleanup | implemented | R-022 at `d920e92` (+ R-022-HOST closure); R-023 at `6edbdf2` |
+
+## Residual risks for 1.0.0 (explicit)
+
+1. **Broker token scope.** The per-attempt bearer token is the only credential on
+   the broker `AF_UNIX` socket (0600). It separates runs/attempts; it does not
+   separate the worker from the control plane (same uid). Any same-uid process that
+   can read the socket/token can use the pinned upstream.
+2. **Same-uid model.** Owner-only modes (0700/0600) and fail-closed
+   `InsecurePermissions` protect against *other* users, not against a compromised
+   process running as the owner, which can chmod or read the owner's files.
+3. **No hostile-workload qualification.** Isolation is `bwrap` namespaces for the
+   invoking user, proven against scripted adversaries (no-network, contamination,
+   forged reports, tamper), not container/VM isolation and not a separate UNIX
+   identity. Kernel/namespace escape remains out of 1.0 scope.
+4. **Live-model coverage is one case.** G8 is one case on one deployment
+   (`qwen-flash-next-IQ2_S_-_2.5_bpw`) and one harness (Pi 1.1.0); no
+   generalization to other models, quantizations or adapters is claimed.
+5. **Egress posture inconclusive at the gate.** The ESF gate records
+   `EgressVerified=Unknown (ProbeInconclusive)`; worker network denial is proven by
+   sandbox tests, but the gate probe cannot conclusively prove host posture.
+6. **Quota honesty on non-delegating hosts.** Where cgroups cannot be delegated the
+   mode is `limited`/`blocked` with named `unenforced[]` dimensions; that is not
+   enforcement. `output_limit_bytes` truncation remains post-hoc.
+7. **CI vs local deviation.** The CI type-check path deliberately differs from the
+   pinned local `local_environment` pin, and CI execution is unexecuted on this
+   host. No CI job is claimed green.
+8. **Attribute-cardinality finding (open).** Attacker-controlled keys in
+   `InferenceRecord.extra` become OTel attribute keys; 1.0 emits no metric labels,
+   so impact is attribute cardinality only. Recorded in R-018 and the
+   adversarial-suite report.
+9. **Hidden material is host-resident.** Hidden tests remain on the host filesystem
+   outside the agent workspace; the sealed store is adopted in the run/verify path,
+   but the interim namespace is not a hardware boundary.
+10. **Single-user assumption.** No multi-tenant isolation, role administration or
+    shared-host threat model is claimed. Optimization/activation do not exist in
+    1.0, so no optimizer-contention control is claimed either.
+
+## Sign-off statement
+
+The controls above are implemented and independently confirmed at the cited shas;
+the release gates are tracked in [docs/release-checklist.md](release-checklist.md)
+(G1–G11) and the evidence in
+[docs/evidence/1.0/RELEASE-EVIDENCE.md](evidence/1.0/RELEASE-EVIDENCE.md).
+
+This sign-off **does not** authorize push, PR, tag or publication (gate G11, an
+explicit owner action), and does not cover optimization, activation, multi-tenancy
+or hostile-workload qualification, none of which are part of 1.0.
+
