@@ -20,14 +20,20 @@ explicitly **not** part of this release.
 
 ## Release artifacts
 
-Built with `HOP_WHEELHOUSE=/home/mitko/dev/esf/worktrees/hop-wheelhouse scripts/build_release.sh`
+Built at the **frozen revision `779e73f61f5112b681242e0376ed9c78c6e2d9e1`** with
+
+```sh
+SOURCE_DATE_EPOCH=1700000000 HOP_WHEELHOUSE=/home/mitko/dev/esf/worktrees/hop-wheelhouse \
+  scripts/build_release.sh
+```
+
 (no network; PEP 517 backend and every dependency come from the approved local
 wheelhouse; the install probe runs with `--no-index --require-hashes`).
 
 | Artifact | sha256 |
 | --- | --- |
-| `dist/hop-1.0.0-py3-none-any.whl` | `729aeee95c5cf2e83310c64f0383eb7ddaa8803c117e77bb8dafcac72a6f37eb` |
-| `dist/hop-1.0.0.tar.gz` | `b38611e7c2ac231b1e13da4829194e456b831aaa440c259fa4b1a87c9a74a3e2` |
+| `dist/hop-1.0.0-py3-none-any.whl` | `42439320855807682c7bd1b63bb0aa8d6a599d682ea0786b05a605a87644aee6` |
+| `dist/hop-1.0.0.tar.gz` | `1c8769cbd3e1a98412fd7a763d3e45533d34bc1b3b07aa62170025d1275ff0bd` |
 
 `dist/MANIFEST.sha256` records both digests; the wheelhouse manifest
 (`/home/mitko/dev/esf/worktrees/hop-wheelhouse/MANIFEST.sha256`, 17 dependency
@@ -35,7 +41,13 @@ wheels) was refreshed by the same run. The installed wheel reports
 `hop version: 1.0.0` and exposes exactly one console script (`hop`); the removed
 `aop` alias is absent from `entry_points.txt`.
 
-**Artifact contents.** The wheel stays minimal: `hop/` plus its dist-info (79
+**These hashes supersede the earlier artifacts.** WP-4.1 (`9acc72e7…` wheel,
+`a3a26569…` sdist) and WP-4.5 (`729aeee9…` wheel, `b38611e7…` sdist) were built
+before task-51 (`456aa7b`) added `hop/evaluation/legacy.py`, so they did not
+cover the frozen content; they must not be cited as the 1.0.0 artifacts. The
+frozen-revision wheel has **80 entries including `hop/evaluation/legacy.py`**.
+
+**Artifact contents.** The wheel stays minimal: `hop/` plus its dist-info (80
 entries, no `docs/`), because the installed CLI diagnostics are self-contained.
 The sdist is the operator-facing artifact and ships the release docs — it
 contains `CHANGELOG.md`, `README.md`, `docs/migration-1.0.md` (the file every
@@ -43,13 +55,12 @@ migration diagnostic points at) and `docs/release-1.0.0.md`, declared in
 `MANIFEST.in`.
 
 **Reproducibility.** Setuptools embeds per-file timestamps in the wheel, so a
-plain rebuild changes the wheel's bytes even when its contents are identical
-(this is why the earlier recorded `9acc72e7…` wheel hash moved; the 79 entries
-and their content digests are byte-identical between builds). Building with
-`SOURCE_DATE_EPOCH=1700000000` makes the wheel byte-reproducible: two
-consecutive builds produced the `729aeee9…` hash above. The sdist's *contents*
-are stable, but its compressed bytes still vary between builds, so its digest is
-recorded as built at this run rather than as a reproducible value.
+plain rebuild changes the wheel's bytes even when its contents are identical.
+Building with `SOURCE_DATE_EPOCH=1700000000` makes the wheel byte-reproducible:
+two consecutive builds at the frozen revision both produced the `42439320…`
+hash above. The sdist's *contents* are stable, but its compressed bytes still
+vary between builds, so its digest is recorded as built at this run rather than
+as a reproducible value.
 
 Qualification probe results from the build: `hop --help` exit 0;
 `hop --workspace <tmp> init` exit 0 (created `hop.toml`); `hop doctor` exit 3 in

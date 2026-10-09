@@ -89,14 +89,16 @@ freeze-gate run table is in [freeze-gate.md](freeze-gate.md).
   (`legacy_env_removed` exit 2 naming `HOP_RUNS_DIR`, `legacy_command_removed`
   exit 2 with rewrite hints, `aop` absent, `AOP_PI_BASE_URL` scrub active). The
   wheel still omits `docs/` (D-2, 1.0.1 candidate).
-- **Artifact hashes are NOT final (release-blocking finding, R-029).** The
-  task-50 artifacts — wheel `729aeee95c5cf2e83310c64f0383eb7ddaa8803c117e77bb8dafcac72a6f37eb`,
-  sdist `b38611e7c2ac231b1e13da4829194e456b831aaa440c259fa4b1a87c9a74a3e2` — predate
-  task-51 (`456aa7b`): 79 wheel entries with **no** `hop/evaluation/legacy.py`, while
-  a build at the frozen revision `779e73f` has 80 entries and includes it. They are
-  recorded here as **superseded**. **task-54 (foundation-runtime) is rebuilding and
-  re-qualifying at the frozen revision**; this pack, the G9 row and
-  `dist/MANIFEST.sha256` must then cite the rebuilt hashes, not these.
+- **Final frozen-revision artifacts (task-54, resolves R-029 #2).** Built at
+  `779e73f61f5112b681242e0376ed9c78c6e2d9e1` with `SOURCE_DATE_EPOCH=1700000000`:
+  wheel `42439320855807682c7bd1b63bb0aa8d6a599d682ea0786b05a605a87644aee6` — **80 entries including `hop/evaluation/legacy.py`** — and sdist
+  `1c8769cbd3e1a98412fd7a763d3e45533d34bc1b3b07aa62170025d1275ff0bd` (ships `docs/migration-1.0.md`). Both were re-qualified offline in fresh
+  venvs at the frozen revision (`--no-index --require-hashes`, zero downloads;
+  version 1.0.0, one console script, help exits 0, migration exit codes 2, scrub
+  active, backup create/verify/chain 0/0/0). These **supersede** the pre-task-51
+  artifacts (wheel `729aeee9…`, sdist `b38611e7…`, and the earlier `9acc72e7…` /
+  `a3a26569…`), which predate task-51 (`456aa7b`) and must not be cited as the
+  1.0.0 artifacts.
 - **Wheel reproducibility (R-029, independently confirmed by independent-verifier):**
   with `SOURCE_DATE_EPOCH=1700000000` two scratch builds from `1be9a5e` are
   byte-identical (`42439320855807682c7bd1b63bb0aa8d6a599d682ea0786b05a605a87644aee6`);
