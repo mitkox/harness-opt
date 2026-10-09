@@ -352,8 +352,13 @@ def test_worker_reaches_the_harness_bundle_through_the_binds(tmp_path):
 
 def test_build_bwrap_cmd_deduplicates_ro_bind_destinations(tmp_path):
     layout = sandbox.prepare_layout(str(tmp_path / "worker"))
-    dupes = sandbox.interpreter_ro_binds()
-    dupes = dupes + dupes
+    prefix = tmp_path / "prefix"
+    (prefix / "bin").mkdir(parents=True)
+    interpreter = prefix / "bin" / "python"
+    interpreter.write_text("#!/bin/sh\n")
+    interpreter.chmod(0o700)
+    # Environment-independent: a directory bind plus a file inside it, twice.
+    dupes = [(str(prefix), str(prefix)), (str(interpreter), str(interpreter))] * 2
     argv = sandbox.build_bwrap_cmd(
         ["/bin/true"],
         cwd=str(layout.workspace),
@@ -362,7 +367,7 @@ def test_build_bwrap_cmd_deduplicates_ro_bind_destinations(tmp_path):
         share_network=False,
     )
     destinations = [argv[i + 2] for i, item in enumerate(argv) if item == "--ro-bind"]
-    assert destinations, "expected ro-binds in the command"
+    assert destinations == [str(prefix), str(interpreter)]
     assert len(destinations) == len(set(destinations)), (
         "a destination bound twice makes bwrap fail while creating the path"
     )
