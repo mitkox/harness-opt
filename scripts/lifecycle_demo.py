@@ -262,7 +262,31 @@ def leg_profile_export(scratch: str, home: str) -> dict:
     }
 
 
-def leg_live(scratch: str, home: str, runs: str, *, skip: bool) -> dict:
+def leg_live(
+    scratch: str,
+    home: str,
+    runs: str,
+    *,
+    skip: bool,
+    recorded_run_id: str = "",
+    recorded_outcome: str = "",
+    recorded_verdict: str = "",
+    recorded_evidence: str = "",
+) -> dict:
+    if recorded_run_id:
+        # Reference an already-recorded real run (values supplied from that
+        # evidence file); never inferred from fixtures.
+        return {
+            "leg": "live_model",
+            "harness": "pi",
+            "status": "qualified" if recorded_verdict in ("pass", "fail") else "blocked",
+            "run_id": recorded_run_id,
+            "outcome": recorded_outcome,
+            "verdict": recorded_verdict,
+            "provenance": "external real local-model run recorded by the Lead",
+            "evidence": recorded_evidence,
+            "note": "not re-executed in this invocation; values taken from the referenced evidence",
+        }
     if skip:
         return {
             "leg": "live_model",
@@ -454,6 +478,10 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--record", action="store_true")
     parser.add_argument("--skip-live", action="store_true")
+    parser.add_argument("--live-run-id", default="")
+    parser.add_argument("--live-outcome", default="")
+    parser.add_argument("--live-verdict", default="")
+    parser.add_argument("--live-evidence", default="")
     args = parser.parse_args()
 
     scratch = tempfile.mkdtemp(prefix="hop-lifecycle-demo-")
@@ -484,7 +512,16 @@ def main() -> int:
 
     report["legs"]["evaluation"] = leg_evaluation(scratch, home, runs)
     report["legs"]["profile_compile_export"] = leg_profile_export(scratch, home)
-    report["legs"]["live_model"] = leg_live(scratch, home, runs, skip=args.skip_live)
+    report["legs"]["live_model"] = leg_live(
+        scratch,
+        home,
+        runs,
+        skip=args.skip_live,
+        recorded_run_id=args.live_run_id,
+        recorded_outcome=args.live_outcome,
+        recorded_verdict=args.live_verdict,
+        recorded_evidence=args.live_evidence,
+    )
 
     report["special_cases"] = {
         "incomplete_telemetry": case_incomplete_telemetry(),

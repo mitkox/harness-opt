@@ -3,10 +3,6 @@
     {
       "leg": "evaluation",
       "reason": "outcome=infra_error verdict=error error_class=verifier_sandbox_unavailable - the trusted verifier did not return a task verdict"
-    },
-    {
-      "leg": "live_model",
-      "reason": "outcome=infra_error verdict=error error_class=worker_network_isolation_unavailable - no task verdict from the trusted verifier; not synthesized as success"
     }
   ]
 }
