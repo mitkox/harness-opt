@@ -273,12 +273,22 @@ def test_unusable_bwrap_is_infra_error_not_a_verification_failure(tmp_path, monk
 def test_real_environment_is_evidenced_or_explicitly_blocked(tmp_path):
     """No silent skip: a green result requires real evidence, else blocked."""
     _, snap = _freeze(tmp_path)
+    work = str(tmp_path / "work")
     res = verification.run_verification(
-        "r", "a1", snap, str(HIDDEN_OFFBYONE), timeout_s=60, work_root=str(tmp_path / "work")
+        "r", "a1", snap, str(HIDDEN_OFFBYONE), timeout_s=60, work_root=work
     )
     if res.error_class == "verifier_sandbox_unavailable":
         assert res.outcome == RunOutcome.INFRA_ERROR
         return
+    if res.verdict not in (Verdict.PASS, Verdict.FAIL):
+        inner = Path(work) / "verify" / "out"
+        for name in ("verifier-stdout.log", "verifier-stderr.log"):
+            log = inner / name
+            if log.exists():
+                print(f"----- INNER {name} (tail) -----")
+                print(log.read_text(errors="replace")[-8000:])
+        print("----- INNER DETAILS -----")
+        print(json.dumps(res.details, default=str)[:8000])
     assert res.verdict in (Verdict.PASS, Verdict.FAIL), {
         "error_class": res.error_class,
         "verdict": res.verdict.value,
