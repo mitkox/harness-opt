@@ -102,9 +102,7 @@ def require_worker_network_isolation(harness: str, report: dict) -> dict:
     unenforceable boundary is terminal ``infra_error``, never a run.
     """
     if harness == "pi" and not report.get("enforced"):
-        raise InfraError(
-            "worker_network_isolation_unavailable", str(report.get("reason", ""))
-        )
+        raise InfraError("worker_network_isolation_unavailable", str(report.get("reason", "")))
     return report
 
 

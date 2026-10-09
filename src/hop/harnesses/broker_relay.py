@@ -82,12 +82,8 @@ def _serve(socket_path: str, port: int) -> None:
         except OSError:
             client.close()
             continue
-        threading.Thread(
-            target=_pump, args=(client, upstream), daemon=True
-        ).start()
-        threading.Thread(
-            target=_pump, args=(upstream, client), daemon=True
-        ).start()
+        threading.Thread(target=_pump, args=(client, upstream), daemon=True).start()
+        threading.Thread(target=_pump, args=(upstream, client), daemon=True).start()
 
 
 def main() -> None:
