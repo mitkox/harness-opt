@@ -2027,17 +2027,65 @@ def _patch_and_diff(
     return text, text
 
 
+def _symlink_chain(path: str) -> list[str]:
+    """The path and every symlink hop it takes, in walk order."""
+    chain: list[str] = []
+    seen: set[str] = set()
+    current = path
+    for _ in range(32):
+        if not current or current in seen:
+            break
+        seen.add(current)
+        chain.append(current)
+        if not os.path.islink(current):
+            break
+        target = os.readlink(current)
+        current = (
+            target
+            if os.path.isabs(target)
+            else os.path.normpath(os.path.join(os.path.dirname(current), target))
+        )
+    return chain
+
+
+def _node_install_roots(executable: str) -> list[str]:
+    """The outermost ``node_modules`` install roots containing the executable.
+
+    Layout-agnostic: a mise install, a global npm prefix and a local
+    ``node_modules`` all resolve to the same shape, so no home directory is
+    special-cased. Nested ``node_modules`` directories are dropped when an
+    outer root already covers them.
+    """
+    roots: list[str] = []
+    for candidate in (*_symlink_chain(executable), os.path.realpath(executable)):
+        current = candidate
+        while current and current != "/":
+            if os.path.basename(current) == "node_modules" and os.path.isdir(current):
+                roots.append(current)
+                break
+            current = os.path.dirname(current)
+    minimal: list[str] = []
+    for root in sorted(set(roots), key=len):
+        if not any(root == kept or root.startswith(kept + os.sep) for kept in minimal):
+            minimal.append(root)
+    return minimal
+
+
 def _harness_ro_binds(executable: str) -> list[tuple[str, str]]:
-    """Read-only host paths the pinned harness needs (itself plus its Node runtime)."""
+    """Read-only host paths the pinned harness needs (itself plus its runtime).
+
+    The harness package install root is resolved from the executable's realpath
+    chain, so the bundle is reachable inside the namespace regardless of how the
+    package manager laid it out; a symlinked install root (``.../latest``) is
+    bound at its own path too. Node's resolved runtime is bound so the
+    ``#!/usr/bin/env node`` shebang cannot fall back to an incompatible node.
+    """
     binds: list[tuple[str, str]] = []
     real = os.path.realpath(executable)
-    for root in (os.path.expanduser("~/.npm-global"),):
-        if real.startswith(root) and os.path.isdir(root):
-            binds.append((root, root))
+    for root in _node_install_roots(executable):
+        binds.append((root, root))
     node = shutil.which("node")
     if node:
-        # ``pi`` uses ``#!/usr/bin/env node``; bind the resolved runtime so the
-        # sandbox does not fall back to an incompatible system node.
         binds.append((os.path.dirname(node), os.path.dirname(node)))
         node_real = os.path.realpath(node)
         node_prefix = os.path.dirname(os.path.dirname(node_real))
@@ -2045,10 +2093,17 @@ def _harness_ro_binds(executable: str) -> list[tuple[str, str]]:
             binds.append((node_prefix, node_prefix))
     if not binds and os.path.exists(real):
         binds.append((os.path.dirname(real), os.path.dirname(real)))
+    # Keep the invoked path reachable when it crosses a symlinked install root.
+    for candidate in (*_symlink_chain(executable), node or ""):
+        ancestor = os.path.dirname(candidate) if candidate else ""
+        while ancestor and ancestor != "/" and not ancestor.startswith("/usr"):
+            if os.path.islink(ancestor):
+                binds.append((ancestor, ancestor))
+            ancestor = os.path.dirname(ancestor)
     seen: set[str] = set()
     unique: list[tuple[str, str]] = []
     for src, dst in binds:
-        if src not in seen:
+        if src not in seen and os.path.exists(src):
             seen.add(src)
             unique.append((src, dst))
     return unique

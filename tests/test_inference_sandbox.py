@@ -9,6 +9,7 @@ from pathlib import Path
 
 import pytest
 
+from hop import runner as hop_runner
 from hop import sandbox
 from hop.inference import (
     ChatRequest,
@@ -271,3 +272,74 @@ def test_spawn_isolated_binds_the_symlinked_install_root(tmp_path, monkeypatch):
     destinations = {dst for _src, dst in captured["ro"]}
     assert str(installs / "latest") in destinations
     assert str(venv) in destinations
+
+
+# --- WP-1.7: harness package install binds (task-42, G8 blocker #2) ----------
+
+
+def _fake_harness_install(tmp_path):
+    """A mise-style Pi layout: .bin/pi -> .mise package -> bundle/cli.js."""
+    install = tmp_path / "install"
+    version = install / "1.1.0" / "node_modules"
+    package = (
+        version
+        / ".mise"
+        / "@scope+pkg@1.1.0"
+        / "node_modules"
+        / "@scope"
+        / "pkg"
+        / "dist"
+        / "bundle"
+    )
+    package.mkdir(parents=True)
+    bundle = package / "cli.js"
+    bundle.write_text("console.log('1.1.0')\n")
+    bin_dir = version / ".bin"
+    bin_dir.mkdir()
+    pi = bin_dir / "pi"
+    pi.symlink_to("../.mise/@scope+pkg@1.1.0/node_modules/@scope/pkg/dist/bundle/cli.js")
+    (install / "latest").symlink_to("1.1.0", target_is_directory=True)
+    return pi, install / "latest" / "node_modules" / ".bin" / "pi", bundle
+
+
+def test_harness_binds_resolve_the_package_install_root(tmp_path):
+    _pi, invoked, bundle = _fake_harness_install(tmp_path)
+    binds = dict(hop_runner._harness_ro_binds(str(invoked)))
+    roots = [base for base in binds if base.endswith("node_modules")]
+    assert roots, f"no node_modules install root bound: {sorted(binds)}"
+    covered = [
+        base for base in binds if str(bundle) == base or str(bundle).startswith(base + os.sep)
+    ]
+    assert covered, "the harness bundle must be reachable through the binds"
+    assert any(base.endswith("1.1.0/node_modules") for base in binds)
+    assert any(base.endswith("latest/node_modules") for base in binds)
+
+
+def test_worker_reaches_the_harness_bundle_through_the_binds(tmp_path):
+    _pi, invoked, bundle = _fake_harness_install(tmp_path)
+    layout = sandbox.prepare_layout(str(tmp_path / "worker"))
+    probe = sandbox.probe_worker_network_isolation(str(tmp_path / "probe"))
+    if not probe["enforced"]:
+        assert probe["reason"], probe
+        return
+    spec = sandbox.SandboxSpec(
+        share_network=False, ro_binds=hop_runner._harness_ro_binds(str(invoked))
+    )
+    found = sandbox.spawn_isolated(
+        ["bash", "-c", f"test -f {str(bundle)!r} && echo FOUND || echo MISSING"],
+        layout,
+        spec,
+        timeout_s=30.0,
+    )
+    assert "FOUND" in Path(found.stdout_path).read_text(), Path(found.stderr_path).read_text()[
+        -300:
+    ]
+    # RED: without the install-root binds the same probe must miss the bundle.
+    old = [(src, dst) for src, dst in spec.ro_binds if "node_modules" not in src]
+    missing = sandbox.spawn_isolated(
+        ["bash", "-c", f"test -f {str(bundle)!r} && echo FOUND || echo MISSING"],
+        layout,
+        sandbox.SandboxSpec(share_network=False, ro_binds=old),
+        timeout_s=30.0,
+    )
+    assert "MISSING" in Path(missing.stdout_path).read_text()
