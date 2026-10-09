@@ -260,12 +260,77 @@ class RunResult:
     backend: str = "bwrap"
 
 
+def interpreter_chain() -> list[str]:
+    """Every path in the interpreter's symlink chain, in walk order.
+
+    A venv interpreter is normally a chain of symlinks, e.g.
+    ``venv/bin/python -> python3 -> <install>/latest/bin/python3`` where
+    ``<install>/latest`` is itself a symlink to the real version directory.
+    """
+    chain: list[str] = []
+    seen: set[str] = set()
+    for start in (
+        sys.executable,
+        sys.exec_prefix,
+        sys.base_exec_prefix,
+        sys.prefix,
+        sys.base_prefix,
+    ):
+        path = start
+        for _ in range(32):
+            if not path or path in seen:
+                break
+            seen.add(path)
+            chain.append(path)
+            if not os.path.islink(path):
+                break
+            target = os.readlink(path)
+            path = (
+                target
+                if os.path.isabs(target)
+                else os.path.normpath(os.path.join(os.path.dirname(path), target))
+            )
+    return chain
+
+
 def interpreter_ro_binds() -> list[tuple[str, str]]:
-    """Bind the active interpreter prefix when it lives outside /usr (venv)."""
+    """Bind the interpreter prefix and every symlink in its chain.
+
+    Binding only the realpath of ``sys.prefix``/``sys.base_prefix`` leaves the
+    symlinked install root (``.../python/latest``) dangling inside the
+    namespace, so the venv's ``bin/python3`` symlink resolves to a path that
+    does not exist and every exec fails with ``execvp ... No such file or
+    directory``. Each component is bound at its own path *and* at its realpath,
+    and the venv prefix stays bound so workers still import the venv's
+    site-packages (the base interpreter is never substituted).
+    """
     binds: list[tuple[str, str]] = []
-    for prefix in {sys.prefix, sys.base_prefix}:
-        if prefix and not prefix.startswith("/usr") and os.path.isdir(prefix):
-            binds.append((prefix, prefix))
+    seen: set[str] = set()
+    candidates: list[str] = []
+    for path in interpreter_chain():
+        candidates.append(path)
+        candidates.append(os.path.realpath(path))
+        # A symlinked install root (``.../python/latest``) is an ancestor of the
+        # resolved executable, not an element of the chain itself. Bind it at
+        # its own path so the interpreter's stdlib lookup (base_prefix) resolves
+        # inside the namespace instead of hitting an empty mount point.
+        ancestor = os.path.dirname(path)
+        while ancestor and ancestor != "/" and not ancestor.startswith("/usr"):
+            if os.path.islink(ancestor):
+                candidates.append(ancestor)
+                candidates.append(os.path.realpath(ancestor))
+            ancestor = os.path.dirname(ancestor)
+    for prefix in (sys.prefix, sys.base_prefix):
+        if prefix:
+            candidates.append(prefix)
+            candidates.append(os.path.realpath(prefix))
+    for path in candidates:
+        if not path or path.startswith("/usr") or path in seen:
+            continue
+        if not os.path.exists(path):
+            continue
+        seen.add(path)
+        binds.append((path, path))
     return binds
 
 

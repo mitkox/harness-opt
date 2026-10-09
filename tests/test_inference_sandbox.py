@@ -1,6 +1,7 @@
 """Inference + sandbox tests (AOP-007, AOP-008). Hermetic stub servers/processes."""
 
 import json
+import os
 import threading
 import time
 from http.server import BaseHTTPRequestHandler, HTTPServer
@@ -146,3 +147,127 @@ def test_workspace_rejects_hidden_markers_and_symlinks(tmp_path):
     Path(os.path.join(ws, "hidden-tests")).write_text("secret")
     with pytest.raises(ValueError):
         sandbox.assert_no_hidden_material(ws, ["hidden-tests"])
+
+
+# --- WP-1.6: symlinked interpreter installs (task-40, G8 blocker) -----------
+
+
+def _fake_symlinked_interpreter(tmp_path, monkeypatch):
+    """A venv whose interpreter chain crosses a symlinked install root.
+
+    Mirrors the host layout ``venv/bin/python -> python3 ->
+    <installs>/python/latest/bin/python3`` where ``latest`` is itself a symlink.
+    """
+    import os
+    import sys as _sys
+
+    real_base = Path(_sys.base_prefix).resolve()
+    installs = tmp_path / "installs" / "python"
+    installs.mkdir(parents=True)
+    (installs / "3.14.8").symlink_to(real_base, target_is_directory=True)
+    (installs / "latest").symlink_to("3.14.8", target_is_directory=True)
+    venv = tmp_path / "venv"
+    (venv / "bin").mkdir(parents=True)
+    (venv / "lib" / "python3.14" / "site-packages").mkdir(parents=True)
+    (venv / "bin" / "python").symlink_to("python3")
+    (venv / "bin" / "python3").symlink_to(installs / "latest" / "bin" / "python3")
+    (venv / "pyvenv.cfg").write_text(
+        f"home = {real_base / 'bin'}\ninclude-system-site-packages = false\n"
+        f"version = {_sys.version.split()[0]}\n"
+    )
+    monkeypatch.setattr(_sys, "executable", str(venv / "bin" / "python"))
+    monkeypatch.setattr(_sys, "prefix", str(venv))
+    monkeypatch.setattr(_sys, "exec_prefix", str(venv))
+    monkeypatch.setattr(_sys, "base_prefix", str(real_base))
+    monkeypatch.setattr(_sys, "base_exec_prefix", str(real_base))
+    assert os.path.realpath(venv / "bin" / "python") == os.path.realpath(
+        real_base / "bin" / "python3"
+    )
+    return venv, installs
+
+
+def test_interpreter_binds_cover_a_symlinked_install_root(tmp_path, monkeypatch):
+    venv, installs = _fake_symlinked_interpreter(tmp_path, monkeypatch)
+    binds = dict(sandbox.interpreter_ro_binds())
+    assert str(venv) in binds, "the venv prefix must stay bound for site-packages"
+    assert str(installs / "latest") in binds, (
+        "the symlinked install root must be bound at its own path, or the venv "
+        "interpreter symlink dangles inside the namespace"
+    )
+    covered_paths = set(binds) | set(sandbox.SYSTEM_RO_BINDS)
+    real_install = os.path.realpath(installs / "latest")
+    assert any(
+        real_install == base or real_install.startswith(base + os.sep) for base in covered_paths
+    ), "the real install root must stay reachable"
+    for link in (venv / "bin" / "python", venv / "bin" / "python3", installs / "latest"):
+        target = os.path.realpath(link)
+        covered = any(target == base or target.startswith(base + os.sep) for base in covered_paths)
+        assert covered, f"{link} -> {target} is not reachable in the namespace"
+
+
+def test_worker_execs_through_a_symlinked_interpreter_chain(tmp_path, monkeypatch):
+    venv, installs = _fake_symlinked_interpreter(tmp_path, monkeypatch)
+    runner = tmp_path / "run.sh"
+    runner.write_text(
+        f'#!/bin/sh\nexec "{venv}/bin/python" -c "import sys; print(\'OK\', sys.prefix)"\n'
+    )
+    os.chmod(runner, 0o700)
+    layout = sandbox.prepare_layout(str(tmp_path / "worker"))
+    probe = sandbox.probe_worker_network_isolation(str(tmp_path / "probe"))
+    if not probe["enforced"]:
+        # Explicit blocked evidence: no namespace here, so no isolation claim.
+        assert probe["reason"], probe
+        return
+    spec = sandbox.SandboxSpec(cpu_time_s=30, memory_bytes=2**30)
+    env = sandbox.scrub_worker_env(dict(os.environ))
+    base = [(p, p) for p in sandbox.SYSTEM_RO_BINDS] + [(str(runner), str(runner))]
+    binds = sandbox.interpreter_ro_binds()
+    fixed = sandbox.spawn_confined(
+        [str(runner)],
+        cwd=str(layout.workspace),
+        env=env,
+        ro_binds=base + binds,
+        rw_binds=[(layout.root, layout.root)],
+        spec=spec,
+        timeout_s=60.0,
+    )
+    assert fixed.exit_code == 0, Path(fixed.stderr_path).read_text()[-500:]
+    assert "OK" in Path(fixed.stdout_path).read_text()
+    # RED: without the symlinked install root bind the same command cannot exec.
+    old = [(src, dst) for src, dst in binds if str(installs / "latest") not in src]
+    broken = sandbox.spawn_confined(
+        [str(runner)],
+        cwd=str(layout.workspace),
+        env=env,
+        ro_binds=base + old,
+        rw_binds=[(layout.root, layout.root)],
+        spec=spec,
+        timeout_s=60.0,
+    )
+    assert broken.exit_code != 0, "the symlinked install root bind must be required"
+
+
+def test_spawn_isolated_binds_the_symlinked_install_root(tmp_path, monkeypatch):
+    """The assembled worker binds must include the symlinked install root."""
+    from hop import sandbox as sandbox_mod
+
+    venv, installs = _fake_symlinked_interpreter(tmp_path, monkeypatch)
+    layout = sandbox_mod.prepare_layout(str(tmp_path / "worker"))
+    captured: dict = {}
+
+    def fake_spawn(cmd, *, cwd, env, ro_binds, rw_binds, spec, **kwargs):
+        captured["ro"] = list(ro_binds)
+        return sandbox_mod.RunResult(
+            exit_code=0, timed_out=False, cancelled=False, stdout_path="", stderr_path=""
+        )
+
+    monkeypatch.setattr(sandbox_mod, "spawn_confined", fake_spawn)
+    sandbox_mod.spawn_isolated(
+        [str(venv / "bin" / "python"), "-c", "pass"],
+        layout,
+        sandbox_mod.SandboxSpec(share_network=False),
+        timeout_s=5.0,
+    )
+    destinations = {dst for _src, dst in captured["ro"]}
+    assert str(installs / "latest") in destinations
+    assert str(venv) in destinations
