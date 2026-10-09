@@ -6,6 +6,8 @@ collection, deselection) can produce a PASS.
 """
 
 import os
+import socket
+import stat
 from pathlib import Path
 
 import pytest
@@ -226,3 +228,109 @@ def test_report_genuine_failure_is_fail_not_error():
         _report(outcomes={"t.py::a": "passed", "t.py::b": "failed"}), MANIFEST
     )
     assert verdict == Verdict.FAIL and outcome.value == "fail" and err == "tests_failed"
+
+
+# --- D-2: the candidate RPC socket must not survive a verification ----------
+
+
+def _sockets_under(root):
+    found = []
+    for dirpath, _dirnames, filenames in os.walk(root):
+        for name in filenames:
+            full = os.path.join(dirpath, name)
+            try:
+                mode = os.stat(full, follow_symlinks=False).st_mode
+            except OSError:
+                continue
+            if stat.S_ISSOCK(mode):
+                found.append(full)
+    return found
+
+
+def _bind_socket(path):
+    """Create a real AF_UNIX socket file, as the candidate worker does."""
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    server = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+    server.bind(path)
+    server.close()  # closing does not unlink the path
+    assert os.path.exists(path)
+    return path
+
+
+def test_verification_leaves_no_rpc_socket_after_completion(tmp_path):
+    """A completed verification must not leave the worker socket behind."""
+    _manifest, snap = _snapshot(tmp_path)
+    result = _run(snap, tmp_path=tmp_path)
+    assert result.verdict in (Verdict.PASS, Verdict.FAIL), result.error_class
+    work = tmp_path / "work"
+    assert _sockets_under(work) == []
+    assert not (work / "verify" / "rpc" / "candidate.sock").exists()
+
+
+def test_verification_removes_rpc_socket_on_failure(tmp_path, monkeypatch):
+    """A socket that exists when the run fails is removed before returning."""
+    _manifest, snap = _snapshot(tmp_path)
+    work = tmp_path / "work"
+    socket_path = str(work / "verify" / "rpc" / "candidate.sock")
+
+    def _fake_bwrap(_work_root):
+        # The run fails only after the socket already exists on disk.
+        _bind_socket(socket_path)
+        return False, "test: sandbox unavailable"
+
+    monkeypatch.setattr(verification, "_bwrap_usable", _fake_bwrap)
+    result = verification.run_verification(
+        "r-test", "a1", snap, os.path.join(HIDDEN, OFFBYONE), timeout_s=30, work_root=str(work)
+    )
+    assert result.error_class == "verifier_sandbox_unavailable"
+    assert not os.path.exists(socket_path)
+    assert _sockets_under(work) == []
+
+
+def test_legacy_rpc_socket_is_cleaned_on_the_next_run(tmp_path, monkeypatch):
+    """A leftover socket is unlinked on the next run, not only by rmtree."""
+    _manifest, snap = _snapshot(tmp_path)
+    work = tmp_path / "work"
+    legacy = _bind_socket(str(work / "verify" / "rpc" / "candidate.sock"))
+
+    def _failing_rmtree(_path, *_args, **_kwargs):
+        raise OSError("simulated: the verify root cannot be removed")
+
+    # If the socket were only cleaned as a side effect of the recursive delete,
+    # it would survive this run.
+    monkeypatch.setattr(verification.shutil, "rmtree", _failing_rmtree)
+    with pytest.raises(OSError, match="cannot be removed"):
+        verification.run_verification(
+            "r-test",
+            "a1",
+            snap,
+            os.path.join(HIDDEN, OFFBYONE),
+            timeout_s=30,
+            work_root=str(work),
+        )
+    assert not os.path.exists(legacy)
+    assert _sockets_under(work) == []
+
+
+def test_fallback_rpc_dir_is_removed_on_completion(tmp_path, monkeypatch):
+    """The out-of-tree long-path fallback directory does not leak."""
+    _manifest, snap = _snapshot(tmp_path)
+    fallback = tmp_path / "rpc-fallback"
+    long_work = tmp_path / ("w" * 80) / ("x" * 40)  # forces the >100 char fallback
+    assert len(str(long_work / "verify" / "rpc" / "candidate.sock")) > 100
+
+    def _fake_mkdtemp(prefix="hop-rpc-", **_kw):
+        fallback.mkdir(parents=True, exist_ok=True)
+        return str(fallback)
+
+    def _fake_bwrap(_work_root):
+        _bind_socket(str(fallback / "candidate.sock"))
+        return False, "test: unavailable"
+
+    monkeypatch.setattr(verification.tempfile, "mkdtemp", _fake_mkdtemp)
+    monkeypatch.setattr(verification, "_bwrap_usable", _fake_bwrap)
+    result = verification.run_verification(
+        "r-test", "a1", snap, os.path.join(HIDDEN, OFFBYONE), timeout_s=30, work_root=str(long_work)
+    )
+    assert result.error_class == "verifier_sandbox_unavailable"
+    assert not fallback.exists()

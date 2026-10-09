@@ -33,6 +33,7 @@ import hashlib
 import json
 import os
 import shutil
+import stat
 import sys
 import tempfile
 import threading
@@ -518,19 +519,56 @@ def _bwrap_usable(work_root: str) -> tuple[bool, str]:
     return True, ""
 
 
-def _rpc_dir(verify_root: str) -> tuple[str, str]:
+def _rpc_dir(verify_root: str) -> tuple[str, str, bool]:
     """Directory holding the candidate RPC socket, plus the socket path.
 
     ``AF_UNIX`` paths are length-limited, so a long ``work_root`` falls back to
     a short temporary directory (bind-mounted into both namespaces by path).
+    The third value reports whether that fallback was used, so the caller can
+    remove the out-of-tree temporary directory on completion.
     """
     directory = os.path.join(verify_root, "rpc")
     socket_path = os.path.join(directory, "candidate.sock")
+    temporary = False
     if len(socket_path) > 100:
         directory = tempfile.mkdtemp(prefix="hop-rpc-")
         socket_path = os.path.join(directory, "candidate.sock")
+        temporary = True
     os.makedirs(directory, exist_ok=True)
-    return directory, socket_path
+    return directory, socket_path, temporary
+
+
+def _unlink_sockets(root: str) -> None:
+    """Remove every socket file under ``root`` without following symlinks."""
+    if not os.path.isdir(root):
+        return
+    for dirpath, _dirnames, filenames in os.walk(root):
+        for name in filenames:
+            full = os.path.join(dirpath, name)
+            try:
+                mode = os.stat(full, follow_symlinks=False).st_mode
+            except OSError:
+                continue
+            if stat.S_ISSOCK(mode):
+                try:
+                    os.unlink(full)
+                except OSError:
+                    pass
+
+
+def _cleanup_rpc(verify_root: str, rpc_dir: str, temporary: bool) -> None:
+    """Remove the candidate RPC socket on every completion path.
+
+    The candidate worker unlinks the socket before binding it, but nothing
+    removed it afterwards, so a completed verification left
+    ``<verify_root>/rpc/candidate.sock`` behind and a backup of the run tree
+    then tripped over the socket. The long-path fallback directory lives outside
+    ``verify_root`` and is removed entirely.
+    """
+    for root in (rpc_dir, verify_root):
+        _unlink_sockets(root)
+    if temporary and rpc_dir:
+        shutil.rmtree(rpc_dir, ignore_errors=True)
 
 
 def _quota_dimensions() -> list[str]:
@@ -739,6 +777,9 @@ def run_verification(
     work_root = work_root or tempfile.mkdtemp(prefix="hop-verify-")
     verify_root = os.path.join(work_root, "verify")
     if os.path.exists(verify_root):
+        # A stale RPC socket from a previous run is removed explicitly, not
+        # only as a side effect of the recursive delete.
+        _unlink_sockets(verify_root)
         shutil.rmtree(verify_root)
     vbin = os.path.join(verify_root, "vbin")
     wbin = os.path.join(verify_root, "wbin")
@@ -750,300 +791,306 @@ def run_verification(
     shutil.copytree(hidden_case_dir, tests_dir)
     os.remove(os.path.join(tests_dir, "verifier.json"))
     _write_verifier_scaffold(vbin, wbin)
-    rpc_dir, socket_path = _rpc_dir(verify_root)
-
-    report_path = os.path.join(out_dir, "report.json")
-    quota_plan = _quota_plan()
-    details = {
-        "report_path": report_path,
-        "hidden_test_hash": hidden_hash,
-        "contamination": contamination,
-        "rpc_protocol": RPC_PROTOCOL,
-        "isolation": {
-            "mode": "separate-candidate-namespace",
-            "candidate_mounts_hidden_tests": False,
-            "candidate_mounts_report_path": False,
-            "trusted_host_imports_candidate": False,
-        },
-        "quota_probe": quota_plan.get("probe", {}),
-    }
-    if owns_root:
-        details["work_root"] = work_root
-
-    if os.environ.get("HOP_REQUIRE_QUOTAS") == "1" and quota_plan["mode"] != "enforced":
-        details["resources"] = {
-            "mode": quota_plan["mode"],
-            "requested": quota_plan["requested"],
-            "enforced": [],
-            "unenforced": quota_plan["unenforced"],
-            "probe": quota_plan.get("probe", {}),
+    rpc_dir, socket_path, rpc_temporary = _rpc_dir(verify_root)
+    try:
+        report_path = os.path.join(out_dir, "report.json")
+        quota_plan = _quota_plan()
+        details = {
+            "report_path": report_path,
+            "hidden_test_hash": hidden_hash,
+            "contamination": contamination,
+            "rpc_protocol": RPC_PROTOCOL,
+            "isolation": {
+                "mode": "separate-candidate-namespace",
+                "candidate_mounts_hidden_tests": False,
+                "candidate_mounts_report_path": False,
+                "trusted_host_imports_candidate": False,
+            },
+            "quota_probe": quota_plan.get("probe", {}),
         }
-        return _error_result(
-            run_id,
-            attempt_id,
-            verifier_version,
-            hidden_hash,
-            contamination,
-            "aggregate_quota_unavailable",
-            details,
-        )
+        if owns_root:
+            details["work_root"] = work_root
 
-    usable, reason = _bwrap_usable(work_root)
-    if not usable:
-        details["error"] = reason
-        return _error_result(
-            run_id,
-            attempt_id,
-            verifier_version,
-            hidden_hash,
-            contamination,
-            "verifier_sandbox_unavailable",
-            details,
-        )
+        if os.environ.get("HOP_REQUIRE_QUOTAS") == "1" and quota_plan["mode"] != "enforced":
+            details["resources"] = {
+                "mode": quota_plan["mode"],
+                "requested": quota_plan["requested"],
+                "enforced": [],
+                "unenforced": quota_plan["unenforced"],
+                "probe": quota_plan.get("probe", {}),
+            }
+            return _error_result(
+                run_id,
+                attempt_id,
+                verifier_version,
+                hidden_hash,
+                contamination,
+                "aggregate_quota_unavailable",
+                details,
+            )
 
-    spec = SandboxSpec(isolate_mounts=True, share_network=False, cpu_time_s=int(timeout_s) + 30)
-    quota_context = {
-        "memory_bytes": spec.memory_bytes,
-        "max_processes": spec.max_processes,
-    }
-    worker_status = os.path.join(candidate_scratch, "quota-status.json")
-    worker_env = {
-        "PATH": os.environ.get("PATH", "/usr/bin:/bin"),
-        "HOME": candidate_scratch,
-        "TMPDIR": candidate_scratch,
-        "PYTHONDONTWRITEBYTECODE": "1",
-        "PYTHONNOUSERSITE": "1",
-        "PYTEST_DISABLE_PLUGIN_AUTOLOAD": "1",
-    }
-    worker_env.update(
-        _quota_env(
-            quota_plan,
-            f"verify-cand-{run_id}-{attempt_id}",
-            worker_status,
-            **quota_context,
-        )
-    )
-    worker_ro = [(p, p) for p in SYSTEM_RO_BINDS]
-    worker_ro += interpreter_ro_binds()
-    worker_ro += [(snapshot_dir, snapshot_dir), (wbin, wbin)]
-    worker_rw = [(candidate_scratch, candidate_scratch), (rpc_dir, rpc_dir)]
-    worker_cmd = [
-        sys.executable,
-        "-I",
-        os.path.join(wbin, "_aop_candidate_worker.py"),
-        snapshot_dir,
-        socket_path,
-    ]
-    worker_stdout = os.path.join(candidate_scratch, "worker-stdout.log")
-    worker_stderr = os.path.join(candidate_scratch, "worker-stderr.log")
-    worker_spec = SandboxSpec(
-        isolate_mounts=True, share_network=False, cpu_time_s=int(timeout_s) + 60
-    )
-    cancel = threading.Event()
-    worker_holder: dict = {}
+        usable, reason = _bwrap_usable(work_root)
+        if not usable:
+            details["error"] = reason
+            return _error_result(
+                run_id,
+                attempt_id,
+                verifier_version,
+                hidden_hash,
+                contamination,
+                "verifier_sandbox_unavailable",
+                details,
+            )
 
-    def _worker_main() -> None:
+        spec = SandboxSpec(isolate_mounts=True, share_network=False, cpu_time_s=int(timeout_s) + 30)
+        quota_context = {
+            "memory_bytes": spec.memory_bytes,
+            "max_processes": spec.max_processes,
+        }
+        worker_status = os.path.join(candidate_scratch, "quota-status.json")
+        worker_env = {
+            "PATH": os.environ.get("PATH", "/usr/bin:/bin"),
+            "HOME": candidate_scratch,
+            "TMPDIR": candidate_scratch,
+            "PYTHONDONTWRITEBYTECODE": "1",
+            "PYTHONNOUSERSITE": "1",
+            "PYTEST_DISABLE_PLUGIN_AUTOLOAD": "1",
+        }
+        worker_env.update(
+            _quota_env(
+                quota_plan,
+                f"verify-cand-{run_id}-{attempt_id}",
+                worker_status,
+                **quota_context,
+            )
+        )
+        worker_ro = [(p, p) for p in SYSTEM_RO_BINDS]
+        worker_ro += interpreter_ro_binds()
+        worker_ro += [(snapshot_dir, snapshot_dir), (wbin, wbin)]
+        worker_rw = [(candidate_scratch, candidate_scratch), (rpc_dir, rpc_dir)]
+        worker_cmd = [
+            sys.executable,
+            "-I",
+            os.path.join(wbin, "_aop_candidate_worker.py"),
+            snapshot_dir,
+            socket_path,
+        ]
+        worker_stdout = os.path.join(candidate_scratch, "worker-stdout.log")
+        worker_stderr = os.path.join(candidate_scratch, "worker-stderr.log")
+        worker_spec = SandboxSpec(
+            isolate_mounts=True, share_network=False, cpu_time_s=int(timeout_s) + 60
+        )
+        cancel = threading.Event()
+        worker_holder: dict = {}
+
+        def _worker_main() -> None:
+            try:
+                worker_holder["result"] = spawn_confined(
+                    worker_cmd,
+                    cwd=candidate_scratch,
+                    env=worker_env,
+                    ro_binds=worker_ro,
+                    rw_binds=worker_rw,
+                    spec=worker_spec,
+                    timeout_s=timeout_s + 60,
+                    cancel=cancel,
+                    stdout_path=worker_stdout,
+                    stderr_path=worker_stderr,
+                )
+            except BaseException as exc:  # noqa: BLE001 - recorded/classified below as infra_error
+                worker_holder["error"] = exc
+
+        def _worker_failure(reason: str) -> EvaluationResult:
+            cancel.set()
+            details["candidate_worker"] = {
+                "error": reason,
+                "log_tail": _tail(worker_stdout, 500),
+                "stderr_tail": _tail(worker_stderr, 800),
+            }
+            return _error_result(
+                run_id,
+                attempt_id,
+                verifier_version,
+                hidden_hash,
+                contamination,
+                "verifier_candidate_worker_unavailable",
+                details,
+            )
+
+        worker_thread = threading.Thread(
+            target=_worker_main, name="hop-candidate-worker", daemon=True
+        )
+        worker_thread.start()
+        deadline = time.monotonic() + 30.0
+        while not os.path.exists(socket_path):
+            if "error" in worker_holder:
+                return _worker_failure(str(worker_holder["error"]))
+            if "result" in worker_holder:
+                result = worker_holder["result"]
+                return _worker_failure(
+                    f"candidate worker exited before binding its socket (exit={result.exit_code})"
+                )
+            if time.monotonic() > deadline:
+                return _worker_failure("candidate worker RPC socket did not appear within 30s")
+            time.sleep(0.05)
+
+        bootstrap = os.path.join(vbin, "_aop_bootstrap.py")
+        cmd = [
+            sys.executable,
+            "-I",
+            bootstrap,
+            snapshot_dir,
+            tests_dir,
+            report_path,
+            vbin,
+            socket_path,
+            *manifest["test_files"],
+        ]
+        host_status = os.path.join(out_dir, "quota-status.json")
+        env = {
+            "PATH": os.environ.get("PATH", "/usr/bin:/bin"),
+            "HOME": out_dir,
+            "TMPDIR": out_dir,
+            "PYTHONDONTWRITEBYTECODE": "1",
+            "PYTHONNOUSERSITE": "1",
+            "PYTHONHASHSEED": "0",
+            "PYTEST_DISABLE_PLUGIN_AUTOLOAD": "1",
+            "PI_OFFLINE": "1",
+        }
+        env.update(
+            _quota_env(
+                quota_plan, f"verify-host-{run_id}-{attempt_id}", host_status, **quota_context
+            )
+        )
+        ro_binds = [(p, p) for p in SYSTEM_RO_BINDS]
+        ro_binds += interpreter_ro_binds()
+        ro_binds += [(snapshot_dir, snapshot_dir), (tests_dir, tests_dir), (vbin, vbin)]
+        rw_binds = [(out_dir, out_dir), (rpc_dir, rpc_dir)]
+        stdout = os.path.join(out_dir, "verifier-stdout.log")
+        stderr = os.path.join(out_dir, "verifier-stderr.log")
         try:
-            worker_holder["result"] = spawn_confined(
-                worker_cmd,
-                cwd=candidate_scratch,
-                env=worker_env,
-                ro_binds=worker_ro,
-                rw_binds=worker_rw,
-                spec=worker_spec,
-                timeout_s=timeout_s + 60,
-                cancel=cancel,
-                stdout_path=worker_stdout,
-                stderr_path=worker_stderr,
+            result = spawn_confined(
+                cmd,
+                cwd=tests_dir,
+                env=env,
+                ro_binds=ro_binds,
+                rw_binds=rw_binds,
+                spec=spec,
+                timeout_s=timeout_s,
+                stdout_path=stdout,
+                stderr_path=stderr,
             )
-        except BaseException as exc:  # noqa: BLE001 - recorded/classified below as infra_error
-            worker_holder["error"] = exc
+        except SandboxUnavailable as exc:
+            return _worker_failure(str(exc))
+        finally:
+            cancel.set()
+            worker_thread.join(timeout=15)
 
-    def _worker_failure(reason: str) -> EvaluationResult:
-        cancel.set()
-        details["candidate_worker"] = {
-            "error": reason,
-            "log_tail": _tail(worker_stdout, 500),
-            "stderr_tail": _tail(worker_stderr, 800),
+        resources = {
+            "requested": quota_plan["requested"],
+            "probe": quota_plan.get("probe", {}),
+            "host": _quota_report(quota_plan, host_status),
+            "candidate": _quota_report(quota_plan, worker_status),
         }
-        return _error_result(
-            run_id,
-            attempt_id,
-            verifier_version,
-            hidden_hash,
-            contamination,
-            "verifier_candidate_worker_unavailable",
-            details,
+        modes = {resources["host"]["mode"], resources["candidate"]["mode"]}
+        if modes == {"enforced"}:
+            resources["mode"] = "enforced"
+        elif "blocked" in modes:
+            resources["mode"] = "blocked"
+        elif modes == {"unavailable"}:
+            resources["mode"] = "unavailable"
+        else:
+            resources["mode"] = "limited"
+        details["resources"] = resources
+
+        details.update(
+            {
+                "exit_code": result.exit_code,
+                "timed_out": result.timed_out,
+                "backend": result.backend,
+                "log_tail": _tail(stdout),
+                "stderr_tail": _tail(stderr),
+            }
         )
 
-    worker_thread = threading.Thread(target=_worker_main, name="hop-candidate-worker", daemon=True)
-    worker_thread.start()
-    deadline = time.monotonic() + 30.0
-    while not os.path.exists(socket_path):
-        if "error" in worker_holder:
-            return _worker_failure(str(worker_holder["error"]))
-        if "result" in worker_holder:
-            result = worker_holder["result"]
-            return _worker_failure(
-                f"candidate worker exited before binding its socket (exit={result.exit_code})"
+        if os.environ.get("HOP_REQUIRE_QUOTAS") == "1" and resources["mode"] != "enforced":
+            return _error_result(
+                run_id,
+                attempt_id,
+                verifier_version,
+                hidden_hash,
+                contamination,
+                "aggregate_quota_unavailable",
+                details,
             )
-        if time.monotonic() > deadline:
-            return _worker_failure("candidate worker RPC socket did not appear within 30s")
-        time.sleep(0.05)
 
-    bootstrap = os.path.join(vbin, "_aop_bootstrap.py")
-    cmd = [
-        sys.executable,
-        "-I",
-        bootstrap,
-        snapshot_dir,
-        tests_dir,
-        report_path,
-        vbin,
-        socket_path,
-        *manifest["test_files"],
-    ]
-    host_status = os.path.join(out_dir, "quota-status.json")
-    env = {
-        "PATH": os.environ.get("PATH", "/usr/bin:/bin"),
-        "HOME": out_dir,
-        "TMPDIR": out_dir,
-        "PYTHONDONTWRITEBYTECODE": "1",
-        "PYTHONNOUSERSITE": "1",
-        "PYTHONHASHSEED": "0",
-        "PYTEST_DISABLE_PLUGIN_AUTOLOAD": "1",
-        "PI_OFFLINE": "1",
-    }
-    env.update(
-        _quota_env(quota_plan, f"verify-host-{run_id}-{attempt_id}", host_status, **quota_context)
-    )
-    ro_binds = [(p, p) for p in SYSTEM_RO_BINDS]
-    ro_binds += interpreter_ro_binds()
-    ro_binds += [(snapshot_dir, snapshot_dir), (tests_dir, tests_dir), (vbin, vbin)]
-    rw_binds = [(out_dir, out_dir), (rpc_dir, rpc_dir)]
-    stdout = os.path.join(out_dir, "verifier-stdout.log")
-    stderr = os.path.join(out_dir, "verifier-stderr.log")
-    try:
-        result = spawn_confined(
-            cmd,
-            cwd=tests_dir,
-            env=env,
-            ro_binds=ro_binds,
-            rw_binds=rw_binds,
-            spec=spec,
-            timeout_s=timeout_s,
-            stdout_path=stdout,
-            stderr_path=stderr,
+        if result.timed_out:
+            return _error_result(
+                run_id,
+                attempt_id,
+                verifier_version,
+                hidden_hash,
+                contamination,
+                "verification_timeout",
+                details,
+            )
+        if not os.path.exists(report_path):
+            # The trusted host produced no report: candidate-controlled tricks cannot
+            # reach this process, so this is a verification failure, not infra_error.
+            return _error_result(
+                run_id,
+                attempt_id,
+                verifier_version,
+                hidden_hash,
+                contamination,
+                "verification_no_result",
+                details,
+                outcome=RunOutcome.FAIL,
+            )
+        try:
+            with open(report_path) as fh:
+                report = json.load(fh)
+        except (OSError, json.JSONDecodeError) as exc:
+            details["report_error"] = str(exc)
+            return _error_result(
+                run_id,
+                attempt_id,
+                verifier_version,
+                hidden_hash,
+                contamination,
+                "verification_malformed_report",
+                details,
+                outcome=RunOutcome.FAIL,
+            )
+
+        verdict, outcome, error_class, evidence = evaluate_report(report, manifest)
+        evidence["manifest"] = manifest
+        evidence["report"] = report
+        evidence["isolation"] = details["isolation"]
+        evidence["resources"] = resources
+        if hidden_source:
+            evidence["hidden_source"] = hidden_source
+        evidence_digest = hashlib.sha256(json.dumps(evidence, sort_keys=True).encode()).hexdigest()
+        with open(os.path.join(out_dir, "verification.json"), "w") as fh:
+            json.dump(evidence, fh, indent=2, sort_keys=True)
+        details["verification"] = evidence
+        details["evidence_digest"] = evidence_digest
+        if hidden_source:
+            details["hidden_source"] = hidden_source
+        return EvaluationResult(
+            run_id=run_id,
+            attempt_id=attempt_id,
+            verifier_version=verifier_version,
+            verdict=verdict,
+            outcome=outcome,
+            details=details,
+            hidden_test_hash=hidden_hash,
+            contamination_check=contamination,
+            error_class=error_class,
+            evidence_digest="sha256:" + evidence_digest,
         )
-    except SandboxUnavailable as exc:
-        return _worker_failure(str(exc))
     finally:
-        cancel.set()
-        worker_thread.join(timeout=15)
-
-    resources = {
-        "requested": quota_plan["requested"],
-        "probe": quota_plan.get("probe", {}),
-        "host": _quota_report(quota_plan, host_status),
-        "candidate": _quota_report(quota_plan, worker_status),
-    }
-    modes = {resources["host"]["mode"], resources["candidate"]["mode"]}
-    if modes == {"enforced"}:
-        resources["mode"] = "enforced"
-    elif "blocked" in modes:
-        resources["mode"] = "blocked"
-    elif modes == {"unavailable"}:
-        resources["mode"] = "unavailable"
-    else:
-        resources["mode"] = "limited"
-    details["resources"] = resources
-
-    details.update(
-        {
-            "exit_code": result.exit_code,
-            "timed_out": result.timed_out,
-            "backend": result.backend,
-            "log_tail": _tail(stdout),
-            "stderr_tail": _tail(stderr),
-        }
-    )
-
-    if os.environ.get("HOP_REQUIRE_QUOTAS") == "1" and resources["mode"] != "enforced":
-        return _error_result(
-            run_id,
-            attempt_id,
-            verifier_version,
-            hidden_hash,
-            contamination,
-            "aggregate_quota_unavailable",
-            details,
-        )
-
-    if result.timed_out:
-        return _error_result(
-            run_id,
-            attempt_id,
-            verifier_version,
-            hidden_hash,
-            contamination,
-            "verification_timeout",
-            details,
-        )
-    if not os.path.exists(report_path):
-        # The trusted host produced no report: candidate-controlled tricks cannot
-        # reach this process, so this is a verification failure, not infra_error.
-        return _error_result(
-            run_id,
-            attempt_id,
-            verifier_version,
-            hidden_hash,
-            contamination,
-            "verification_no_result",
-            details,
-            outcome=RunOutcome.FAIL,
-        )
-    try:
-        with open(report_path) as fh:
-            report = json.load(fh)
-    except (OSError, json.JSONDecodeError) as exc:
-        details["report_error"] = str(exc)
-        return _error_result(
-            run_id,
-            attempt_id,
-            verifier_version,
-            hidden_hash,
-            contamination,
-            "verification_malformed_report",
-            details,
-            outcome=RunOutcome.FAIL,
-        )
-
-    verdict, outcome, error_class, evidence = evaluate_report(report, manifest)
-    evidence["manifest"] = manifest
-    evidence["report"] = report
-    evidence["isolation"] = details["isolation"]
-    evidence["resources"] = resources
-    if hidden_source:
-        evidence["hidden_source"] = hidden_source
-    evidence_digest = hashlib.sha256(json.dumps(evidence, sort_keys=True).encode()).hexdigest()
-    with open(os.path.join(out_dir, "verification.json"), "w") as fh:
-        json.dump(evidence, fh, indent=2, sort_keys=True)
-    details["verification"] = evidence
-    details["evidence_digest"] = evidence_digest
-    if hidden_source:
-        details["hidden_source"] = hidden_source
-    return EvaluationResult(
-        run_id=run_id,
-        attempt_id=attempt_id,
-        verifier_version=verifier_version,
-        verdict=verdict,
-        outcome=outcome,
-        details=details,
-        hidden_test_hash=hidden_hash,
-        contamination_check=contamination,
-        error_class=error_class,
-        evidence_digest="sha256:" + evidence_digest,
-    )
+        _cleanup_rpc(verify_root, rpc_dir, rpc_temporary)
 
 
 def _tail(path: str, limit: int = 3000) -> str:
