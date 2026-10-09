@@ -22,7 +22,29 @@ from hop.sandbox import bwrap_available
 
 pytestmark = pytest.mark.sandbox
 
-REPO = Path(__file__).resolve().parents[2]
+
+def _repo_root() -> Path:
+    """Resolve the delivery checkout robustly.
+
+    The Cube gate runs pytest from the checkout root with an editable install;
+    a path derived only from ``__file__`` is not trusted here, so prefer cwd
+    when it contains the tracked sentinels and fail loudly otherwise.
+    """
+    sentinels = (
+        "benchmarks/development/debug-offbyone/repo/median_bug.py",
+        "src/hop/verification.py",
+    )
+    candidates = [Path.cwd(), Path(__file__).resolve().parents[2]]
+    for candidate in candidates:
+        if all((candidate / sentinel).is_file() for sentinel in sentinels):
+            return candidate
+    raise AssertionError(
+        "cannot locate the delivery checkout; tried "
+        + ", ".join(str(candidate) for candidate in candidates)
+    )
+
+
+REPO = _repo_root()
 
 
 def _write_case(root: Path, candidate: str, test_source: str, test_file: str) -> tuple[str, str]:

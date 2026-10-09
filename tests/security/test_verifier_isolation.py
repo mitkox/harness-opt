@@ -26,13 +26,44 @@ from hop import verification
 from hop.contracts.records import RunOutcome, Verdict
 from hop.sandbox import RunResult
 
-REPO = Path(__file__).resolve().parents[2]
+
+def _repo_root() -> Path:
+    """Resolve the delivery checkout robustly.
+
+    The Cube gate runs pytest from the checkout root with an editable install;
+    a path derived only from ``__file__`` is not trusted here, so prefer cwd
+    when it contains the tracked sentinels and fail loudly otherwise.
+    """
+    sentinels = (
+        "benchmarks/development/debug-offbyone/repo/median_bug.py",
+        "src/hop/verification.py",
+    )
+    candidates = [Path.cwd(), Path(__file__).resolve().parents[2]]
+    for candidate in candidates:
+        if all((candidate / sentinel).is_file() for sentinel in sentinels):
+            return candidate
+    raise AssertionError(
+        "cannot locate the delivery checkout; tried "
+        + ", ".join(str(candidate) for candidate in candidates)
+    )
+
+
+REPO = _repo_root()
 SNAPSHOT_SRC = REPO / "benchmarks" / "development" / "debug-offbyone" / "repo"
 HIDDEN_OFFBYONE = REPO / ".hidden" / "hidden-tests" / "debug-offbyone"
 
 
 def _freeze(tmp_path: Path, name: str = "snap") -> tuple[dict, str]:
-    return verification.freeze_workspace(str(SNAPSHOT_SRC), str(tmp_path / name))
+    manifest = verification.freeze_workspace(str(SNAPSHOT_SRC), str(tmp_path / name))
+    assert "median_bug.py" in manifest, {
+        "cwd": str(Path.cwd()),
+        "repo": str(REPO),
+        "snapshot_src": str(SNAPSHOT_SRC),
+        "snapshot_src_is_dir": SNAPSHOT_SRC.is_dir(),
+        "snapshot_src_listing": (sorted(os.listdir(SNAPSHOT_SRC)) if SNAPSHOT_SRC.is_dir() else []),
+        "frozen_files": sorted(manifest),
+    }
+    return manifest, str(tmp_path / name)
 
 
 def _rpc_harness(
