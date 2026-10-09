@@ -315,24 +315,79 @@ def _spawn(cmd: list[str], tmp_path: Path):
         return f"SandboxUnavailable: {exc}"
 
 
+# The success marker is assembled at runtime, so a source echo or traceback can
+# never contain the literal the assertions look for.
+_NETWORK_PROBE = """\
+import socket
+import sys
+
+host, port = sys.argv[1], int(sys.argv[2])
+sock = socket.create_connection((host, port), 3)
+sock.close()
+sys.stdout.write("NET" + "REACHED")
+"""
+
+
+def _write_probe(tmp_path: Path) -> Path:
+    probe = tmp_path / "netprobe.py"
+    probe.write_text(_NETWORK_PROBE)
+    return probe
+
+
+def test_network_probe_detects_reachability_when_unisolated(tmp_path):
+    """Positive control: the probe must report success when not isolated.
+
+    This is how "still fails if isolation is removed" is proven: the same probe
+    script prints the runtime marker against a loopback listener when run
+    unisolated, so an absent marker in the sandboxed case is real denial rather
+    than a broken probe or a source-echo match.
+    """
+    import socket
+    import subprocess
+    import sys
+    import threading
+
+    probe = _write_probe(tmp_path)
+    server = socket.socket()
+    server.bind(("127.0.0.1", 0))
+    server.listen(1)
+    port = server.getsockname()[1]
+
+    def _accept_once() -> None:
+        try:
+            connection, _ = server.accept()
+            connection.close()
+        except OSError:
+            pass
+
+    threading.Thread(target=_accept_once, daemon=True).start()
+    try:
+        proc = subprocess.run(
+            [sys.executable, str(probe), "127.0.0.1", str(port)],
+            capture_output=True,
+            text=True,
+            timeout=30,
+            check=False,
+        )
+    finally:
+        server.close()
+    assert proc.returncode == 0
+    assert "NETREACHED" in proc.stdout
+
+
 @requires_sandbox
 def test_worker_network_is_denied(tmp_path):
-    result = _spawn(
-        [
-            "python3",
-            "-c",
-            "import socket; socket.create_connection(('1.1.1.1', 80), 3); print('REACHED')",
-        ],
-        tmp_path,
-    )
+    probe = _write_probe(tmp_path)
+    result = _spawn(["python3", str(probe), "1.1.1.1", "80"], tmp_path)
     if isinstance(result, str):
         pytest.fail(f"isolation unavailable but did not fail closed: {result}")
     out = Path(result.stdout_path).read_text() + Path(result.stderr_path).read_text()
-    assert "REACHED" not in out
+    assert "NETREACHED" not in out
+    assert result.exit_code != 0
     _refused(
         "network.egress_denied",
         "worker cannot reach the public internet",
-        f"exit={result.exit_code}, no REACHED marker",
+        f"exit={result.exit_code}, no NETREACHED marker",
         "tests/security/test_adversarial_suite.py",
     )
 
@@ -341,10 +396,11 @@ def test_worker_network_is_denied(tmp_path):
 def test_worker_cannot_write_outside_the_run_workspace(tmp_path):
     outside = tmp_path / "owner" / "pwned"
     outside.parent.mkdir(parents=True)
-    result = _spawn(["bash", "-c", f"echo x > {outside} && echo WROTE"], tmp_path)
+    # Runtime-assembled marker so no source echo can satisfy the assertion.
+    result = _spawn(["bash", "-c", f"echo x > {outside} && printf '%s' 'WRO''TE'"], tmp_path)
     if isinstance(result, str):
         pytest.fail(f"isolation unavailable but did not fail closed: {result}")
-    out = Path(result.stdout_path).read_text()
+    out = Path(result.stdout_path).read_text() + Path(result.stderr_path).read_text()
     assert "WROTE" not in out
     assert not outside.exists()
     _refused(
