@@ -62,13 +62,20 @@ def load_tools():
     return lock.get("tools") or {}
 
 
+def expand_pin_path(value):
+    """Expand the documented ${HOME}/~ forms in a pinned path. Never guesses."""
+    return os.path.expanduser(os.path.expandvars(value))
+
+
 def lock_wheelhouse():
     path = ROOT / "development-tools.lock.json"
     try:
         value = json.loads(path.read_text()).get("wheelhouse")
     except (OSError, ValueError):
         return None
-    return value if isinstance(value, str) and value else None
+    if not isinstance(value, str) or not value:
+        return None
+    return expand_pin_path(value)
 
 
 def approved_wheelhouse():
@@ -162,12 +169,23 @@ def resolve_approved_tool(tools, name, kind):
                 "no PATH substitute is accepted"
             )
         override_var = f"HOP_{name.upper()}_PYTHON"
-        interpreter = os.environ.get(override_var, "") or pin.get("interpreter")
-        if not isinstance(interpreter, str) or not Path(interpreter).is_absolute():
+        configured_value = os.environ.get(override_var, "") or pin.get("interpreter")
+        if not isinstance(configured_value, str) or not configured_value:
+            raise ToolUnavailable(
+                f"approved offline {name} needs a pinned interpreter; "
+                f"set {override_var} to an approved copy"
+            )
+        # A pin may use the documented ${HOME}/~ forms so the repository carries
+        # no hardcoded username.
+        interpreter = expand_pin_path(configured_value)
+        if not Path(interpreter).is_absolute():
             raise ToolUnavailable(
                 f"approved offline {name} needs an absolute pinned interpreter; "
                 f"set {override_var} to an approved copy"
             )
+        # The configured path is what gets EXECUTED: for a venv it selects the
+        # venv's site-packages. ``resolved`` (the symlink target) is used only
+        # for the integrity hash, which is what the pin records.
         resolved = Path(interpreter).resolve()
         if not resolved.is_file():
             raise ToolUnavailable(
@@ -191,7 +209,7 @@ def resolve_approved_tool(tools, name, kind):
         if hashlib.sha256(manifest.read_bytes()).hexdigest() != pin.get("manifest_sha256"):
             raise ToolUnavailable(f"{name} manifest does not match the approved pin")
         verify_manifest(manifest, name)
-        return [str(resolved), "-m", pin.get("module") or name]
+        return [interpreter, "-m", pin.get("module") or name]
     raise ToolUnavailable(f"approved offline {name} uses an unknown pin kind {kind!r}")
 
 

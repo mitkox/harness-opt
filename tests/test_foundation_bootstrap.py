@@ -331,3 +331,66 @@ def test_wheelhouse_override_ignores_the_retired_aop_variable(dev, monkeypatch):
     monkeypatch.delenv("HOP_WHEELHOUSE", raising=False)
     monkeypatch.setenv("AOP_WHEELHOUSE", str(legacy))
     assert dev.approved_wheelhouse() == (dev.ROOT / ".vendor/wheels").resolve()
+
+
+def test_local_environment_executes_the_configured_venv_path(dev, tmp_path, monkeypatch):
+    """A venv interpreter symlinks to a base python: execute the venv path.
+
+    RED before the fix: the resolver returned ``Path(interpreter).resolve()``, so
+    the base interpreter ran and could not see the venv's site-packages.
+    """
+    import subprocess
+    import venv as venv_module
+
+    env_dir = tmp_path / "tool-venv"
+    venv_module.EnvBuilder(with_pip=False, symlinks=True).create(env_dir)
+    configured = env_dir / "bin" / "python"
+    assert configured.is_symlink()
+    resolved = configured.resolve()
+    assert resolved != configured
+    site = next((env_dir / "lib").glob("python3*/site-packages"))
+    (site / "hop_override_probe.py").write_text("VALUE = 'venv-only'\n")
+
+    wheelhouse = dev.ROOT / ".vendor/wheels"
+    wheelhouse.mkdir(parents=True, exist_ok=True)
+    library = dev.ROOT / "approved-library/module.py"
+    library.parent.mkdir(parents=True, exist_ok=True)
+    library.write_bytes(b"x = 1\n")
+    manifest = wheelhouse / "mypy-library-manifest.sha256"
+    manifest.write_text(f"{hashlib.sha256(library.read_bytes()).hexdigest()}  {library}\n")
+
+    pin = {
+        "name": "mypy",
+        "kind": "local_environment",
+        "module": "mypy",
+        "version": "1.0",
+        "interpreter": str(configured),
+        "interpreter_sha256": hashlib.sha256(resolved.read_bytes()).hexdigest(),
+        "manifest": manifest.name,
+        "manifest_sha256": hashlib.sha256(manifest.read_bytes()).hexdigest(),
+        "status": "pinned_local_environment",
+    }
+    monkeypatch.delenv("HOP_MYPY_PYTHON", raising=False)
+    _write_tools_lock(dev, {"mypy": pin})
+
+    argv = dev.resolve_approved_tool(dev.load_tools(), "mypy", "local_environment")
+    assert argv == [str(configured), "-m", "mypy"]
+    venv_probe = subprocess.run(
+        [str(configured), "-c", "import hop_override_probe"], capture_output=True, check=False
+    )
+    base_probe = subprocess.run(
+        [str(resolved), "-c", "import hop_override_probe"], capture_output=True, check=False
+    )
+    assert venv_probe.returncode == 0, venv_probe.stderr
+    assert base_probe.returncode != 0  # the resolved base cannot see the venv
+
+
+def test_home_expansion_in_the_pinned_interpreter(dev, monkeypatch):
+    pin, interpreter, _manifest, _library = _local_environment_pin(dev)
+    monkeypatch.setenv("HOME", str(dev.ROOT))
+    monkeypatch.delenv("HOP_MYPY_PYTHON", raising=False)
+    pin["interpreter"] = "${HOME}/" + interpreter.relative_to(dev.ROOT).as_posix()
+    _write_tools_lock(dev, {"mypy": pin})
+    assert dev.resolve_approved_tool(dev.load_tools(), "mypy", "local_environment")[0] == str(
+        interpreter
+    )

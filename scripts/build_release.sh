@@ -10,7 +10,7 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-WHEELHOUSE="${HOP_WHEELHOUSE:-/home/mitko/dev/esf/worktrees/hop-wheelhouse}"
+WHEELHOUSE="${HOP_WHEELHOUSE:-$HOME/dev/esf/worktrees/hop-wheelhouse}"
 DIST="${HOP_RELEASE_DIST:-$ROOT/dist}"
 BUILD_VENV="${HOP_BUILD_VENV:-$ROOT/.venvs/release-build}"
 PROBE_VENV="${HOP_PROBE_VENV:-$ROOT/.venvs/release-probe}"
