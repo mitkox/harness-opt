@@ -1,7 +1,10 @@
 """Bootstrap failures must never remove a working environment."""
 
+import hashlib
 import importlib.machinery
 import importlib.util
+import json
+import sys
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -61,3 +64,140 @@ def test_failed_install_preserves_old_environment(dev, monkeypatch):
         dev.bootstrap(SimpleNamespace(runtime=False, run_tests=False))
     assert link.resolve() == old
     assert list((dev.ROOT / ".venvs").iterdir()) == [old]
+
+
+# --- scripts/dev check: approved-artifact resolution is fail-closed ---------
+
+
+def _write_tools_lock(dev, tools):
+    (dev.ROOT / "development-tools.lock.json").write_text(
+        json.dumps({"schema_version": 2, "platform": "linux-x86_64", "tools": tools})
+    )
+
+
+def _run_check(dev, monkeypatch):
+    monkeypatch.setattr(sys, "argv", ["scripts/dev", "check"])
+    return dev.main()
+
+
+def _wheel_pin(wheelhouse, filename, name, version, requirements=()):
+    wheel = wheelhouse / filename
+    wheel.write_bytes(f"test-wheel-bytes:{filename}".encode())
+    return {
+        "name": name,
+        "kind": "wheel_artifact",
+        "module": name,
+        "version": version,
+        "wheel": filename,
+        "sha256": hashlib.sha256(wheel.read_bytes()).hexdigest(),
+        "requirements": list(requirements),
+        "status": "pinned_wheel",
+    }
+
+
+def test_check_blocks_when_type_artifact_is_not_approved(dev, monkeypatch, capsys):
+    _write_tools_lock(
+        dev,
+        {
+            "mypy": {
+                "name": "mypy",
+                "kind": "wheel_artifact",
+                "module": "mypy",
+                "status": "blocked",
+            }
+        },
+    )
+    looked_up = []
+    real_which = dev.shutil.which
+    monkeypatch.setattr(
+        dev.shutil, "which", lambda name: looked_up.append(name) or real_which(name)
+    )
+    assert _run_check(dev, monkeypatch) == 3
+    err = capsys.readouterr().err
+    assert "BLOCKED" in err and "mypy" in err
+    assert "mypy" not in looked_up
+
+
+def test_check_never_falls_back_to_a_path_type_checker(dev, monkeypatch, capsys):
+    wheelhouse = dev.ROOT / ".vendor/wheels"
+    wheelhouse.mkdir(parents=True)
+    _write_tools_lock(
+        dev, {"mypy": _wheel_pin(wheelhouse, "mypy-1.0-py3-none-any.whl", "mypy", "1.0")}
+    )
+    looked_up = []
+    monkeypatch.setattr(dev.shutil, "which", lambda name: looked_up.append(name) or "/usr/bin/mypy")
+    monkeypatch.setattr(dev, "run", lambda *args, **kwargs: pytest.fail("ran an unapproved tool"))
+    assert _run_check(dev, monkeypatch) == 3
+    assert "environment is missing" in capsys.readouterr().err
+    assert "mypy" not in looked_up
+
+
+def test_check_rejects_a_tampered_approved_artifact(dev, monkeypatch, capsys):
+    wheelhouse = dev.ROOT / ".vendor/wheels"
+    wheelhouse.mkdir(parents=True)
+    pin = _wheel_pin(wheelhouse, "mypy-1.0-py3-none-any.whl", "mypy", "1.0")
+    pin["sha256"] = "0" * 64
+    _write_tools_lock(dev, {"mypy": pin})
+    assert _run_check(dev, monkeypatch) == 3
+    assert "integrity check failed" in capsys.readouterr().err
+
+
+def test_check_rejects_a_missing_transitive_wheel(dev, monkeypatch, capsys):
+    wheelhouse = dev.ROOT / ".vendor/wheels"
+    wheelhouse.mkdir(parents=True)
+    pin = _wheel_pin(
+        wheelhouse,
+        "mypy-1.0-py3-none-any.whl",
+        "mypy",
+        "1.0",
+        requirements=[
+            {
+                "name": "mypy_extensions",
+                "version": "1.0.0",
+                "wheel": "mypy_extensions-1.0.0-py3-none-any.whl",
+                "sha256": "1" * 64,
+            }
+        ],
+    )
+    _write_tools_lock(dev, {"mypy": pin})
+    assert _run_check(dev, monkeypatch) == 3
+    assert "mypy_extensions" in capsys.readouterr().err
+
+
+def test_check_runs_the_type_checker_from_the_approved_environment(dev, monkeypatch):
+    wheelhouse = dev.ROOT / ".vendor/wheels"
+    wheelhouse.mkdir(parents=True)
+    ruff = dev.ROOT / "approved-ruff"
+    ruff.write_bytes(b"#!/bin/sh\n")
+    ruff.chmod(0o755)
+    _write_tools_lock(
+        dev,
+        {
+            "ruff": {
+                "name": "ruff",
+                "kind": "local_binary",
+                "version": "0.0.0",
+                "sha256": hashlib.sha256(ruff.read_bytes()).hexdigest(),
+                "status": "pinned_local_binary",
+            },
+            "mypy": _wheel_pin(wheelhouse, "mypy-1.0-py3-none-any.whl", "mypy", "1.0"),
+        },
+    )
+    monkeypatch.setattr(dev.shutil, "which", lambda name: str(ruff) if name == "ruff" else None)
+    interpreter = dev.ROOT / ".venvs/tools/bin/python"
+    interpreter.parent.mkdir(parents=True)
+    interpreter.write_bytes(b"#!/bin/sh\n")
+    interpreter.chmod(0o755)
+    calls = []
+    monkeypatch.setattr(dev, "run", lambda command, **kwargs: calls.append(command) or 0)
+    assert _run_check(dev, monkeypatch) == 0
+    assert calls[-1] == [str(interpreter), "-m", "mypy", "src/hop"]
+    assert all("which" not in command[0] for command in calls)
+
+
+def test_bootstrap_tools_refuses_without_approved_artifacts(dev, monkeypatch, capsys):
+    _write_tools_lock(dev, {})
+    monkeypatch.setattr(sys, "argv", ["scripts/dev", "bootstrap-tools"])
+    assert dev.main() == 3
+    assert "BLOCKED" in capsys.readouterr().err
+    assert not (dev.ROOT / ".venvs").exists()

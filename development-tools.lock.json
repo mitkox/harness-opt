@@ -1,16 +1,27 @@
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "platform": "linux-x86_64",
+  "python": "3.14",
   "tools": {
     "ruff": {
+      "name": "ruff",
+      "kind": "local_binary",
       "version": "0.16.8",
       "sha256": "f3eb080f0173e1a5884fabcc2c836f5a0ebea35fccf252e718fc71b17f821ef7",
       "source": "Existing local Ruff executable; no download or installation performed",
       "status": "pinned_local_binary"
     },
     "mypy": {
+      "name": "mypy",
+      "kind": "wheel_artifact",
+      "module": "mypy",
+      "version": null,
+      "wheel": null,
+      "sha256": null,
+      "requirements": [],
       "status": "blocked",
-      "reason": "No approved offline mypy artifact or transitive dependency lock is available. Administrator import is required before type qualification."
+      "source": "Owner input O1: approved offline mypy wheel plus transitive lock; see docs/verification/o1-request.md",
+      "reason": "No approved offline mypy artifact or transitive dependency lock is available. Administrator import is required before type qualification. scripts/dev check fails closed and never falls back to a PATH mypy."
     }
   }
 }
