@@ -49,12 +49,26 @@ def _deployment(base_url="http://127.0.0.1:8000/v1", model_id="mitko"):
     )
 
 
+def _pinned_pi() -> dict:
+    """The pinned installed Pi build, as recorded in toolchains.lock.json."""
+    root = Path(__file__).resolve().parents[1]
+    lock = json.loads((root / "toolchains.lock.json").read_text())
+    return lock["harnesses"]["pi"]
+
+
 def test_probe_real_pi():
+    """Live contract: the installed binary must match the pinned identity.
+
+    Live model execution remains unexecuted until owner input O2 lands; this
+    probe covers the installed build's version, executable digest and headless
+    interface only (no inference).
+    """
+    pinned = _pinned_pi()
     caps = PiJsonAdapter().probe()
     assert caps.supports_headless is True
-    assert caps.build_version != "unknown"
-    assert "0.85" in caps.build_version
-    assert caps.executable_sha256
+    assert caps.build_version == pinned["version"]
+    assert caps.probe_evidence["version"]["output"] == pinned["version"]
+    assert caps.executable_sha256 == pinned["sha256"]
     assert caps.probe_digest.startswith("sha256:")
     # Capability evidence comes from real probes, not just --version.
     assert caps.probe_evidence["help"]["flags"]["--mode"] is True
