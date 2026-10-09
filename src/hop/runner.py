@@ -40,7 +40,7 @@ from .contracts.records import (
     TrajectoryEvent,
     Verdict,
 )
-from .files import atomic_json, identifier
+from .files import atomic_json, ensure_owner_dir, identifier
 from .harnesses.broker import Broker
 from .harnesses.pi_adapter import PiJsonAdapter
 from .harnesses.scripted import ScriptedHarness
@@ -243,7 +243,7 @@ class Runner:
         runs_dir = runs_dir or str(self.paths.runs)
         self._owns_store = store is None
         self.runs_dir = runs_dir
-        os.makedirs(runs_dir, exist_ok=True)
+        ensure_owner_dir(runs_dir)
         self.store = store or RunStore(os.path.join(runs_dir, "ledger.db"))
         self.artifacts = artifacts or ArtifactStore(os.path.join(runs_dir, "artifacts"))
         # M3: optional profile registry. Lazily constructed only when a profile
@@ -366,7 +366,7 @@ class Runner:
         )
         run_id = record.run_id
         run_dir = os.path.join(self.runs_dir, run_id)
-        os.makedirs(run_dir, exist_ok=True)
+        ensure_owner_dir(run_dir)
         attempt = self.store.new_attempt(
             run_id, AttemptRecord(attempt_id=new_id("att"), worker_id=new_id("worker"))
         )
@@ -592,7 +592,7 @@ class Runner:
             return self._replay(record)
         run_id = record.run_id
         run_dir = os.path.join(self.runs_dir, run_id)
-        os.makedirs(run_dir, exist_ok=True)
+        ensure_owner_dir(run_dir)
         ledger = EventLedger(os.path.join(run_dir, "events.jsonl"))
         seq: dict[str, int] = {}
         attempt = self.store.new_attempt(
@@ -845,7 +845,7 @@ class Runner:
             compiled_dir = os.path.join(ctx.run_dir, "worker", "profile")
             for rel, data in sorted(ctx.profile_info["files"].items()):
                 destination = os.path.join(compiled_dir, rel)
-                os.makedirs(os.path.dirname(destination) or compiled_dir, exist_ok=True)
+                ensure_owner_dir(os.path.dirname(destination) or compiled_dir)
                 with open(destination, "wb") as fh:
                     fh.write(data)
         hidden_markers = (
@@ -1747,7 +1747,7 @@ class Runner:
         )
         if run_dir:
             try:
-                os.makedirs(run_dir, exist_ok=True)
+                ensure_owner_dir(run_dir)
                 _write_json(os.path.join(run_dir, "error.json"), detail)
             except OSError as error:
                 detail["terminal_artifact_error"] = type(error).__name__

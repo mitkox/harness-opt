@@ -26,7 +26,7 @@ from .contracts.profile import (
     ProfileToolPolicy,
     ResolvedProfile,
 )
-from .files import atomic_json, digest_hex, file_lock
+from .files import atomic_json, digest_hex, ensure_owner_dir, ensure_owner_file, file_lock
 from .lockfile import build_lockfile, verify_lock
 from .registry import ComponentRegistry
 from .resolver import ResolutionError, resolve_profile
@@ -184,7 +184,7 @@ def persist_resolved(resolved: ResolvedProfile, lock: Lockfile, home: str | None
     source profile coexist instead of overwriting each other.
     """
     path = profile_store_path(lock.lock_digest, home=home)
-    os.makedirs(os.path.dirname(path), exist_ok=True)
+    ensure_owner_dir(os.path.dirname(path))
     payload = {
         "schema_version": "0.3",
         "resolved": resolved.model_dump(mode="json"),
@@ -262,7 +262,8 @@ def lock_path_for(profile_path: str) -> str:
 
 
 def write_lock(lock: Lockfile, path: str) -> None:
-    os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
+    ensure_owner_dir(os.path.dirname(path) or ".")
+    ensure_owner_file(path)
     with open(path, "w") as fh:
         json.dump(lock.model_dump(mode="json"), fh, sort_keys=True, indent=2)
         fh.write("\n")
@@ -292,10 +293,12 @@ def compile_resolved(
     if out_dir:
         for rel, data in sorted(files.items()):
             destination = os.path.join(out_dir, rel)
-            os.makedirs(os.path.dirname(destination) or out_dir, exist_ok=True)
+            ensure_owner_dir(os.path.dirname(destination) or out_dir)
+            ensure_owner_file(destination)
             with open(destination, "wb") as fh:
                 fh.write(data)
-        os.makedirs(out_dir, exist_ok=True)
+        ensure_owner_dir(out_dir)
+        ensure_owner_file(os.path.join(out_dir, "compile-manifest.json"))
         with open(os.path.join(out_dir, "compile-manifest.json"), "w") as fh:
             json.dump(artifact.model_dump(mode="json"), fh, sort_keys=True, indent=2)
     return artifact, files
@@ -316,7 +319,8 @@ def compile_profile(
     record_path = os.path.join(
         compiled_root(home), f"{resolved.profile_digest.split(':')[1]}.{target}.json"
     )
-    os.makedirs(os.path.dirname(record_path), exist_ok=True)
+    ensure_owner_dir(os.path.dirname(record_path))
+    ensure_owner_file(record_path)
     with open(record_path, "w") as fh:
         json.dump(
             {

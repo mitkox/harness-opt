@@ -21,7 +21,7 @@ import os
 from itertools import islice
 
 from .contracts.records import TrajectoryEvent
-from .files import atomic_write
+from .files import assert_owner_only, atomic_write, ensure_owner_dir, ensure_owner_file
 from .telemetry.completeness import evaluate as evaluate_policy
 from .telemetry.taxonomy import assert_known_event
 
@@ -46,7 +46,11 @@ class EventLedger:
         self.pending_path = path + ".pending"
         if os.path.exists(self.pending_path):
             raise ValueError("incomplete trajectory write; preserve evidence for recovery")
-        os.makedirs(os.path.dirname(path), exist_ok=True)
+        directory = os.path.dirname(path) or "."
+        if not os.path.isdir(directory):
+            ensure_owner_dir(directory)
+        if not os.path.exists(path):
+            ensure_owner_file(path)
         self._seen: set[str] = set()
         self._last_seq: dict[str, int] = {}
         self._chain: str = "0" * 64
@@ -86,6 +90,9 @@ class EventLedger:
         """Returns False if duplicate (deduped). Raises on sequence regression."""
         if os.path.exists(self.pending_path):
             raise ValueError("incomplete trajectory write; writer cannot continue")
+        assert_owner_only(self.path, kind="trajectory ledger")
+        if os.path.exists(self.chain_path):
+            assert_owner_only(self.chain_path, kind="trajectory ledger chain")
         assert_known_event(event.event_type)
         self._validate_authority(event)
         if event.event_id in self._seen:

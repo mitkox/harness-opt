@@ -10,6 +10,7 @@ from contextlib import contextmanager
 from functools import wraps
 
 from .contracts.records import AttemptRecord, RunOutcome, RunRecord, RunStatus
+from .files import ensure_owner_dir
 
 
 def transactional(method):
@@ -23,9 +24,14 @@ def transactional(method):
 
 class RunStore:
     def __init__(self, path: str):
-        os.makedirs(os.path.dirname(os.path.abspath(path)), exist_ok=True)
+        directory = os.path.dirname(os.path.abspath(path))
+        if not os.path.isdir(directory):
+            ensure_owner_dir(directory)
+        existed = os.path.exists(path)
         self._lock = threading.RLock()
         self.conn = sqlite3.connect(path, check_same_thread=False)
+        if not existed:
+            os.chmod(path, 0o600)
         self.conn.execute("PRAGMA journal_mode=WAL")
         self.conn.execute(
             "CREATE TABLE IF NOT EXISTS runs (run_id TEXT PRIMARY KEY, record TEXT NOT NULL, "
