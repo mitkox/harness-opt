@@ -60,4 +60,18 @@ and is superseded by the recorded G8 run above.
 
 ## ESF hop-v1 gate evidence
 
-Recorded after the gate run below.
+Gate run **`hop-gate-task32-674b991`** at commit
+`674b991c82541d706e8b386e790fefa9e205376a`: `HOP GATE: PASSED` (all conditions True
+except the documented `EgressVerified=Unknown` warning), `CleanupVerified=True`
+with 0 remaining sandboxes; sandbox lane `99 tests ran, 0 failed, 0 errors,
+0 skipped`, non-live suite 0 failures. The disconnected profile
+(`hop-gate-task32-674b991-disconnected`) also PASSED. This is the lane that
+executes the verifier path with real bwrap.
+
+Honest history: an earlier attempt `hop-gate-task32-385d53d` failed for two
+reasons — `tests/test_inference_sandbox.py::test_build_bwrap_cmd_deduplicates_ro_bind_destinations`
+(a harness-bind issue fixed separately in `bed1083`) and this pack's evaluation-leg
+test being stricter than the environment allows (it required `error_class=` while
+Cube honestly reports a pre-admission `ValueError: harness pi is blocked`). The
+assertion was corrected in `674b991` to require a specific non-empty reason and,
+when a verdict is returned, a real `pass`/`fail` verdict.
