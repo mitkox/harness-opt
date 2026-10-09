@@ -25,6 +25,7 @@ at a run id, a command, or a recorded artifact.
 | `hop-gate-task29-b0a00bb` | `b0a00bb` | PASSED; sandbox lane 86/0/0 | 0 remaining |
 | `hop-gate-task25-53f2084` | `53f2084` | PASSED; sandbox lane 86/0/0 | 0 remaining |
 | `hop-gate-task22-45d8a2e` | `45d8a2e` | PASSED; sandbox lane 86/0/0 | 0 remaining |
+| `hop-gate-task36-e709473` | `e709473` | PASSED; sandbox lane 99/0/0 | 0 remaining |
 | `hop-gate-task10-2468b04` | `2468b040146d` | PASSED (foundation gate, G1) | 0 remaining |
 | `wp24-deps-1` (+ `-disconnected`) | `81213fc421c4` | PASSED (AOP-025 pack, G5) | 0 remaining |
 | `wp03-live-Bgreen-ec83c49` | `ec83c4978965` | PASSED (live agent, G7) | 0 remaining |
@@ -72,13 +73,27 @@ qualification of the installed path, not a generalization claim.
 
 ## 4. Offline install and release artifacts
 
+- `docs/verification/artifact-qualification.md` (commit `777d753`): **offline
+  fresh-venv install of `hop-1.0.0` from the wheel with `--no-index
+  --require-hashes` — zero downloads, one console script, `pip check` clean**, and
+  every migration exit code observed from the installed artifact
+  (`legacy_env_removed` exit 2 naming `HOP_RUNS_DIR`, `legacy_command_removed`
+  exit 2 with rewrite hints, `aop` absent, `AOP_PI_BASE_URL` scrub active). Wheel
+  sha256 `9acc72e73db5653b3e01ba89ec1d89f6b95fa310b2e81c269574a2efe18edaf8`;
+  sdist sha256 `a3a26569c3b1bfa798d7bf73336ab12cb9e5fbd4787f26b6c415227ea1353ffa`
+  is **provisional until task-50** rebuilds it with the migration guide.
 - `docs/verification/offline-install.md`: **Part B executed end-to-end offline on
   the delivery host** (sdist + wheel built from the tree with the pinned venv,
   installed into a clean venv from a local wheelhouse with `--no-index
   --require-hashes`, `hop --help` / `hop doctor` / smoke command recorded, wheel
   sha256 manifest). **Part A (CI) is recorded as unexecuted** with the
   CI-vs-local deviation list; no CI job is claimed green.
-- Release notes and the migration contract: `docs/release-1.0.0.md`.
+- Documented limitations D-1…D-4 (with mitigations and 1.0.1-candidate status) are
+  recorded in [docs/release-checklist.md](../../release-checklist.md); D-1 is
+  closed as a doc-reading error, D-2 is being fixed by task-50, D-3/D-4 are
+  documented behaviour with 1.0.1 candidates.
+- Release notes and the migration contract: `docs/release-1.0.0.md` (corrected by
+  the Lead in `1efb2fa` to record AOP-053/054 and G8 as delivered).
 
 ## 5. M4 pack results
 
@@ -119,6 +134,9 @@ R-024 `1248b69` (corrections cleared at `6dd0196`).
 | Item | Status | Reason |
 |------|--------|--------|
 | CI jobs (Part A of offline install) | unexecuted | no external CI execution on this host; deviation list recorded |
+| sdist installation qualification | unexecuted | only the wheel was installed and qualified; the sdist contents were inspected (`docs/verification/artifact-qualification.md` §9) and its hash is provisional until task-50 |
+| `hop run start` from the installed artifact | unexecuted | needs a registered local deployment and a namespace-capable shell; the source-tree equivalent is G8 |
+| Sandboxed isolation from the installed artifact | unexecuted | the agent shell cannot create user namespaces; covered for the source tree by the ESF Cube gate |
 | Host-side bwrap-dependent suite in the agent shell | blocked | the agent shell is AppArmor-confined and cannot create namespaces; executed in the Cube gate instead |
 | Optimization / candidate generation / activation / rollback | not in 1.0 | M5–M9; AOP-024 and AOP-042 out of scope under ADR-011 |
 | Optimizer-vs-interactive scheduling | not measured | no optimizer exists in 1.0 |
