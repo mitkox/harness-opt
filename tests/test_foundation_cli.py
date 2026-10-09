@@ -20,7 +20,9 @@ from hop.lifecycle import (
 )
 
 
-@pytest.mark.parametrize("group", ["run", "profile", "component", "registry", "deployment"])
+@pytest.mark.parametrize(
+    "group", ["run", "profile", "component", "registry", "deployment", "evaluation"]
+)
 def test_nested_help(group, capsys):
     with pytest.raises(SystemExit) as exc:
         main([group, "--help"])
@@ -29,7 +31,8 @@ def test_nested_help(group, capsys):
 
 
 @pytest.mark.parametrize(
-    "group", ["run", "profile", "component", "skill", "registry", "deployment"]
+    "group",
+    ["run", "profile", "component", "skill", "registry", "deployment", "evaluation"],
 )
 def test_nested_help_from_another_cwd(tmp_path, group):
     """Nested help must not depend on the process working directory."""

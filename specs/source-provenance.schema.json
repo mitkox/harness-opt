@@ -1,0 +1,41 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://hop.local/specs/source-provenance.schema.json",
+  "title": "HOP SourceProvenance",
+  "description": "Where a local case package came from. Frozen by AOP-020 half A (WP-2.1a).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "kind",
+    "case_id",
+    "origin",
+    "repository",
+    "commit_sha",
+    "ancestry",
+    "patch_digest",
+    "changed_files",
+    "authored_at",
+    "committed_at",
+    "baseline",
+    "generator"
+  ],
+  "properties": {
+    "schema_version": {"type": "string", "minLength": 1},
+    "kind": {"const": "SourceProvenance"},
+    "case_id": {"type": "string", "pattern": "^case-[0-9a-f]{16}$"},
+    "origin": {"type": "string", "minLength": 1},
+    "repository": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
+    "commit_sha": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+    "ancestry": {
+      "type": "array",
+      "items": {"type": "string", "pattern": "^[0-9a-f]{40}$"}
+    },
+    "patch_digest": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
+    "changed_files": {"type": "array", "items": {"type": "string", "minLength": 1}},
+    "authored_at": {"type": "string"},
+    "committed_at": {"type": "string"},
+    "baseline": {"type": "string"},
+    "generator": {"type": "string", "minLength": 1}
+  }
+}

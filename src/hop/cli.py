@@ -449,6 +449,7 @@ class CommandGroups:
             "skill",
             "registry",
             "deployment",
+            "evaluation",
         }:
             if namespace not in self.groups:
                 group = self.top.add_parser(
@@ -459,6 +460,51 @@ class CommandGroups:
                 verb, parents=[self.common], conflict_handler="resolve"
             )
         return self.top.add_parser(name, parents=[self.common], conflict_handler="resolve")
+
+
+def cmd_evaluation_import(args) -> int:
+    """Import a LOCAL git snapshot into deterministic case packages (AOP-020)."""
+    from hop.evaluation import importer
+
+    explicit_groups = None
+    if args.groups:
+        try:
+            with open(args.groups) as stream:
+                payload = json.load(stream)
+        except (OSError, ValueError) as exc:
+            raise LifecycleError(
+                "invalid_group_spec", f"cannot read --groups {args.groups}: {exc}", EXIT_USAGE
+            ) from exc
+        specs = payload.get("groups") if isinstance(payload, dict) else None
+        if not isinstance(specs, list) or not all(
+            isinstance(spec, dict) and isinstance(spec.get("commit_shas"), list) for spec in specs
+        ):
+            raise LifecycleError(
+                "invalid_group_spec",
+                "--groups must be {'groups': [{'commit_shas': [...]}]}",
+                EXIT_USAGE,
+            )
+        explicit_groups = [list(spec["commit_shas"]) for spec in specs]
+
+    try:
+        result = importer.import_snapshot(
+            args.repository,
+            args.out,
+            revisions=args.rev or None,
+            explicit_groups=explicit_groups,
+            window_minutes=args.window_minutes,
+        )
+    except importer.SnapshotImportError as exc:
+        raise LifecycleError("snapshot_import_failed", str(exc), EXIT_USAGE) from exc
+
+    _print(
+        {
+            "out_root": result.out_root,
+            "groups": [group.model_dump(mode="json") for group in result.groups],
+            "packages": [package.model_dump(mode="json") for package in result.packages],
+        }
+    )
+    return 0
 
 
 def cmd_local(args):
@@ -596,6 +642,21 @@ def _main(argv=None, prog: str = "hop", legacy: bool = False) -> int:
     pve.add_argument("path")
     pve.add_argument("--profile", default="")
     pve.set_defaults(func=cmd_profile_verify_export)
+
+    # -- M4: evaluation case import (AOP-020 half A) ----------------------
+    ei = sub.add_parser("evaluation-import")
+    ei.add_argument("repository", help="path to a LOCAL git snapshot (no network)")
+    ei.add_argument("--out", required=True, help="output root for case packages")
+    ei.add_argument("--rev", action="append", default=[], help="commit/rev to import (repeatable)")
+    ei.add_argument(
+        "--groups",
+        default="",
+        help="JSON file {'groups': [{'commit_shas': [...]}]} for explicit grouping",
+    )
+    # Matches hop.evaluation.grouping.DEFAULT_WINDOW_MINUTES (imported lazily).
+    ei.add_argument("--window-minutes", type=int, default=180)
+    ei.set_defaults(func=cmd_evaluation_import)
+
     for name, operation in (
         ("doctor", "doctor"),
         ("init", "init"),
