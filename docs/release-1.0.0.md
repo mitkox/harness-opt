@@ -33,7 +33,7 @@ wheelhouse; the install probe runs with `--no-index --require-hashes`).
 | Artifact | sha256 |
 | --- | --- |
 | `dist/hop-1.0.0-py3-none-any.whl` | `42439320855807682c7bd1b63bb0aa8d6a599d682ea0786b05a605a87644aee6` |
-| `dist/hop-1.0.0.tar.gz` | `326800aac8e4f80ad9b3ad519efe2cf421660b08495987d00f08f814d4de543e` |
+| `dist/hop-1.0.0.tar.gz` | `f3d7342d35f1f3735c644ad0f209b02a93f4d5dc7bf30ac68471e22c349be9f0` |
 
 `dist/MANIFEST.sha256` records both digests; the wheelhouse manifest
 (`<wheelhouse>/MANIFEST.sha256`, 17 dependency
@@ -45,9 +45,10 @@ wheels) was refreshed by the same run. The installed wheel reports
 pair.** For publication the release-branch artifacts above replace the frozen
 `779e73f` pair (wheel `42439320855807682c7bd1b63bb0aa8d6a599d682ea0786b05a605a87644aee6`, sdist `1c8769cbd3e1a98412fd7a763d3e45533d34bc1b3b07aa62170025d1275ff0bd`) and the older
 WP-4.1 (`9acc72e7…` wheel, `a3a26569…` sdist) and WP-4.5 (`729aeee9…` wheel,
-`b38611e7…` sdist) builds, and the intermediate release-branch sdist
-`ca8e8d91…` (commit `e2a6837`, before the README override documentation); none
-of those may be cited as the published 1.0.0 artifacts. The wheel hash is **identical** to the frozen build because no
+`b38611e7…` sdist) builds, and the intermediate release-branch sdists
+`ca8e8d91…` (commit `e2a6837`) and `326800aa…` (commit `4791eba`, before the
+G2 interpreter fix and its regression tests); none of those may be cited as the
+published 1.0.0 artifacts. The wheel hash is **identical** to the frozen build because no
 packaged input changed between `779e73f` and this branch — nothing under
 `src/hop/` or `pyproject.toml` differs, and `README.md` is not declared as the
 project's long description, so it is not embedded in the wheel `METADATA`; the

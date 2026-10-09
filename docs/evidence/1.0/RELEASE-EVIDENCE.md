@@ -91,7 +91,7 @@ freeze-gate run table is in [freeze-gate.md](freeze-gate.md).
   wheel still omits `docs/` (D-2, 1.0.1 candidate).
 - **Published-candidate artifacts on `release/1.0.0` (supersede the frozen-revision pair).**
   wheel `42439320855807682c7bd1b63bb0aa8d6a599d682ea0786b05a605a87644aee6` — 80 entries including `hop/evaluation/legacy.py` — and sdist
-  `326800aac8e4f80ad9b3ad519efe2cf421660b08495987d00f08f814d4de543e` (ships `CHANGELOG.md`, `README.md`, `docs/migration-1.0.md`; deliberately omits
+  `f3d7342d35f1f3735c644ad0f209b02a93f4d5dc7bf30ac68471e22c349be9f0` (ships `CHANGELOG.md`, `README.md`, `docs/migration-1.0.md`; deliberately omits
   `docs/release-1.0.0.md` so the archive cannot cite its own hash). Both were re-qualified
   offline in fresh venvs on the release branch (`--no-index --require-hashes`, zero
   downloads; version 1.0.0, one console script, help exits 0, migration exit codes 2, scrub
