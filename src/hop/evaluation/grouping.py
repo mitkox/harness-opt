@@ -120,7 +120,8 @@ def group_commits(
     """Group commit facts into deterministic :class:`CaseGroup` records.
 
     ``explicit_groups`` forces the listed shas into one group regardless of the
-    automatic rules; unknown shas are ignored (the caller validates them).
+    automatic rules; an unknown sha raises :class:`GroupingError` rather than
+    being silently dropped.
     """
     unique: dict[str, CommitFact] = {}
     for fact in facts:
