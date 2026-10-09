@@ -1,67 +1,140 @@
 # HOP Foundation Review
 
-Baseline: `4e6d6a243e5f46b80318fb35981251ef0392d200`.
-Implementation branch: `esf/hop-foundation`.
-Work items: HOP-R01 through HOP-R05. Review date: 2026-10-01.
+Historical baseline: `4e6d6a243e5f46b80318fb35981251ef0392d200` (2026-10-01).
+Delivery branch: `esf/hop-1.0`.
+Branch tip reviewed: `f5dc9ed03d8eae1de9d0fdadb39fae4e6e73369a` (2026-10-09).
+Work items: HOP-R01 through HOP-R05.
 
 Scope follow-up: ADR-011 removes enterprise services, signing infrastructure,
 and multi-user authorization from the product. The local safety findings below
-remain open; historical future-integration references are not current requirements.
+remain open where marked; historical future-integration references are not
+current requirements.
 
-This is the implementer's review and regression evidence. It does not constitute
-independent security verification or renewed M0-M3 release qualification.
+This is the implementer's review and regression evidence at the recorded tip.
+It does not constitute independent security verification or renewed M0-M3
+release qualification. No M4-M10 implementation and no release qualification is
+claimed from this pass; the release gate is re-run at the freeze commit.
 
 ## Findings and Disposition
 
+Evidence column distinguishes *verified at this tip* from *historical (run
+2026-10-01, not re-executed in this pass)* and *not executable in this pass*
+(namespace-dependent tests were blocked by the environment, see below).
+
 | Priority | Finding | Disposition and Evidence |
 |---|---|---|
-| High | Worker environment denylisting inherited arbitrary shell functions and host configuration. | Explicit allowlist; hostile-environment boundary tests pass. New policy identity v2. |
-| High | Run admission and attempt fencing used separately locked reads/writes; independent SQLite connections could lose updates. | BEGIN IMMEDIATE transactions; concurrent admission and unique-token regressions. Stale failure writes are rejected. |
-| High | Artifact owner/digest paths could escape their store; existing corrupt blobs could acquire new references. | Identifier/digest/containment checks, symlink escape and tampered-blob regressions, atomic reference publication. |
-| High | A failed first event write could be read as legacy data without an integrity chain. | Durable pending marker and atomic chain publication; interrupted writes remain incomplete. Operator-assisted recovery still requires separate evidence. |
-| High | Resource-limit setup swallowed errors and used preexec_fn in a threaded process. | Fresh limit-setting process before exec; failures stop child execution. Existing cancellation and sandbox tests pass. |
-| Medium | A collector write followed by a crash before acknowledgement duplicated delivered spans. | Locked atomic deduplicated local projection; injected acknowledgement failure regression. |
-| Medium | Corrupt profile indexes became empty indexes; replay could fall back from a missing exact lock. | Explicit corruption errors, strict digest paths, serialized index updates, and exact-reference replay. |
-| Medium | Migration crashed on an absent runs directory and classified arbitrary corruption as legacy success. | Empty/missing history is read-only and empty; corrupt finalized history returns failure. Committed historical fixture copied per test. |
-| Medium | Nested CLI help failed and execution/investigation resolved paths differently. | Real subparsers, shared Paths, formatting and configuration regressions. |
-| Medium | Tests required machine-local deployment records and an installed Pi version; a CLI test rewrote a committed lockfile. | Synthetic runner identities, separate live marker, temporary lock output. Historical files remain unchanged. |
-| Medium | Bootstrap deleted its destination before proving replacement viability. | Staged offline environments and managed link switch; failure-preservation tests. |
-| Medium | Completed runs left cancellation polling threads alive. | Scoped cancellation watch joined on every exit. |
-| High / Open | Pi workers share host networking; endpoint validation is not OS-level general egress enforcement. | Previously documented M1 limitation; no external-network security qualification claimed. Requires a reviewed host enforcement or isolated inference-broker design. |
-| High / Open | RLIMITs are per-process/per-user controls, not aggregate per-run CPU/memory/disk quotas; output truncation occurs after execution. | Remains unresolved. Requires resource accounting/enforcement for descendants before hostile workload qualification. |
-| High / Open | Verifier imports candidate code in the same evaluator process; ADR-005 documents current-case visibility. | Requires independent threat-model review before claiming M4 sealed evaluation protection. No sealed-store implementation added. |
+| High | Worker environment denylisting inherited arbitrary shell functions and host configuration. | Fixed: explicit allowlist, hostile-environment boundary regression exists (`tests/security/test_boundaries.py`). Not executable in this pass: the test needs user namespaces, blocked on the host by AppArmor and absent `bwrap` in the Cube template. Historical run passed it. |
+| High | Run admission and attempt fencing used separately locked reads/writes; independent SQLite connections could lose updates. | Fixed: BEGIN IMMEDIATE transactions; concurrent admission and unique-token regressions pass in the 203-passing unit suite at this tip (`tests/test_foundation_integrity.py`). |
+| High | Artifact owner/digest paths could escape their store; existing corrupt blobs could acquire new references. | Fixed: identifier/digest/containment checks, symlink-escape and tampered-blob regressions, atomic reference publication; covered by the unit suite at this tip. |
+| High | A failed first event write could be read as legacy data without an integrity chain. | Fixed: durable pending marker and atomic chain publication; interrupted writes remain incomplete. Automated pending-write recovery remains unqualified (see HOP-R04). |
+| High | Resource-limit setup swallowed errors and used preexec_fn in a threaded process. | Fixed for per-process limits: fresh limit-setting process before exec; failures stop child execution. Aggregate descendant quotas remain a separate open finding. |
+| Medium | A collector write followed by a crash before acknowledgement duplicated delivered spans. | Fixed: locked atomic deduplicated local projection; injected acknowledgement-failure regression passes in the unit suite at this tip. |
+| Medium | Corrupt profile indexes became empty indexes; replay could fall back from a missing exact lock. | Fixed: explicit corruption errors, strict digest paths, serialized index updates, exact-reference replay; covered by the unit suite at this tip. |
+| Medium | Migration crashed on an absent runs directory and classified arbitrary corruption as legacy success. | Fixed, and extended at `f5dc9ed`: an absent or non-directory `--runs-dir` is an expected empty set (exit 0), present-but-corrupt evidence still exits 1 and is never rewritten, and the M1-evidence tests skip with a reason when the tracked fixture is unavailable. Targeted run: 9 passed. |
+| Medium | Nested CLI help failed and execution/investigation resolved paths differently. | Fixed: real subparsers, shared Paths. At this tip `./hop --help` and `./hop profile --help` exit 0 from the worktree and from `/tmp`. |
+| Medium | Tests required machine-local deployment records and an installed Pi version; a CLI test rewrote a committed lockfile. | Fixed for the test harness: synthetic runner identities, separate live marker, temporary lock output, historical files unchanged. Installed-Pi contract requalification remains open (HOP-R04). |
+| Medium | Bootstrap deleted its destination before proving replacement viability. | Fixed: staged offline environments and managed link switch; failure-preservation tests exist. `scripts/dev check` is currently BLOCKED on approved tool artifacts (HOP-R02), not on this behavior. |
+| Medium | Completed runs left cancellation polling threads alive. | Fixed: scoped cancellation watch joined on every exit. Cancellation regressions are namespace-dependent and were not executable in this pass; historical run passed them. |
+| High / **OPEN** | Pi workers share host networking; endpoint validation is not OS-level general egress enforcement. | **OPEN.** No external-network security qualification is claimed. Closure is owned by task-9 (egress broker design in `docs/adr/ADR-012-worker-egress-broker.md`). |
+| High / **OPEN** | RLIMITs are per-process/per-user controls, not aggregate per-run CPU/memory/disk quotas; output truncation occurs after execution. | **OPEN.** Requires resource accounting/enforcement for descendants before hostile-workload qualification. Closure is owned by task-9 (design in `docs/adr/ADR-013-aggregate-resource-quotas.md`). |
+| High / **OPEN** | Verifier imports candidate code in the same evaluator process; ADR-005 documents current-case visibility. | **OPEN.** Requires independent threat-model review before any sealed-evaluation claim. Closure is owned by task-9 (revision plan in `docs/adr/ADR-005-revision-plan.md`). No sealed-store implementation was added. |
+
+## Delivery-Branch Baseline (2026-10-09)
+
+### WP-0.4 fresh-clone hygiene — CLOSED
+
+Commit `f5dc9ed`. `scripts/migrate_m1_to_m2.py` treats an absent or
+non-directory `--runs-dir` as an expected empty set (exit 0); present-but-corrupt
+evidence still exits non-zero and is never rewritten. The two tests that need
+historical M1 evidence materialise the committed copy under
+`docs/evidence/m1/real-pi-run` and skip with an explicit reason when it is
+unavailable. `tests/test_foundation_fresh_clone.py` adds four focused
+regressions (absent runs dir, runs path that is a file, corrupt evidence,
+end-to-end skip in an evidence-less checkout). Before/after: the two nodeids in
+a `docs/`-less checkout gave 2 errors before the change and 2 skips after;
+`--runs-dir` pointing at a file gave `NotADirectoryError` (exit 1) before and
+`[]` (exit 0) after.
+
+The WP-0.1 premise that the two named tests fail because of the gitignored
+`runs/` does **not** hold at `4ba5b1a`: they consume the tracked fixture. This
+was confirmed independently inside Cube (run `hop-gate-diag-m1`: both tests
+PASSED, exit 0) and on a genuine fresh checkout in the pinned venv.
+
+### Fresh-clone suite status — RED, environmental
+
+The full non-live suite is **not green** at this tip. Both observed red sets are
+attributed to the execution environment, not to product behavior:
+
+* **ESF Cube, revision `4ba5b1a`**, template `tpl-eb9b6ee957064ac09b80cd8e`
+  (run `hop-gate-baseline-4ba5b1a3`, recorded by `factory-delivery` in
+  `.factory/hop-v1/evidence.md`): `pytest-nonlive` exit 1 with **18 failed +
+  7 errors**. Root causes: (1) `bwrap` is absent in the template, so HOP's
+  hardened runner fails closed with `SandboxUnavailable`; (2) the template
+  interpreter is CPython **3.12.12** while the pinned offline wheelhouse is
+  evidenced for **CPython 3.14/Linux x86-64**, producing the three
+  `test_foundation_bootstrap.py` failures. Neither root cause is a product
+  defect; both are delivery-tooling/template gaps owned by WP-0.2/WP-1.2/WP-1.4.
+* **Host (this session), tip `f5dc9ed`**: `scripts/dev test --suite unit` is
+  green (203 passed, 92 deselected, exit 0). `--suite contract` is 1 failed /
+  14 passed and `--suite all` is 17 failed / 270 passed / 7 errors; every
+  failure traces to the same missing-namespace condition. `bwrap` exists on the
+  host but `apparmor_restrict_unprivileged_userns=1` and `unshare --user` fails,
+  so the agent's outer sandbox denies user namespaces. The historical acceptance
+  note that sandbox integration must execute outside the tool's outer sandbox
+  still applies.
+
+No sandbox test was weakened to obtain a green result. A present-but-unusable
+`bwrap` currently surfaces as a task FAIL (`verification_no_result`) rather than
+an infra error; that classification issue is owned by task-9 and is **not**
+fixed here.
+
+## Boundary Findings — OPEN until task-9
+
+Status of the three HOP-R04 records above: **OPEN**. They stay open until the
+implementations land, their negative/adversarial tests fail before and pass
+after, and independent review confirms the enforcement actually in effect.
+Design inputs already committed: `docs/adr/ADR-012-worker-egress-broker.md`,
+`docs/adr/ADR-013-aggregate-resource-quotas.md`,
+`docs/adr/ADR-005-revision-plan.md`, and
+`docs/verification/boundary-design.md` (task-11). No enforcement is claimed.
+
+### Independent review of the boundary records
+
+Status: **PENDING** — `independent-verifier` sign-off is required before
+HOP-R01 can be recorded as closed.
+
+```
+Reviewer: ____________________   Date: ____________
+Revision reviewed: f5dc9ed03d8eae1de9d0fdadb39fae4e6e73369a
+Verdict: OPEN findings correctly reported; no enforcement claimed that is not
+in effect.  [ ] agree   [ ] disagree (attach specifics)
+```
 
 ## Review Coverage
 
-Contracts and identity, native Pi interfaces, run state and cancellation, sandbox
-environment/network/process boundaries, frozen verification, artifact and profile
-storage, trajectory integrity, telemetry projection/redaction, deterministic
-resolution/compiler/APM export, CLI, setup, tests, and milestone evidence were
-inspected. Existing tests cover compiler determinism, policy merging, tampering,
-redaction, verifier bypass attempts, and export exclusions. Full-file model
-fingerprints, additional harness qualification, signing, and production promotion
-remain assigned to their original later milestones.
-
-The runner now uses typed RunContext/PreparedRun/ExecutedRun/VerifiedRun state and
-explicit preparation, execution, verification, and finalization methods. Shared
-event binding removes repeated run/attempt identity arguments. Profile preparation
-uses the same locking/compilation facade as the CLI. No native harness loop was
-replaced and no generic plugin framework or new runtime service was introduced.
+Contracts and identity, native Pi interfaces, run state and cancellation,
+sandbox environment/network/process boundaries, frozen verification, artifact
+and profile storage, trajectory integrity, telemetry projection/redaction,
+deterministic resolution/compiler/APM export, CLI, setup, tests, and milestone
+evidence were inspected. At this tip the 203-passing unit suite exercises
+compiler determinism, policy merging, tampering, redaction, verifier-bypass
+attempts, storage recovery, and export exclusions. Full-file model
+fingerprints, additional harness qualification, signing, and production
+promotion remain assigned to later milestones.
 
 ## Remaining Dependencies
 
-HOP-R02 needs an administrator-supplied offline type-checker artifact and dependency
-lock. HOP-R04 needs closure of the open boundary findings and independent review.
-Current Pi/local-model acceptance is outstanding. These block foundation acceptance
-and AOP-020. M4-M10 are not implemented by this change. No optimization, promotion,
-provider writes, public scans, or deployment were performed.
-
-The final installed-interface probe observed Pi 1.0.0 and failed the prior 0.85.1
-contract assertion. An earlier observation in this work session was 0.99.2; the
-installation changed independently. HOP did not install or update Pi.
-
-Changes include a mechanical Ruff normalization of runtime/tests, scoped bug fixes,
-new foundation tests, runtime lock extraction, and developer commands. Review the
-behavioral changes separately from formatting. Source size increases because of
-new controls and commands; installation and trajectory-memory savings are measured
-separately. See the acceptance matrix for commands and measurement limits.
+* HOP-R02 needs the approved offline type-checker artifact and dependency lock.
+  `scripts/dev check` exits 3 (BLOCKED) at this tip: the host `ruff` build does
+  not match the approved pin and no approved `mypy` is configured. No PATH
+  substitute is accepted.
+* HOP-R03 (typed lifecycle and uniform diagnostics) is not implemented in this
+  pass.
+* HOP-R04 needs closure of the three open boundary findings plus independent
+  review.
+* Current Pi/local-model acceptance is outstanding; no local model endpoint
+  (owner input O2) was available, so no live inference or live qualification
+  was executed.
+* The release gate is re-run at the freeze commit; nothing here is a release
+  claim. No optimization, promotion, provider writes, public scans, or
+  deployment were performed.
