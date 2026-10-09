@@ -2,9 +2,12 @@
 
 Date: 2026-10-09.
 
-Status: **draft (proposed)** — design review artifact for HOP-R04; not yet
-implemented. Do not cite as enforcement until the capability probe in this ADR
-reports `enforced` for a real run.
+Status: **accepted and implemented** (WP-1.4d, task-9). The probe in this ADR is
+the only authority for an enforcement claim; a run whose probe fails is terminal
+`infra_error` (`worker_network_isolation_unavailable`) and never shared-network.
+Implementation: `src/hop/sandbox.py` (`probe_worker_network_isolation`),
+`src/hop/harnesses/broker.py`, `src/hop/harnesses/broker_relay.py`,
+`src/hop/harnesses/pi_adapter.py`, `src/hop/runner.py`.
 
 Closes finding: *"Pi workers share host networking; endpoint validation is not
 OS-level general egress enforcement"* (`docs/foundation-review.md`, High/Open).
@@ -35,9 +38,14 @@ endpoint.
 
 1. **Agent workers run with no network.** The Pi worker `SandboxSpec` uses
    `share_network=False`, so `bwrap` creates a fresh network namespace
-   (`--unshare-net`) whose only interface is loopback. `share_network=True`
-   remains representable only for non-agent diagnostic probes and must never be
-   reachable from the agent execution path (`ATTEMPT_KIND == "agent"`).
+   (`--unshare-net`) whose only interface is loopback. The real guard is
+   `sandbox.spawn_isolated`, which raises `ValueError` whenever a spec requests
+   `share_network=True`: no code path (agent, test, or tool) can spawn an
+   isolated worker with host networking. The runner additionally requires
+   `probe_worker_network_isolation()` to report `enforced` before the harness
+   starts, via `runner.require_worker_network_isolation()`, which raises
+   `InfraError("worker_network_isolation_unavailable")` otherwise. There is no
+   `ATTEMPT_KIND` symbol in `src/hop`; the enforcement does not depend on one.
 
 2. **Inference is reached through a per-run broker over a bind-mounted UNIX
    socket.** A trusted control-plane process, `hop.broker` (stdlib only),
@@ -95,8 +103,8 @@ endpoint.
    plane runs `probe_worker_network_isolation()` in a throwaway namespace and
    records the result. The probe must show all of:
    * `bwrap --unshare-net` can be created;
-   * only `lo` exists in the namespace and the host-side inference port is
-     unreachable;
+   * only `lo` exists in the namespace and both the host-side inference port
+     and a public address (`1.1.1.1:443`) are unreachable;
    * loopback can be made operational inside the namespace (see below), because
      the relay needs `127.0.0.1`;
    * a UNIX socket bind-mounted from the run root can be connected to.

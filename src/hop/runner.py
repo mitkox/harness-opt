@@ -41,6 +41,7 @@ from .contracts.records import (
     Verdict,
 )
 from .files import atomic_json, identifier
+from .harnesses.broker import Broker
 from .harnesses.pi_adapter import PiJsonAdapter
 from .harnesses.scripted import ScriptedHarness
 from .inference import verify_served_model
@@ -56,7 +57,12 @@ from .lifecycle import (
     VerifiedRun,
 )
 from .runstore import RunStore
-from .sandbox import SandboxSpec, assert_no_hidden_material, prepare_layout
+from .sandbox import (
+    SandboxSpec,
+    assert_no_hidden_material,
+    prepare_layout,
+    probe_worker_network_isolation,
+)
 from .storage import ArtifactStore
 from .telemetry.observe import (
     InferenceRecord,
@@ -87,6 +93,19 @@ VERIFIER_ROOT = resolve_env(*VERIFIER_ROOT_VARS, default=os.path.join(ROOT, ".hi
 HIDDEN_ROOT = os.path.join(VERIFIER_ROOT, "hidden-tests")
 VERIFIER_VERSION = "debug-verifier-v2"
 ADAPTER_REVISION = "pi-json-adapter-v1"
+
+
+def require_worker_network_isolation(harness: str, report: dict) -> dict:
+    """Fail closed when the worker network cannot be proven isolated (ADR-012).
+
+    There is deliberately no shared-network fallback for agent harnesses: an
+    unenforceable boundary is terminal ``infra_error``, never a run.
+    """
+    if harness == "pi" and not report.get("enforced"):
+        raise InfraError(
+            "worker_network_isolation_unavailable", str(report.get("reason", ""))
+        )
+    return report
 
 
 class InfraError(RuntimeError):
@@ -678,9 +697,14 @@ class Runner:
         # instead of escaping execute() without terminal evidence.
         self._emit_prefix_evidence(ctx)
         prepared = self._prepare_run(ctx)
-        execution = self._execute_run(ctx, prepared)
-        verification = self._verify_run(ctx, prepared, execution)
-        return self._finalize_run(ctx, prepared, execution, verification)
+        try:
+            execution = self._execute_run(ctx, prepared)
+            verification = self._verify_run(ctx, prepared, execution)
+            return self._finalize_run(ctx, prepared, execution, verification)
+        finally:
+            close = getattr(prepared.adapter, "close", None)
+            if callable(close):
+                close()
 
     def _emit_prefix_evidence(self, ctx: RunContext) -> None:
         """Emit run.admitted/started, context.prepared, catalog and agent.started."""
@@ -845,6 +869,12 @@ class Runner:
             allowed_paths=ctx.task.get("allowed_paths", []),
             protected_paths=ctx.task.get("protected_paths", []),
         )
+        network = (
+            probe_worker_network_isolation(os.path.join(ctx.run_dir, "worker", "netprobe"))
+            if ctx.harness == "pi"
+            else {"enforced": True, "reason": "not_required", "bwrap": None}
+        )
+        require_worker_network_isolation(ctx.harness, network)
         manifest = {
             "run_id": ctx.run_id,
             "attempt_id": ctx.attempt.attempt_id,
@@ -862,6 +892,7 @@ class Runner:
                 else "",
             },
         }
+        manifest["network"] = network
         if ctx.profile_info is not None:
             manifest["profile"] = {
                 "profile_id": ctx.profile_info["profile_id"],
@@ -889,11 +920,29 @@ class Runner:
 
         # 2. Adapter preparation.
         adapter: HarnessLifecycle
+        broker: Broker | None = None
         if ctx.harness == "pi":
+            # ADR-012: the worker has no host network. Inference is reached only
+            # through the per-run broker on a bind-mounted AF_UNIX socket with a
+            # per-attempt bearer token; the probe above is the only authority for
+            # the enforcement claim, and a failure is terminal infra_error.
             spec = SandboxSpec(
-                share_network=True, ro_binds=_harness_ro_binds(ctx.harness_build.executable)
+                share_network=False, ro_binds=_harness_ro_binds(ctx.harness_build.executable)
             )
-            adapter = PiJsonAdapter(deployment=ctx.deployment, spec=spec, compiled_dir=compiled_dir)
+            broker = Broker(
+                ctx.deployment,
+                ctx.run_id,
+                ctx.attempt.attempt_id,
+                os.path.join(ctx.run_dir, "worker", "broker"),
+                timeout_s=ctx.timeout_s,
+            )
+            adapter = PiJsonAdapter(
+                deployment=ctx.deployment,
+                spec=spec,
+                compiled_dir=compiled_dir,
+                broker=broker,
+            )
+            broker.start()
         elif ctx.harness.startswith("scripted:"):
             adapter = ScriptedHarness(ctx.harness.split(":", 1)[1])
         else:
@@ -901,6 +950,8 @@ class Runner:
         try:
             session = adapter.prepare(ctx.bundle.digest, os.path.join(ctx.run_dir, "worker"), "w1")
         except Exception as exc:
+            if broker is not None:
+                broker.close()
             raise InfraError("adapter_prepare_failure", str(exc)) from exc
         emit(
             "aop-runner",
