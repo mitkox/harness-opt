@@ -23,26 +23,30 @@ earlier run of the same case before the freeze (`run-58f5589ef776` at
 `138a4ef`, `pass`/`pass`, `agent_seconds 47.71`) is recorded in the "Path to
 green" section below; the frozen run supersedes it for the release.
 
-Raw command output:
+Raw command output (frozen run):
 
 ```json
 {
-  "agent_seconds": 47.71,
+  "agent_seconds": 44.71,
   "bundle_digest": "sha256:53bffb58b6c7f3a32d162c5f7b08d725d8c71806a8780cdaa5bfd47d34319d6a",
   "case_id": "debug-offbyone",
   "model_deployment_id": "qwen-flash-next-IQ2_S_-_2.5_bpw",
   "outcome": "pass",
   "profile": {},
-  "run_dir": "/home/mitko/dev/esf/worktrees/hop-1.0/runs/run-58f5589ef776",
-  "run_id": "run-58f5589ef776",
-  "total_seconds": 50.66,
+  "run_dir": "/home/mitko/dev/esf/worktrees/hop-1.0/runs/run-85d1c3a117ef",
+  "run_id": "run-85d1c3a117ef",
+  "total_seconds": 47.72,
   "verdict": "pass"
 }
 ```
 
-`agent_seconds = 47.71` is the observable proof that a real inference call
+`agent_seconds = 44.71` is the observable proof that a real inference call
 happened through the per-run broker; earlier attempts exited in 0.03 s because
 the worker never started.
+
+Superseded pre-freeze run (`run-58f5589ef776` at `138a4ef`, kept for the
+debugging trail only — not the release binding): `agent_seconds 47.71`,
+`total_seconds 50.66`, same bundle digest and verdicts.
 
 ## Why this gate is host-executed
 
