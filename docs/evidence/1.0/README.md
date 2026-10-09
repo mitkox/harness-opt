@@ -20,17 +20,25 @@ Not claimed (1.x/2.0): optimization, candidate generation, activation, rollback.
 
 | Leg | Run id | Observed | Exact reason |
 |-----|--------|----------|--------------|
-| Scripted frozen-snapshot evaluation on this host | `run-1be9d3999c78` | outcome `infra_error`, verdict `error` | `error_class=verifier_sandbox_unavailable` — this host shell cannot create the verifier sandbox (bwrap namespaces unavailable) |
+| Scripted frozen-snapshot evaluation on this host | `run-84db87cb0434` | outcome `infra_error`, verdict `error` | `error_class=verifier_sandbox_unavailable` — this host shell cannot create the verifier sandbox (bwrap namespaces unavailable) |
 
 The blocked attempt still produced real evidence before failing closed: a verified
 21-event trajectory (`integrity=verified`) and a completeness report with
 `telemetry_incomplete=true`. A task verdict must come from the trusted verifier;
 `infra_error` is reported as blocked, not as a pass.
 
-Verifier legs execute for real in the Cube sandbox lane (gate run id below), where
-the same scripted leg and the trusted-verifier suite run with bwrap. An earlier
-live attempt on this host was also blocked (`worker_network_isolation_unavailable`)
-and is superseded by the recorded G8 run above.
+The trusted-verifier suite runs with real bwrap in the Cube sandbox lane (gate run
+id below). The scripted evaluation leg does **not** reach the verifier there: in the
+Cube lane it is blocked pre-admission (`ValueError: harness pi is blocked`, no run
+id, no verdict), and on this host it is blocked with
+`error_class=verifier_sandbox_unavailable`. An earlier live attempt on this host was
+also blocked (`worker_network_isolation_unavailable`) and is superseded by the
+recorded G8 run above.
+
+For the protected-splits leg, the authoritative evidence is `assign_command`,
+`assigned_groups`, `ledger_ok` and the exit codes; the `splits` array in
+`demo-report.json` is empty because the CLI `show` payload keys assignments under
+`groups`, which this leg does not currently project.
 
 ## The four required special cases
 
