@@ -58,22 +58,27 @@ So `scripts/dev check` exits 0 with 0 findings and the full non-live suite is
 deleted anywhere on the branch — the branch only ADDS new files** (the 1.0 pack,
 the new remeasurement and delivery-matrix files). Proven by
 `git diff --numstat 4ba5b1a..HEAD -- docs/evidence/foundation docs/acceptance-foundation.md`
-showing additions only, and `git diff --diff-filter=DM --name-only 4ba5b1a..HEAD -- docs/`
-being empty. The historical M1–M3 acceptance records and `specs/` are untouched.
+showing additions only, and
+`git diff --diff-filter=DM --name-only 4ba5b1a..HEAD -- docs/evidence/foundation docs/acceptance-foundation.md docs/acceptance-m1.md docs/acceptance-m2.md docs/acceptance-m3.md specs`
+being empty (the broad `-- docs/` form legitimately lists four updated non-historical
+docs — `foundation-review.md`, `runbook.md`, `single-user-delivery.md`,
+`threat-model.md` — so the claim is scoped to the intent path list). The historical
+M1–M3 acceptance records and `specs/` are untouched.
 
 ## 3. Live local-model acceptance (G8)
 
 | Field | Value |
 |-------|-------|
-| Run id | `run-58f5589ef776` |
+| Run id (frozen revision) | `run-85d1c3a117ef` at `779e73f` (rebound in `6c7bc87`) |
 | Outcome / verdict | `pass` / `pass` (trusted verifier) |
-| Harness | `pi` 1.1.0 (qualified) |
+| Harness | `pi` 1.1.0 (qualified; executable sha256 `c44ddd4e…`) |
 | Deployment | `qwen-flash-next-IQ2_S_-_2.5_bpw`, `mitko` at `http://127.0.0.1:8000/v1` |
-| Agent / total | 47.71 s / 50.66 s |
-| Evidence | [live-model-acceptance.md](live-model-acceptance.md) (Lead-recorded, revision `138a4ef`) |
+| Agent seconds | 44.71 s |
+| Evidence | [live-model-acceptance.md](live-model-acceptance.md) (Lead-recorded at the frozen revision); the pre-freeze G8 `run-58f5589ef776` (47.71 s, revision `138a4ef`) is superseded by this frozen run |
 
 Coverage limitation: one live case on one deployment and one harness. This is a
-qualification of the installed path, not a generalization claim.
+qualification of the installed path, not a generalization claim. The full
+freeze-gate run table is in [freeze-gate.md](freeze-gate.md).
 
 ## 4. Offline install and release artifacts
 
@@ -82,14 +87,22 @@ qualification of the installed path, not a generalization claim.
   --require-hashes` — zero downloads, one console script, `pip check` clean**, and
   every migration exit code observed from the installed artifact
   (`legacy_env_removed` exit 2 naming `HOP_RUNS_DIR`, `legacy_command_removed`
-  exit 2 with rewrite hints, `aop` absent, `AOP_PI_BASE_URL` scrub active). Wheel
-  sha256 `729aeee95c5cf2e83310c64f0383eb7ddaa8803c117e77bb8dafcac72a6f37eb`;
-  sdist sha256 `b38611e7c2ac231b1e13da4829194e456b831aaa440c259fa4b1a87c9a74a3e2`
-  (as-built; the sdist now ships `hop-1.0.0/docs/migration-1.0.md` — task-50
-  complete). The wheel is **byte-reproducible only with `SOURCE_DATE_EPOCH=1700000000`**;
-  plain rebuilds differ in embedded per-file timestamps while content is identical
-  (0 of 79 entries differ in content), so R-026's functional qualification carries
-  over to the final wheel. The wheel still omits `docs/` (D-2, 1.0.1 candidate).
+  exit 2 with rewrite hints, `aop` absent, `AOP_PI_BASE_URL` scrub active). The
+  wheel still omits `docs/` (D-2, 1.0.1 candidate).
+- **Artifact hashes are NOT final (release-blocking finding, R-029).** The
+  task-50 artifacts — wheel `729aeee95c5cf2e83310c64f0383eb7ddaa8803c117e77bb8dafcac72a6f37eb`,
+  sdist `b38611e7c2ac231b1e13da4829194e456b831aaa440c259fa4b1a87c9a74a3e2` — predate
+  task-51 (`456aa7b`): 79 wheel entries with **no** `hop/evaluation/legacy.py`, while
+  a build at the frozen revision `779e73f` has 80 entries and includes it. They are
+  recorded here as **superseded**. **task-54 (foundation-runtime) is rebuilding and
+  re-qualifying at the frozen revision**; this pack, the G9 row and
+  `dist/MANIFEST.sha256` must then cite the rebuilt hashes, not these.
+- **Wheel reproducibility (R-029, independently confirmed by independent-verifier):**
+  with `SOURCE_DATE_EPOCH=1700000000` two scratch builds from `1be9a5e` are
+  byte-identical (`42439320855807682c7bd1b63bb0aa8d6a599d682ea0786b05a605a87644aee6`);
+  two plain builds 4 s apart differ only in embedded zip timestamps while all 80
+  per-entry sha256 values are equal. So the wheel is byte-reproducible only with the
+  epoch set; the sdist digest is recorded as-built.
 - `docs/verification/offline-install.md`: **Part B executed end-to-end offline on
   the delivery host** (sdist + wheel built from the tree with the pinned venv,
   installed into a clean venv from a local wheelhouse with `--no-index
