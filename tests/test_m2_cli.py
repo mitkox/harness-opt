@@ -2,10 +2,28 @@
 
 import json
 import os
+import shutil
+from pathlib import Path
 
 import pytest
 
 from hop.runner import Runner
+
+
+def _historical_runs_dir(tmp_path):
+    """Copy the committed M1 evidence, or skip when it is unavailable.
+
+    The real run is tracked under docs/evidence/m1; runs/ itself is gitignored
+    and absent from a fresh clone. A checkout without the tracked evidence
+    cannot exercise the migration, so skip rather than fail for the wrong
+    reason.
+    """
+    source = Path(__file__).resolve().parents[1] / "docs/evidence/m1/real-pi-run"
+    if not source.is_dir():
+        pytest.skip("legacy M1 evidence is unavailable in this checkout")
+    runs = tmp_path / "historical-runs"
+    shutil.copytree(source, runs / "run-c85be3744478")
+    return runs
 
 
 @pytest.fixture()
@@ -78,10 +96,11 @@ def test_corrupted_artifact_and_dangling_ref_visible(tmp_path):
         store.get("sha256:" + "ff" * 32, "run1")  # dangling reference
 
 
-def test_migration_keeps_m1_runs_readable(historical_runs):
+def test_migration_keeps_m1_runs_readable(tmp_path):
     import subprocess
     import sys
 
+    historical_runs = _historical_runs_dir(tmp_path)
     proc = subprocess.run(
         [sys.executable, "scripts/migrate_m1_to_m2.py", "--runs-dir", str(historical_runs)],
         check=False,
