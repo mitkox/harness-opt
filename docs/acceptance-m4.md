@@ -79,6 +79,24 @@ digests, so a group is stable and is never re-split by a later import.
 * Live local-model acceptance (owner input O2 absent).
 * Optimization/activation work (M5+); not started.
 
+## ESF hop-v1 gate
+
+Run **`hop-gate-20261009-183753-4`** on revision
+`3a312b16573d1e5af91852ed70aeb4757cfb6d5b` (agent `noop`, workspace `python-hop`,
+template `tpl-eb9b6ee957064ac09b80cd8e`):
+
+* Factory `SUCCEEDED`; Verification `SUCCESS`; **ALL GATE CONDITIONS SATISFIED**.
+* Steps PASS: `probe-python` (3.12.12), `probe-bwrap`, `install`, `compile`,
+  `assert-sandbox-suite-ran` (sandbox-marked suite executed with zero skips),
+  `pytest-nonlive` (full non-live suite).
+* `GateIntegrity Unmodified`; `CleanupVerified — NoSandboxesRemain (remaining=0)`.
+* `EgressVerified Unknown` is the documented warning of the acknowledged
+  open-egress policy, not a failure.
+
+The gate's leakage check also listed two live sandboxes created by *other*
+concurrent factory runs (`tplprobe-hopdemo-fs2` and
+`hop-gate-20261009-183915-5`); neither belongs to this run, which left none.
+
 ## Compatibility limitations
 
 The change is additive: a new `hop evaluation` command group and a new package.
