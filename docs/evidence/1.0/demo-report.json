@@ -1,0 +1,208 @@
+{
+  "blocked": [
+    {
+      "leg": "evaluation",
+      "reason": "outcome=infra_error verdict=error error_class=verifier_sandbox_unavailable - the trusted verifier did not return a task verdict"
+    },
+    {
+      "leg": "live_model",
+      "reason": "outcome=infra_error verdict=error error_class=worker_network_isolation_unavailable - no task verdict from the trusted verifier; not synthesized as success"
+    }
+  ],
+  "commands": [
+    "hop evaluation import <scratch>/snapshot-repo --out <scratch>/cases --rev c5d6e7b2229675bc758f87597d67bd70593a42d8",
+    "hop evaluation splits assign --group-id group-63f9a4e683ad33bb --root <scratch>/sealed"
+  ],
+  "generated_at": "2026-10-09T20:13:59Z",
+  "legs": {
+    "evaluation": {
+      "bundle_digest": "sha256:bfb06cf8c00723f299eae45ee01d207c9716a64934c5e6f6528f0a8b153af3e2",
+      "completeness": {
+        "complete": false,
+        "missing_required": [
+          "run.infra_error|harness.crashed"
+        ],
+        "policy": "infra_error",
+        "telemetry_incomplete": true
+      },
+      "error_class": "verifier_sandbox_unavailable",
+      "fail_closed": true,
+      "harness": "scripted:repair",
+      "leg": "evaluation",
+      "outcome": "infra_error",
+      "reason": "outcome=infra_error verdict=error error_class=verifier_sandbox_unavailable - the trusted verifier did not return a task verdict",
+      "run_dir": "<scratch>/runs/run-1be9d3999c78",
+      "run_id": "run-1be9d3999c78",
+      "run_status": "",
+      "status": "blocked",
+      "trajectory": {
+        "event_types": [
+          "agent.claim",
+          "agent.completed",
+          "agent.started",
+          "context.prepared",
+          "diff.frozen",
+          "evaluation.recorded",
+          "harness.accepted",
+          "harness.exited",
+          "inference.completed",
+          "inference.request",
+          "output.frozen",
+          "patch.generated",
+          "run.admitted",
+          "run.started",
+          "skill.catalog_exposed",
+          "telemetry.recovered",
+          "verifier.completed",
+          "verifier.started",
+          "verifier.test_collected",
+          "workspace.prepared",
+          "workspace.snapshot"
+        ],
+        "events": 21,
+        "integrity": "verified",
+        "ledger_digest": "sha256:97647ccc290dacb5da6b7168f31f2a1cf47f8f15f047571f4157dc5da556f021"
+      },
+      "verdict": "error"
+    },
+    "import": {
+      "command": "hop evaluation import <scratch>/snapshot-repo --out <scratch>/cases --rev c5d6e7b2229675bc758f87597d67bd70593a42d8",
+      "exit_code": 0,
+      "group_ids": [
+        "group-63f9a4e683ad33bb"
+      ],
+      "leg": "import",
+      "out_root": "<scratch>/cases",
+      "package_count": 1,
+      "snapshot": {
+        "commits": 2,
+        "head": "c5d6e7b2229675bc758f87597d67bd70593a42d8",
+        "repository": "/tmp/hop-lifecycle-demo-uu78g6hn/snapshot-repo"
+      },
+      "status": "qualified",
+      "stderr_tail": ""
+    },
+    "live_model": {
+      "bundle_digest": "sha256:bfb06cf8c00723f299eae45ee01d207c9716a64934c5e6f6528f0a8b153af3e2",
+      "error_class": "worker_network_isolation_unavailable",
+      "harness": "pi",
+      "leg": "live_model",
+      "model_deployment_id": "",
+      "outcome": "infra_error",
+      "reason": "outcome=infra_error verdict=error error_class=worker_network_isolation_unavailable - no task verdict from the trusted verifier; not synthesized as success",
+      "run_id": "run-efa023be3ab8",
+      "status": "blocked",
+      "verdict": "error"
+    },
+    "profile_compile_export": {
+      "artifact_digest": "sha256:ca5e52ef13d62b6150dc71a9e5e05c635324613272549ddfc237546788ed8ec3",
+      "export_verified": true,
+      "files": [
+        ".hop/hop.lock",
+        "agents/coding-agent.md",
+        "apm.yml",
+        "instructions/system.md",
+        "skills/debugging/SKILL.md",
+        "skills/debugging/resources/repro-checklist.md",
+        "skills/debugging/scripts/collect_env.sh",
+        "skills/git/SKILL.md",
+        "skills/repo-navigation/SKILL.md",
+        "skills/repo-navigation/resources/navigation-checklist.md",
+        "skills/testing/SKILL.md"
+      ],
+      "leg": "profile_compile_export",
+      "lock_digest": "sha256:1a63fd451fdc8d5c09835001a3e899c592357ba25d954f16a996fabc78f7155e",
+      "no_weights_or_secrets": true,
+      "package_digest": "sha256:7ef365633cbf00c8408bad000db8b58b9e15f1fe473ec944ca7aa29b87a5a6a1",
+      "profile_digest": "sha256:26a2e74d4363b4dcdc863b15cea3e24491ca801e1ffc45694474444e1b9d56e8",
+      "profile_valid": true,
+      "status": "qualified"
+    },
+    "protected_splits": {
+      "assign_command": "hop evaluation splits assign --group-id group-63f9a4e683ad33bb --root <scratch>/sealed",
+      "assign_exit_code": 0,
+      "assigned_groups": 1,
+      "ledger_exit_code": 0,
+      "ledger_ok": true,
+      "leg": "protected_splits",
+      "root": "<scratch>/sealed",
+      "show_exit_code": 0,
+      "splits": [],
+      "status": "qualified",
+      "stderr_tail": ""
+    }
+  },
+  "notes": [
+    "Verifier-dependent legs run in the ESF hop-v1 gate sandbox lane; the pack records that gate run id rather than a synthetic claim.",
+    "The scripted harness cannot qualify a model; only the live leg can."
+  ],
+  "schema": "hop-lifecycle-demo-v1",
+  "scope": "single-user local evaluation lifecycle (1.0); no optimization, candidate generation, activation or rollback",
+  "special_cases": {
+    "clean_review": {
+      "abstained": true,
+      "case": "clean_review_abstains",
+      "expected": "a clean change produces zero findings and abstains",
+      "findings_total": 0,
+      "observed": "abstained=True findings=0",
+      "outcome": "pass"
+    },
+    "incomplete_telemetry": {
+      "blocked_from_promotion": true,
+      "case": "incomplete_telemetry_blocked",
+      "detail": {
+        "complete": false,
+        "missing_required": [
+          "run.started|harness.accepted|workspace.prepared",
+          "execution:activity",
+          "verifier.started",
+          "verifier.completed|evaluation.recorded",
+          "run.completed|harness.exited"
+        ],
+        "policy": "pass",
+        "telemetry_incomplete": true
+      },
+      "expected": "missing required evidence blocks a promotion-eligible claim",
+      "missing_required": [
+        "run.started|harness.accepted|workspace.prepared",
+        "execution:activity",
+        "verifier.started",
+        "verifier.completed|evaluation.recorded",
+        "run.completed|harness.exited"
+      ],
+      "observed": "telemetry_incomplete=true"
+    },
+    "prompt_injection": {
+      "all_contained": true,
+      "case": "prompt_injection_contained",
+      "contained": [
+        "policy_weakening",
+        "forged_tool_call",
+        "poisoned_trajectory"
+      ],
+      "expected": "injection cannot weaken policy, forge events, or claim verifier authority",
+      "observed": "contained: policy_weakening, forged_tool_call, poisoned_trajectory"
+    },
+    "tampered_bundle": {
+      "case": "tampered_bundle_refused",
+      "expected": "a tampered sealed bundle is refused",
+      "observed": "verify_material problems: mismatch:case.json",
+      "refused": true
+    }
+  },
+  "status_table": {
+    "harness": {
+      "live_run_status": "blocked",
+      "pi_build": "1.1.0 qualifies (build-level identity only)",
+      "reason": "outcome=infra_error verdict=error error_class=verifier_sandbox_unavailable - the trusted verifier did not return a task verdict",
+      "scripted_repair": "fixture harness; never qualifies a model",
+      "verifier_run_status": "blocked"
+    },
+    "model": {
+      "deployment_id": "qwen-flash-next-IQ2_S_-_2.5_bpw",
+      "endpoint": "127.0.0.1:8000/v1 (loopback; registered local deployment)",
+      "reason": "outcome=infra_error verdict=error error_class=worker_network_isolation_unavailable - no task verdict from the trusted verifier; not synthesized as success",
+      "run_status": "blocked"
+    }
+  }
+}

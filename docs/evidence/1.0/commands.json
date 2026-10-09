@@ -1,0 +1,6 @@
+{
+  "commands": [
+    "hop evaluation import <scratch>/snapshot-repo --out <scratch>/cases --rev c5d6e7b2229675bc758f87597d67bd70593a42d8",
+    "hop evaluation splits assign --group-id group-63f9a4e683ad33bb --root <scratch>/sealed"
+  ]
+}
