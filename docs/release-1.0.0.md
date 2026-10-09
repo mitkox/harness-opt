@@ -20,7 +20,7 @@ explicitly **not** part of this release.
 
 ## Release artifacts
 
-Built at the **release revision** with
+Built on branch **`release/1.0.0`** (tree at `4e12329` plus the `MANIFEST.in` fix in this change set) with
 
 ```sh
 SOURCE_DATE_EPOCH=1700000000 HOP_WHEELHOUSE=/home/mitko/dev/esf/worktrees/hop-wheelhouse \
@@ -33,7 +33,7 @@ wheelhouse; the install probe runs with `--no-index --require-hashes`).
 | Artifact | sha256 |
 | --- | --- |
 | `dist/hop-1.0.0-py3-none-any.whl` | `42439320855807682c7bd1b63bb0aa8d6a599d682ea0786b05a605a87644aee6` |
-| `dist/hop-1.0.0.tar.gz` | `1c8769cbd3e1a98412fd7a763d3e45533d34bc1b3b07aa62170025d1275ff0bd` |
+| `dist/hop-1.0.0.tar.gz` | `ca8e8d917c420cf5b1687e30348c5792f742253dcfb9b013d16b21ff99df07bd` |
 
 `dist/MANIFEST.sha256` records both digests; the wheelhouse manifest
 (`/home/mitko/dev/esf/worktrees/hop-wheelhouse/MANIFEST.sha256`, 17 dependency
@@ -41,24 +41,33 @@ wheels) was refreshed by the same run. The installed wheel reports
 `hop version: 1.0.0` and exposes exactly one console script (`hop`); the removed
 `aop` alias is absent from `entry_points.txt`.
 
-**These hashes supersede the earlier artifacts.** WP-4.1 (`9acc72e7…` wheel,
-`a3a26569…` sdist) and WP-4.5 (`729aeee9…` wheel, `b38611e7…` sdist) were built
-before task-51 added `hop/evaluation/legacy.py`, so they did not
-cover the release content; they must not be cited as the 1.0.0 artifacts. The
-release wheel has **80 entries including `hop/evaluation/legacy.py`**.
+**These hashes supersede the earlier artifacts, including the frozen-revision
+pair.** For publication the release-branch artifacts above replace the frozen
+`779e73f` pair (wheel `42439320855807682c7bd1b63bb0aa8d6a599d682ea0786b05a605a87644aee6`, sdist `1c8769cbd3e1a98412fd7a763d3e45533d34bc1b3b07aa62170025d1275ff0bd`) and the older
+WP-4.1 (`9acc72e7…` wheel, `a3a26569…` sdist) and WP-4.5 (`729aeee9…` wheel,
+`b38611e7…` sdist) builds; none of those may be cited as the published 1.0.0
+artifacts. The wheel hash is **identical** to the frozen build because no
+packaged input changed between `779e73f` and this branch — nothing under
+`src/hop/` or `pyproject.toml` differs, and `README.md` is not declared as the
+project's long description, so it is not embedded in the wheel `METADATA`; the
+sdist digest changed because the shipped documentation payload changed. The
+wheel has **80 entries including `hop/evaluation/legacy.py`**.
 
 **Artifact contents.** The wheel stays minimal: `hop/` plus its dist-info (80
 entries, no `docs/`), because the installed CLI diagnostics are self-contained.
 The sdist is the operator-facing artifact and ships the release docs — it
-contains `CHANGELOG.md`, `README.md`, `docs/migration-1.0.md` (the file every
-migration diagnostic points at) and `docs/release-1.0.0.md`, declared in
-`MANIFEST.in`.
+contains `CHANGELOG.md`, `README.md` and `docs/migration-1.0.md` (the file every
+migration diagnostic points at), declared in `MANIFEST.in`. This document
+(`docs/release-1.0.0.md`) is deliberately **not** shipped in the sdist: it
+records the artifact hashes, so including it would make the archive cite its own
+(and, after any rebuild, superseded) digest. The release description lives in
+the repository, not inside the artifact it describes.
 
 **Reproducibility.** Setuptools embeds per-file timestamps in the wheel, so a
 plain rebuild changes the wheel's bytes even when its contents are identical.
 Building with `SOURCE_DATE_EPOCH=1700000000` makes the wheel byte-reproducible:
-two consecutive builds at the release revision both produced the `42439320…`
-hash above. The sdist's *contents* are stable, but its compressed bytes still
+two consecutive builds on this branch both produced the `42439320…` hash above,
+which is also byte-identical to the frozen-revision build. The sdist's *contents* are stable, but its compressed bytes still
 vary between builds, so its digest is recorded as built at this run rather than
 as a reproducible value.
 

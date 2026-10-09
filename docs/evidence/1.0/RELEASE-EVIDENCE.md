@@ -89,16 +89,17 @@ freeze-gate run table is in [freeze-gate.md](freeze-gate.md).
   (`legacy_env_removed` exit 2 naming `HOP_RUNS_DIR`, `legacy_command_removed`
   exit 2 with rewrite hints, `aop` absent, `AOP_PI_BASE_URL` scrub active). The
   wheel still omits `docs/` (D-2, 1.0.1 candidate).
-- **Final frozen-revision artifacts (task-54, resolves R-029 #2).** Built at
-  `779e73f61f5112b681242e0376ed9c78c6e2d9e1` with `SOURCE_DATE_EPOCH=1700000000`:
-  wheel `42439320855807682c7bd1b63bb0aa8d6a599d682ea0786b05a605a87644aee6` — **80 entries including `hop/evaluation/legacy.py`** — and sdist
-  `1c8769cbd3e1a98412fd7a763d3e45533d34bc1b3b07aa62170025d1275ff0bd` (ships `docs/migration-1.0.md`). Both were re-qualified offline in fresh
-  venvs at the frozen revision (`--no-index --require-hashes`, zero downloads;
-  version 1.0.0, one console script, help exits 0, migration exit codes 2, scrub
-  active, backup create/verify/chain 0/0/0). These **supersede** the pre-task-51
-  artifacts (wheel `729aeee9…`, sdist `b38611e7…`, and the earlier `9acc72e7…` /
-  `a3a26569…`), which predate task-51 (`456aa7b`) and must not be cited as the
-  1.0.0 artifacts.
+- **Published-candidate artifacts on `release/1.0.0` (supersede the frozen-revision pair).**
+  wheel `42439320855807682c7bd1b63bb0aa8d6a599d682ea0786b05a605a87644aee6` — 80 entries including `hop/evaluation/legacy.py` — and sdist
+  `ca8e8d917c420cf5b1687e30348c5792f742253dcfb9b013d16b21ff99df07bd` (ships `CHANGELOG.md`, `README.md`, `docs/migration-1.0.md`; deliberately omits
+  `docs/release-1.0.0.md` so the archive cannot cite its own hash). Both were re-qualified
+  offline in fresh venvs on the release branch (`--no-index --require-hashes`, zero
+  downloads; version 1.0.0, one console script, help exits 0, migration exit codes 2, scrub
+  active, backup create/verify/chain 0/0/0, `hop/evaluation/legacy.py` installed). These
+  **supersede for publication** the frozen-revision pair (wheel `42439320855807682c7bd1b63bb0aa8d6a599d682ea0786b05a605a87644aee6`, sdist `1c8769cbd3e1a98412fd7a763d3e45533d34bc1b3b07aa62170025d1275ff0bd`) and the
+  pre-task-51 builds (`729aeee9…`/`b38611e7…`, `9acc72e7…`/`a3a26569…`). The wheel digest is
+  unchanged from the frozen build because no packaged input changed; only the shipped
+  documentation payload moved the sdist digest.
 - **Wheel reproducibility (R-029, independently confirmed by independent-verifier):**
   with `SOURCE_DATE_EPOCH=1700000000` two scratch builds from `1be9a5e` are
   byte-identical (`42439320855807682c7bd1b63bb0aa8d6a599d682ea0786b05a605a87644aee6`);
