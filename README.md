@@ -74,22 +74,27 @@ remains authoritative for profile, component, and evaluation identity.
 Current scope is **local models and local inference only**. Supported/target
 model families are DeepSeek, Qwen, and GLM. There is no hosted API fallback.
 
-## Status: alpha / active development
+## Status: foundation accepted; M4 in progress
 
-The HOP 0.2 foundation review is **in progress, not release-qualified**.
-The CLI/devex and integrity changes have non-live regression evidence; open
-security findings, independent review, offline type tooling, and current live
-qualification still block advancement to M4. Start with the
-[runbook](docs/runbook.md), [review](docs/foundation-review.md), and
+HOP-R01–R05 foundation acceptance is **closed** at the recorded delivery tip
+(see [acceptance-foundation-renewal.md](docs/acceptance-foundation-renewal.md)).
+The next roadmap item is **AOP-020**. M4 is beginning; M5–M9 and release
+qualification are planned and not delivered. Start with the
+[runbook](docs/runbook.md), the [renewed acceptance record](docs/acceptance-foundation-renewal.md),
+and the historical [review](docs/foundation-review.md) /
 [acceptance matrix](docs/acceptance-foundation.md).
 
-Latest recorded scope validation: **284 non-live tests passed**, with lint and
-formatting passing. Type checking remains blocked on approved offline tooling;
-current Pi/local-model qualification and independent boundary review remain
-outstanding. See [the validation report](docs/single-user-delivery.md). A merge
-into `master` does not waive these gates or authorize M4 to begin.
+Latest recorded validation at the accepted tip: the ESF hop-v1 gate **PASSED**
+(run `hop-gate-task10-2468b04`, CPython 3.12.12 + bubblewrap 0.8.0, 0 leftover
+sandboxes), `scripts/dev check` exits **0** with no findings in 47 files, and the
+offline release artifacts build and install with no network
+([offline-install.md](docs/verification/offline-install.md)). Live local-model
+acceptance and the pinned Pi requalification remain **unexecuted** (no qualified
+local deployment); CI definitions are unexecuted on this host. A merge into
+`master` does not waive these or authorize M5–M9.
 
-Implemented (M0–M3 plus the AOP → HOP rename):
+Implemented (M0–M3 plus the AOP → HOP rename, foundation acceptance, and the
+WP-4.1a CI/release path):
 
 - local-only execution foundation (loopback enforcement, served-model
   attestation, no cloud fallback)
@@ -103,9 +108,17 @@ Implemented (M0–M3 plus the AOP → HOP rename):
 - telemetry completeness (outcome-aware policy; incomplete runs cannot pass)
 - secret redaction and data classification
 - replay metadata and checks
-- HOP CLI (`hop`; deprecated `aop` alias retained through 0.2)
-- Pi integration (headless JSONL adapter; historical probes qualified 0.85.1,
-  not the latest observed 1.0.0 build)
+- HOP CLI (`hop`; deprecated `aop` alias retained through 1.0)
+- Pi integration (headless JSONL adapter). Fixture transcripts use synthetic,
+  version-agnostic identities; the historical `0.85.1` literal is a placeholder,
+  not a qualified build. Requalification of the installed build is a separate
+  work item and is not claimed here.
+- typed lifecycle orchestration with uniform exit codes (0/1/2/3/130) and
+  preserved legacy 0/1 behavior
+- boundary model: no-network agent workers with a per-run loopback inference
+  broker and bearer token; delegated cgroup v2 quotas reported as
+  enforced/limited/blocked with an explicit `unenforced[]`; verifier candidate
+  isolation over a frozen snapshot
 - immutable versioned component registry (prompts, skills, agents, policies,
   overlays, hooks, MCP) with content-addressed identity and tamper detection
 - deterministic profile resolution, lockfiles, variant selection, and
@@ -131,8 +144,8 @@ Planned (not implemented — automatic optimization does not exist yet):
 | M2 | Trace and trajectory evaluation | ✅ done (`m2-observability`) |
 | — | AOP → HOP namespace migration | ✅ done (`hop-namespace`) |
 | M3 | Canonical skills, compiler, and APM | ✅ done (profiles/compiler/APM) |
-| Foundation | HOP-R01-R05 review and simplification | In progress; acceptance blocked |
-| M4 | Local coding evaluation packs | ⬜ blocked on foundation |
+| Foundation | HOP-R01-R05 review and simplification | ✅ accepted (`hop-gate-task10-2468b04`) |
+| M4 | Local coding evaluation packs | 🔄 in progress (AOP-020 next) |
 | M5 | Optional harness integrations | ⬜ planned |
 | M6 | Model matrix and fair benchmarking | ⬜ planned |
 | M7 | First optimization loop | ⬜ planned |
@@ -184,7 +197,11 @@ validation. Existing environments are retained. `--runtime` omits developer-only
 schema tooling but retains pytest for trusted verification; `--run-tests`
 validates a developer environment before switching.
 No manual `PYTHONPATH`, editable install, or package download is required.
-Static type checking currently reports blocked pending approved offline tools.
+Type checking is pinned to an approved offline `local_environment`
+(`development-tools.lock.json`) and `scripts/dev check` exits 0 at the accepted
+tip; the cp313-interpreter deviation and the CI-vs-local difference are recorded
+in [o1-request.md](docs/verification/o1-request.md) and
+[offline-install.md](docs/verification/offline-install.md).
 
 Register the machine's real deployments and harnesses:
 
@@ -274,10 +291,14 @@ tests/              unit, contract, security, and e2e tests
   signing infrastructure is outside the single-user scope.
 - `.hidden/` is an interim in-repo hidden-test location enforced by mount
   namespaces, not sealed evaluator-owned storage (M4).
-- Isolation uses `bwrap` namespaces. The Pi worker shares host networking;
-  inference endpoint checks do not enforce general OS-level worker egress.
-  Aggregate descendant quotas and verifier current-case protection also remain
-  open security findings. Do not treat this as hostile-workload qualification.
+- Isolation uses `bwrap` namespaces. Agent workers run with no network namespace
+  and reach inference only through the per-run loopback broker; aggregate cgroup
+  v2 quotas are applied where the host delegates them and otherwise reported
+  `blocked` with an explicit `unenforced[]`; the verifier runs candidate code in
+  its own namespace over a frozen snapshot. This is boundary enforcement with
+  honest capability reporting, **not** hostile-workload qualification.
+- Live local-model acceptance and the pinned Pi build requalification are
+  unexecuted; no live capability is claimed from fixtures.
 - PostgreSQL, multi-node scheduling, remote publishers, and organizational
   administration are out of scope, not deferred requirements. See
   [the single-user decision](docs/adr/ADR-011-single-user.md).

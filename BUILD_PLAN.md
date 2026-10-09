@@ -2,8 +2,8 @@
 ## Coding-agent implementation plan
 
 Version: 0.2 single-user scope revision
-Updated: 1 October 2026
-Status: M0-M3 scoped delivery; foundation requalification remains blocked
+Updated: 9 October 2026
+Status: M0-M3 scoped delivery; HOP-R01-R05 foundation acceptance closed at `2468b04` (ESF gate `hop-gate-task10-2468b04`); M4 in progress, next item AOP-020
 
 ## Scope Override
 

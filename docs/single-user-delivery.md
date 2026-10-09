@@ -3,6 +3,16 @@
 Work items: HOP-R01/R05 scope reconciliation; revised AOP-005/006/014/015,
 AOP-018/019, M4-M10 dependency and acceptance requirements. Decision: ADR-011.
 
+> **Status update (9 October 2026).** This document is the historical
+> scope-delivery record; its validation table below was captured before foundation
+> closure and is preserved as written. HOP-R01–R05 foundation acceptance is now
+> **closed** at the tip `2468b04` (ESF gate `hop-gate-task10-2468b04`); the current
+> command/result matrix is [acceptance-foundation-renewal.md](acceptance-foundation-renewal.md).
+> The statements below that offline type tooling, egress/resource isolation,
+> verifier protection, or independent review "still block foundation acceptance"
+> are superseded: those items are closed, except live local-model/Pi
+> requalification, which remains unexecuted.
+
 ## Changes
 
 - BUILD_PLAN.md, BACKLOG.yaml, AGENTS.md, README.md and the runbook now define
