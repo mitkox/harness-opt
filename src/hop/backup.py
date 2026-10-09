@@ -324,6 +324,9 @@ def verify_evidence_chain(paths: Paths | None = None) -> dict:
         "fenced": [],
     }
     if not ledger.is_file():
+        # An empty (or not-yet-created) store is healthy, not an error: the CLI
+        # and callers read ``ok`` directly.
+        result["ok"] = True
         return result
     conn = sqlite3.connect(f"file:{ledger}?mode=ro", uri=True)
     try:

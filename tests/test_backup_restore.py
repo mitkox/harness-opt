@@ -243,3 +243,15 @@ def test_sqlite_snapshot_is_consistent_after_restore(tmp_path, monkeypatch):
         assert [row[0] for row in rows] == [report["run_id"]]
     finally:
         conn.close()
+
+
+def test_empty_evidence_chain_is_healthy(tmp_path, monkeypatch):
+    """An empty store must not crash the CLI: verify_evidence_chain reports ok."""
+    from hop.backup import main as backup_main
+
+    paths = _paths(tmp_path, monkeypatch)
+    chain = verify_evidence_chain(paths)
+    assert chain["ok"] is True
+    assert chain["runs"] == 0 and chain["missing"] == [] and chain["fenced"] == []
+    code = backup_main(["chain", "--home", str(paths.home), "--runs", str(paths.runs)])
+    assert code == 0
