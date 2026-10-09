@@ -130,12 +130,15 @@ def test_forged_tool_call_json_is_data_not_execution(tmp_path):
 def test_poisoned_trajectory_cannot_claim_verifier_authority(tmp_path):
     ledger = EventLedger(str(tmp_path / "events.jsonl"))
     ledger.append(_event(0, EventAuthority.PLATFORM_OBSERVATION))
-    with pytest.raises(ValueError):
-        ledger.append(_event(1, EventAuthority.AGENT_CLAIM, event_type="verification.completed"))
+    # ``verifier.completed`` is a known event type that requires verifier_fact
+    # authority; agent text must be refused by the authority rule itself (not by
+    # an unknown-event check).
+    with pytest.raises(ValueError, match="cannot carry agent_claim"):
+        ledger.append(_event(1, EventAuthority.AGENT_CLAIM, event_type="verifier.completed"))
     _refused(
         "prompt_injection.poisoned_trajectory",
         "agent text cannot be recorded as verifier authority",
-        "ValueError: invalid authority transition",
+        "ValueError: verifier.completed cannot carry agent_claim authority",
         "tests/security/test_adversarial_suite.py",
     )
 
