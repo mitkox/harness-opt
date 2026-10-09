@@ -1,69 +1,114 @@
-# HOP 1.0.0 — release notes (DRAFT, NOT RELEASED)
+# HOP 1.0.0 — release description
 
-> **Status: skeleton / not a release.** No tag, no artifact publication, and no
-> milestone acceptance is claimed by this file. `pyproject.toml` still declares
-> `version = "0.2.0"`. Publication and version bumping are explicit owner actions.
-> Nothing here may be quoted as evidence that HOP 1.0.0 shipped.
+> **Status: release engineering complete; NOT RELEASED.** No tag, no pushed
+> branch, and no artifact publication is claimed by this document. Publication
+> is an explicit owner action. The artifacts below were built and qualified
+> locally and offline from the approved wheelhouse.
 
 ## Summary
 
-One-paragraph description of what the 1.0.0 release would deliver for the
-single-user local coding workflow (scope per ADR-011 and `BACKLOG.yaml`).
+HOP 1.0.0 is the first release of the single-user local coding tool defined by
+ADR-011: it runs one local user's coding, debugging, review, test, and
+dependency-maintenance workflows against locally served models, keeps agent and
+verifier work in separate trust domains, and decides every task outcome with a
+trusted verifier rather than with agent text.
+
+1.0.0 delivers M4 (local coding evaluation packs), retires the 0.2 compatibility
+layer, and completes the release-engineering surface (version, migration guide,
+release notes, reconciled status documentation). Optimization and activation are
+explicitly **not** part of this release.
+
+## Release artifacts
+
+Built with `HOP_WHEELHOUSE=/home/mitko/dev/esf/worktrees/hop-wheelhouse scripts/build_release.sh`
+(no network; PEP 517 backend and every dependency come from the approved local
+wheelhouse; the install probe runs with `--no-index --require-hashes`).
+
+| Artifact | sha256 |
+| --- | --- |
+| `dist/hop-1.0.0-py3-none-any.whl` | `9acc72e73db5653b3e01ba89ec1d89f6b95fa310b2e81c269574a2efe18edaf8` |
+| `dist/hop-1.0.0.tar.gz` | `a3a26569c3b1bfa798d7bf73336ab12cb9e5fbd4787f26b6c415227ea1353ffa` |
+
+`dist/MANIFEST.sha256` records both digests; the wheelhouse manifest
+(`/home/mitko/dev/esf/worktrees/hop-wheelhouse/MANIFEST.sha256`, 17 dependency
+wheels) was refreshed by the same run. The installed wheel reports
+`hop version: 1.0.0` and exposes exactly one console script (`hop`); the removed
+`aop` alias is absent from `entry_points.txt`.
+
+Qualification probe results from the build: `hop --help` exit 0;
+`hop --workspace <tmp> init` exit 0 (created `hop.toml`); `hop doctor` exit 3 in
+a neutral workspace (expected non-zero: no registered deployment inventory or
+verifier store).
 
 ## What is in scope for 1.0.0
 
-- [ ] M0–M3 slices re-verified at the release tip (historical matrices under
-      `docs/acceptance-m{1,2,3}.md` stay byte-identical; the renewed record is a
-      new current-acceptance document).
-- [ ] HOP-R01 foundation baseline and boundary review.
-- [ ] HOP-R02 pinned offline developer toolchain (toolchain level).
-- [ ] HOP-R03 typed lifecycle state and uniform CLI diagnostics.
-- [ ] HOP-R04 boundary closure (egress broker, cgroup quotas, verifier isolation).
-- [ ] HOP-R05 documentation consolidation and renewed M0–M3 acceptance.
-- [ ] Offline release artifacts qualified (this repository:
-      `docs/verification/offline-install.md`).
+Delivered and independently reviewed:
 
-## Release-blocking status at the time of writing
+- **M0–M3** slices, re-verified at the delivery tip; historical acceptance
+  matrices (`docs/acceptance-m{1,2,3}.md`) and `docs/evidence/**` are unchanged.
+- **HOP-R01–R05 foundation**: baseline and boundary review, pinned offline
+  toolchain, typed lifecycle and uniform CLI diagnostics, boundary enforcement
+  (no-network workers with a loopback inference broker, cgroup v2 quota
+  reporting, verifier candidate isolation), and documentation consolidation.
+- **M4 provenance and protected splits (AOP-020)**: typed evaluation contracts,
+  deterministic import of repository/group/case-package records, and sealed
+  evaluator-owned holdout storage with an access ledger (R-011, R-014, R-016).
+- **M4 coding and debugging packs (AOP-021)**: feature, refactor, and
+  bug-reproducer packs on frozen snapshots with hidden behavioral/regression
+  tests and API/scope review, baseline-vs-candidate failure classification, and
+  visible-test-overfit rejection (R-020).
+- **M4 review and maintenance packs (AOP-022, AOP-025)**: local diff/commit
+  review (R-015) and test/dependency maintenance (R-017).
+- **Case-package integrity A-5–A-9 (R-019)**.
+- **M10 safety and recovery**: adversarial boundary and reward-hacking suite
+  (AOP-050, R-018), evidence-chain backup/restore (AOP-051, R-021, with the two
+  reported defects fixed and confirmed in R-023), disconnected installation and
+  execution qualification (AOP-052), owner-only local file protection and
+  activity history (AOP-049, R-012).
 
-Fill in from the current board immediately before release. Current known state:
+## Breaking changes and migration
 
-- **R02 type gate**: toolchain is GREEN and hash-pinned; `scripts/dev check` is
-  RED while task-8's files carry type findings. Not release-ready.
-- **R04 boundary closure**: open (egress broker, cgroup quotas, verifier
-  isolation); a scope reduction is not a passed safety gate.
-- **R05**: documentation consolidation pending.
-- **Local model (O2)**: not available; all live-model acceptance remains
-  unexecuted and must be reported as such, never inferred from fixtures.
-- **CI**: `.github/workflows/ci.yml` is a definition; it has not been executed on
-  the delivery host. Do not cite CI as a passed gate until a real run exists.
+The 0.2 compatibility layer is removed. See
+[migration-1.0.md](migration-1.0.md) for the full table.
 
-## Artifacts
+- The `aop` console script is gone; use `hop`.
+- The `AOP_*` environment fallback is gone; use `HOP_*`. A removed variable that
+  is set fails with `LegacyEnvRemoved` / `legacy_env_removed` (exit 2) instead of
+  silently resolving. The `AOP_PI_BASE_URL` worker scrub is intentionally
+  retained as a local-only security guarantee.
+- Legacy flat command forms and the `hop run --case ...` shorthand are gone;
+  they exit 2 with `legacy_command_removed` and a rewrite hint.
 
-| Artifact | How built | Verified by |
-|----------|-----------|-------------|
-| `hop-<version>-py3-none-any.whl` | `scripts/build_release.sh` (offline, no isolation) | clean-venv install from `--no-index --require-hashes`, `hop --help`, `hop doctor`, `hop init` |
-| `hop-<version>.tar.gz` (sdist) | same script | same run |
+Stored evidence is not affected: historical runs, bundles, locks, schemas, and
+acceptance records remain byte-identical and readable.
 
-Hashes are recorded per run in `dist/MANIFEST.sha256`; artifacts are **not**
-byte-reproducible because the build backend stamps archive timestamps. Do not
-publish a hash collected from a different run.
+## What is not in 1.0.0
 
-## Upgrade / compatibility notes for 0.2 readers
+- Optimization loops and any promotion/activation claim (M5–M9; AOP-024 and
+  AOP-042 remain out of scope under ADR-011).
+- Owner-confirmed local activation and rollback (M8).
+- Optional local build-repair fixtures (AOP-023) and calibrated local judges
+  (AOP-026).
+- The M10 end-to-end lifecycle acceptance demonstration (AOP-054) and overhead /
+  resource-fairness measurement (AOP-053) remain open; AOP-054 is blocked on the
+  G8 live-acceptance items.
+- **Live local-model acceptance remains unexecuted** (no qualified local
+  deployment in this environment), and the pinned Pi requalification is
+  unexecuted. No result here is inferred from fixtures.
 
-- Command surface, exit codes, and path precedence for 1.0 are consolidated in
-  `docs/runbook.md` (R05). Readers of the 0.2 runbook should treat the consolidated
-  document as authoritative for 1.0 and the historical milestone documents as
-  immutable records.
-- Historical M1/M2 evidence and locks must remain readable; no migration may
-  rewrite them.
-- The offline toolchain pin is host-specific (`development-tools.lock.json`):
-  the type checker runs under a hash-manifested CPython 3.13 environment with
-  `--python-version 3.14`. CI uses a knowingly different path.
+## Verification and evidence
 
-## Owner actions before publication (not performed here)
+- ESF deterministic gate (hop-v1): all conditions satisfied, sandbox suite with
+  zero skips, no leftover sandboxes; run ids are recorded in the release
+  evidence pack (`docs/evidence/1.0/`, WP-4.2).
+- `scripts/dev check` exits 0 with 0 findings; the host unit suite is green.
+- Independent verification: the verdict index in
+  `docs/verification/reviews.md` (R-001–R-023) binds each confirmed claim to a
+  commit sha.
 
-- [ ] Land R03/R04/R05 and re-run the full acceptance set at the frozen tip.
-- [ ] Re-run `scripts/dev check` and require exit 0 in the recorded environment.
-- [ ] Re-run the offline install qualification and record artifacts/hashes.
-- [ ] Decide the actual version string and bump `pyproject.toml` / `CHANGELOG.md`.
-- [ ] Tag and publish only after the above; outside this repository's tests.
+## Owner actions
+
+1. Review the evidence pack and release checklist (WP-4.2).
+2. Run the freeze gate (WP-5.1) at the frozen sha, including the live
+   model-backed acceptance and the G8 owner-run.
+3. Then, and only then, tag `v1.0.0`, push the branch, or publish artifacts.

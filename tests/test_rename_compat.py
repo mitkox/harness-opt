@@ -1,4 +1,4 @@
-"""Rename compat: HOP canonical namespace with aop/AOP_* legacy support.
+"""Rename compat: HOP canonical namespace after the aop/AOP_* layer retired.
 
 Covers the rename acceptance list: hop CLI, legacy aop alias, HOP_*/AOP_*
 env (precedence + deprecation), persisted M1/M2 readability, schema
@@ -83,17 +83,13 @@ def test_hop_run_verbs_work(repair_run, capsys, monkeypatch):
         assert capsys.readouterr().out.strip(), verb
 
 
-def test_legacy_aop_alias_same_output(repair_run, capsys, monkeypatch):
-    from hop.cli import legacy_main, main
+def test_legacy_aop_entry_point_is_refused(capsys):
+    """The `aop` alias retired in 1.0: it must not exist any more."""
+    import hop.cli
 
-    runner, rep = repair_run
-    monkeypatch.setenv("HOP_RUNS_DIR", runner.runs_dir)
-    assert main(["run", "show", rep["run_id"]]) == 0
-    canonical = capsys.readouterr().out
-    assert legacy_main(["run", "show", rep["run_id"]]) == 0
-    captured = capsys.readouterr()
-    assert captured.out == canonical  # same implementation, same semantics
-    assert "deprecated" in captured.err
+    assert not hasattr(hop.cli, "legacy_main")
+    with pytest.raises(SystemExit):
+        hop.cli.main(["aop"])  # the removed entry point is not a command either
 
 
 def test_hop_env_vars_work(monkeypatch):
@@ -106,13 +102,19 @@ def test_hop_env_vars_work(monkeypatch):
     assert resolve_env("HOP_RUNS_DIR", "AOP_RUNS_DIR", "d") == "/tmp/hop-runs"
 
 
-def test_legacy_env_warns(monkeypatch, capsys):
+def test_legacy_env_is_refused_with_a_migration_pointer(monkeypatch, capsys):
+    """The AOP_* fallback retired in 1.0: it fails instead of resolving."""
     from hop.cli import _runs_dir
+    from hop.envcompat import LegacyEnvRemoved
 
     monkeypatch.delenv("HOP_RUNS_DIR", raising=False)
     monkeypatch.setenv("AOP_RUNS_DIR", "/tmp/aop-runs")
-    assert _runs_dir() == "/tmp/aop-runs"
-    assert "deprecated" in capsys.readouterr().err
+    with pytest.raises(LegacyEnvRemoved) as excinfo:
+        _runs_dir()
+    message = str(excinfo.value)
+    assert "AOP_RUNS_DIR" in message and "HOP_RUNS_DIR" in message
+    assert "migration-1.0.md" in message
+    assert capsys.readouterr().err == ""
 
 
 def test_hop_env_wins_over_legacy(monkeypatch, capsys):

@@ -74,20 +74,27 @@ remains authoritative for profile, component, and evaluation identity.
 Current scope is **local models and local inference only**. Supported/target
 model families are DeepSeek, Qwen, and GLM. There is no hosted API fallback.
 
-## Status: foundation accepted; M4 in progress
+## Status: M4 delivered; HOP 1.0.0 release engineering complete (unshipped)
 
 HOP-R01–R05 foundation acceptance is **closed** at the recorded delivery tip
-(see [acceptance-foundation-renewal.md](docs/acceptance-foundation-renewal.md)).
-The next roadmap item is **AOP-020**. M4 is beginning; M5–M9 and release
-qualification are planned and not delivered. Start with the
-[runbook](docs/runbook.md), the [renewed acceptance record](docs/acceptance-foundation-renewal.md),
-and the historical [review](docs/foundation-review.md) /
+(see [acceptance-foundation-renewal.md](docs/acceptance-foundation-renewal.md)),
+and M4 is **delivered**: provenance and protected splits (AOP-020), coding and
+debugging workflow packs (AOP-021), the local diff/commit review pack (AOP-022),
+and the test/dependency maintenance pack (AOP-025). The 1.0.0 release
+engineering is complete — version, deprecation removal, migration guide, and
+release notes — but the release is **not published**: tagging, pushing, and
+artifact publication are explicit owner actions. M5–M9 remain planned, and
+optimization/activation are explicitly **not** part of 1.0. Start with the
+[runbook](docs/runbook.md), the [migration guide](docs/migration-1.0.md), the
+[renewed acceptance record](docs/acceptance-foundation-renewal.md), and the
+historical [review](docs/foundation-review.md) /
 [acceptance matrix](docs/acceptance-foundation.md).
 
-Latest recorded validation at the accepted tip: the ESF hop-v1 gate **PASSED**
-(run `hop-gate-task10-2468b04`, CPython 3.12.12 + bubblewrap 0.8.0, 0 leftover
-sandboxes), `scripts/dev check` exits **0** with no findings in 47 files, and the
-offline release artifacts build and install with no network
+Latest recorded validation at the 1.0.0 release-engineering tip: the ESF hop-v1
+gate **PASSED** (CPython 3.12.12 + bubblewrap 0.8.0, sandbox suite with zero
+skips, 0 leftover sandboxes), `scripts/dev check` exits **0** with no findings,
+and the offline release artifacts (`hop-1.0.0-py3-none-any.whl`,
+`hop-1.0.0.tar.gz`) build and install with no network
 ([offline-install.md](docs/verification/offline-install.md)). Live local-model
 acceptance and the pinned Pi requalification remain **unexecuted** (no qualified
 local deployment); CI definitions are unexecuted on this host. A merge into
@@ -108,7 +115,8 @@ WP-4.1a CI/release path):
 - telemetry completeness (outcome-aware policy; incomplete runs cannot pass)
 - secret redaction and data classification
 - replay metadata and checks
-- HOP CLI (`hop`; deprecated `aop` alias retained through 1.0)
+- HOP CLI (`hop`; the `aop` alias and the `AOP_*` environment fallback retired
+  in 1.0 — see [migration-1.0.md](docs/migration-1.0.md))
 - Pi integration (headless JSONL adapter). Fixture transcripts use synthetic,
   version-agnostic identities; the historical `0.85.1` literal is a placeholder,
   not a qualified build. Requalification of the installed build is a separate
@@ -145,12 +153,14 @@ Planned (not implemented — automatic optimization does not exist yet):
 | — | AOP → HOP namespace migration | ✅ done (`hop-namespace`) |
 | M3 | Canonical skills, compiler, and APM | ✅ done (profiles/compiler/APM) |
 | Foundation | HOP-R01-R05 review and simplification | ✅ accepted (`hop-gate-task10-2468b04`) |
-| M4 | Local coding evaluation packs | 🔄 in progress (AOP-020 next) |
+| M4 | Local coding evaluation packs | ✅ delivered (AOP-020/021/022/025; AOP-023 optional and AOP-026 not in 1.0) |
 | M5 | Optional harness integrations | ⬜ planned |
 | M6 | Model matrix and fair benchmarking | ⬜ planned |
 | M7 | First optimization loop | ⬜ planned |
 | M8 | Owner-confirmed local activation and rollback | ⬜ planned |
-| M9+ | Dynamic routing / lifecycle hardening | ⬜ planned |
+| M9 | Dynamic routing / lifecycle hardening | ⬜ planned |
+| M10 | Local reliability and safety | 🔄 partial (AOP-049–052 delivered; AOP-053 planned, AOP-054 blocked on the G8 live-acceptance blockers) |
+| 1.0.0 | Versioning, deprecation removal, release docs | ✅ engineering complete, **unshipped** ([release notes](docs/release-1.0.0.md)) |
 
 ## Architecture
 
@@ -249,8 +259,10 @@ The current CLI has real nested command groups:
 More investigation verbs: `artifacts`, `trace`, `verify`, `skills`, `tools`
 (for example `./hop run trace RUN_ID`). Redirected output defaults to JSON;
 use `--format text|json` to choose. See the runbook for path precedence and
-exit codes. Legacy command forms, `aop`, and `AOP_*` remain through 0.2;
-removal is targeted for 0.3 only after M4 acceptance and migration documentation.
+exit codes. The 0.2 compatibility layer is **gone in 1.0**: legacy command
+forms, the `aop` alias, and the `AOP_*` environment fallback now fail with a
+migration message instead of working (see
+[migration-1.0.md](docs/migration-1.0.md)).
 
 A passing run ends with `outcome: pass` and `verdict: pass` from the trusted
 verifier; agent text claiming success never decides the result. Failing runs

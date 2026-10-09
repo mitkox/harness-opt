@@ -8,7 +8,7 @@ scope_rules:
   optional_capabilities: Additional harnesses, models, local build fixtures, GEPA and APM export
   excluded: Enterprise services, RBAC, fleet rollout, signing infrastructure and provider write-back
   optional_gates: Only explicitly enabled capabilities gate acceptance; excluded items never do
-status: m0_m3_delivered_scoped_foundation_accepted
+status: m4_delivered_1_0_release_engineering_in_progress
 initial_assignment:
 - Foundation
 current_gate:
@@ -17,7 +17,8 @@ current_gate:
   accepted_revision: '2468b040146ddfe293216c89703bb6fd1d87fdfd'
   esf_gate_run_id: hop-gate-task10-2468b04
   evidence: docs/acceptance-foundation-renewal.md
-  next_roadmap_item_after_acceptance: AOP-020
+  next_roadmap_item_after_acceptance: AOP-054
+  release_1_0_scope: M0-M4 and the M10 safety/recovery items (AOP-049..052); M5-M9 planned; optimization and activation are explicitly NOT part of 1.0; AOP-023 (optional build fixtures) and AOP-026 (advisory judges) are not in 1.0.
 status_definitions:
   implemented_scoped: Delivered scope evidenced by historical acceptance matrices, not all original outputs or current release qualification.
   partial: Implemented subset with explicit outstanding original requirements.
@@ -516,7 +517,8 @@ work_items:
   milestone: M4
   area: datasets
   title: Implement task provenance and protected splits
-  status: blocked
+  status: delivered
+  evidence: task-20 (WP-2.1a-d); R-015/R-017; gate hop-gate-20261009-183753-4
   gate: Foundation acceptance must pass before implementation begins.
   priority: P1
   depends_on:
@@ -538,7 +540,8 @@ work_items:
   milestone: M4
   area: workflows
   title: Build coding and debugging workflow packs
-  status: planned
+  status: delivered
+  evidence: task-21 (WP-2.2); R-020 at d1739b4; gate hop-gate-20261009-190748-8
   priority: P1
   depends_on:
   - AOP-020
@@ -557,7 +560,8 @@ work_items:
   milestone: M4
   area: workflows
   title: Build local diff and commit review pack
-  status: planned
+  status: delivered
+  evidence: task-22; R-015 at 45d8a2e
   priority: P1
   depends_on:
   - AOP-020
@@ -617,7 +621,8 @@ work_items:
   milestone: M4
   area: workflows
   title: Build test and dependency maintenance pack
-  status: planned
+  status: delivered
+  evidence: task-23; R-017 at 81213fc
   priority: P1
   depends_on:
   - AOP-020
@@ -1138,7 +1143,8 @@ work_items:
   milestone: M10
   area: security
   title: Complete local file protection and activity history
-  status: planned
+  status: delivered
+  evidence: task-25; R-012 at 53f2084
   priority: P1
   depends_on:
   - AOP-014
@@ -1160,7 +1166,8 @@ work_items:
   milestone: M10
   area: security
   title: Run adversarial boundary and reward-hacking suite
-  status: planned
+  status: delivered
+  evidence: task-29; R-018 at f759151 (da6d782)
   priority: P1
   depends_on:
   - AOP-030
@@ -1183,7 +1190,8 @@ work_items:
   milestone: M10
   area: recovery
   title: Test backup and restore of the full evidence chain
-  status: planned
+  status: delivered
+  evidence: task-30; R-021 at a4c5934; D-1/D-2 fixed at f9cdcf4/6edbdf2
   priority: P1
   depends_on:
   - AOP-005
@@ -1208,7 +1216,8 @@ work_items:
   milestone: M10
   area: deployment
   title: Qualify disconnected installation and execution
-  status: planned
+  status: delivered
+  evidence: disconnected qualification profile; gate step 'disconnected-qualify' PASSED (hop-gate-20261009-190748-8-disconnected)
   priority: P1
   depends_on:
   - AOP-018
@@ -1256,7 +1265,8 @@ work_items:
   milestone: M10
   area: release
   title: Complete end-to-end lifecycle acceptance demonstration
-  status: planned
+  status: in_progress
+  evidence: "G8 blockers open: task-42/task-44/task-45; owner-run G8 (task-38) pending"
   priority: P1
   depends_on:
   - AOP-043

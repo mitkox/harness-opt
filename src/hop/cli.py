@@ -9,6 +9,7 @@ import sys
 from contextvars import ContextVar
 
 from .config import Paths, active_paths, current_paths
+from .envcompat import MIGRATION_DOC, LegacyEnvRemoved
 from .lifecycle import EXIT_CANCELLED, EXIT_USAGE, LifecycleError, RunRequest
 
 _output_format = ContextVar("hop_output_format", default="json")
@@ -562,7 +563,7 @@ def cmd_backup(args) -> int:
     return status
 
 
-def _main(argv=None, prog: str = "hop", legacy: bool = False) -> int:
+def _main(argv=None, prog: str = "hop") -> int:
     parser = argparse.ArgumentParser(prog=prog)
     parser.add_argument("--workspace", default=argparse.SUPPRESS)
     parser.add_argument("--runs-dir", default=argparse.SUPPRESS)
@@ -576,7 +577,7 @@ def _main(argv=None, prog: str = "hop", legacy: bool = False) -> int:
     sub.add_parser("discover").set_defaults(func=cmd_discover)
     r = sub.add_parser("run")
     r.add_argument("--case", required=True)
-    r.add_argument("--model", default="qwen-flash-next" if legacy else "")
+    r.add_argument("--model", default="")
     r.add_argument("--harness", default="pi")
     r.add_argument("--timeout", type=float, default=None)
     r.add_argument("--idempotency-key", default="")
@@ -732,9 +733,9 @@ def _main(argv=None, prog: str = "hop", legacy: bool = False) -> int:
             command.add_argument("left")
             command.add_argument("right")
     args = parser.parse_args(argv)
-    args.legacy = legacy
+    args.legacy = False
     output_token = _output_format.set(
-        "json" if legacy else getattr(args, "format", "text" if sys.stdout.isatty() else "json")
+        getattr(args, "format", "text" if sys.stdout.isatty() else "json")
     )
     path_token = None
     try:
@@ -746,6 +747,13 @@ def _main(argv=None, prog: str = "hop", legacy: bool = False) -> int:
         path_token = active_paths.set(paths)
         args.home = str(paths.home)
         return args.func(args)
+    except LegacyEnvRemoved as exc:
+        return _report_error(
+            "legacy_env_removed",
+            str(exc),
+            EXIT_USAGE,
+            f"Set {exc.canonical} instead (see {MIGRATION_DOC}).",
+        )
     except LifecycleError as exc:
         return _report_error(
             exc.code, str(exc), exc.exit_code, "Check command arguments and run hop doctor."
@@ -765,28 +773,26 @@ def _main(argv=None, prog: str = "hop", legacy: bool = False) -> int:
         _output_format.reset(output_token)
 
 
-def main(argv=None, *, _legacy: bool = False) -> int:
-    """Canonical nested commands with narrow 0.1 syntax shims."""
+def _legacy_removed(form: str, replacement: str) -> int:
+    """Fail closed for a removed 0.1/0.2 command form."""
+    return _report_error(
+        "legacy_command_removed",
+        f"hop 1.0 removed the legacy {form}; use {replacement} (see {MIGRATION_DOC})",
+        EXIT_USAGE,
+        f"Rewrite the command as {replacement} (see {MIGRATION_DOC}).",
+    )
+
+
+def main(argv=None) -> int:
+    """Canonical nested commands only; the 0.1/0.2 shims were removed in 1.0."""
     argv = list(sys.argv[1:] if argv is None else argv)
     if len(argv) >= 2 and argv[0] == "run" and argv[1].startswith("--") and argv[1] != "--help":
-        print("hop: deprecated run syntax; use hop run start", file=sys.stderr)
-        return _main(["run", "start"] + argv[1:], legacy=True)
+        return _legacy_removed("`hop run --case ...` syntax", "`hop run start`")
     if argv and "-" in argv[0]:
         namespace, verb = argv[0].split("-", 1)
         if namespace in ("run", "profile", "component", "skill", "registry"):
-            print("hop: deprecated flat command; use nested commands", file=sys.stderr)
-            return _main([namespace, verb] + argv[1:], legacy=True)
-    return _main(argv, legacy=_legacy)
-
-
-def legacy_main(argv=None) -> int:
-    """Deprecated `aop` alias: same implementation, warns, same semantics."""
-    print(
-        "hop: warning: the `aop` command is deprecated; use `hop` "
-        "(alias removal target: 0.3 after M4 acceptance)",
-        file=sys.stderr,
-    )
-    return main(argv, _legacy=True)
+            return _legacy_removed(f"flat command `{argv[0]}`", f"`hop {namespace} {verb}`")
+    return _main(argv)
 
 
 if __name__ == "__main__":

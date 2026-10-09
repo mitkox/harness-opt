@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "hop"
-version = "0.2.0"
+version = "1.0.0"
 description = "HOP — Harness Optimization Platform: continuous evaluation, optimization, qualification, and distribution of models, skills, prompts, tools, and agent configurations for local coding harnesses"
 requires-python = ">=3.11"
 dependencies = [
@@ -20,7 +20,6 @@ test = [
 
 [project.scripts]
 hop = "hop.cli:main"
-aop = "hop.cli:legacy_main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
