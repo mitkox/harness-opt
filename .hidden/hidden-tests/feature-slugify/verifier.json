@@ -1,0 +1,30 @@
+{
+  "verifier_id": "verifier:feature-slugify",
+  "version": "pack-verifier-v1",
+  "test_files": ["test_hidden_slugify.py", "test_hidden_scope.py"],
+  "expected_tests": [
+    "test_hidden_slugify.py::test_basic_words",
+    "test_hidden_slugify.py::test_case_folding",
+    "test_hidden_slugify.py::test_punctuation_runs",
+    "test_hidden_slugify.py::test_leading_trailing_separators",
+    "test_hidden_slugify.py::test_non_alphanumeric_removed",
+    "test_hidden_slugify.py::test_empty_string",
+    "test_hidden_slugify.py::test_numbers_preserved",
+    "test_hidden_scope.py::test_public_function_exists",
+    "test_hidden_scope.py::test_single_positional_parameter",
+    "test_hidden_scope.py::test_returns_str"
+  ],
+  "mandatory_tests": [
+    "test_hidden_slugify.py::test_basic_words",
+    "test_hidden_slugify.py::test_case_folding",
+    "test_hidden_slugify.py::test_punctuation_runs",
+    "test_hidden_slugify.py::test_leading_trailing_separators",
+    "test_hidden_slugify.py::test_non_alphanumeric_removed",
+    "test_hidden_slugify.py::test_empty_string",
+    "test_hidden_slugify.py::test_numbers_preserved",
+    "test_hidden_scope.py::test_public_function_exists",
+    "test_hidden_scope.py::test_single_positional_parameter",
+    "test_hidden_scope.py::test_returns_str"
+  ],
+  "minimum_test_count": 10
+}

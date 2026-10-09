@@ -1,0 +1,28 @@
+{
+  "verifier_id": "verifier:refactor-dedupe",
+  "version": "pack-verifier-v1",
+  "test_files": ["test_hidden_regression.py", "test_hidden_scope.py"],
+  "expected_tests": [
+    "test_hidden_regression.py::test_normalize_lowercases",
+    "test_hidden_regression.py::test_normalize_collapses_whitespace",
+    "test_hidden_regression.py::test_normalize_strips",
+    "test_hidden_regression.py::test_normalize_empty",
+    "test_hidden_regression.py::test_normalize_preserves_inner_hyphen",
+    "test_hidden_regression.py::test_slug_wrapper_uses_normalize",
+    "test_hidden_scope.py::test_normalize_signature_stable",
+    "test_hidden_scope.py::test_slug_signature_stable",
+    "test_hidden_scope.py::test_public_names"
+  ],
+  "mandatory_tests": [
+    "test_hidden_regression.py::test_normalize_lowercases",
+    "test_hidden_regression.py::test_normalize_collapses_whitespace",
+    "test_hidden_regression.py::test_normalize_strips",
+    "test_hidden_regression.py::test_normalize_empty",
+    "test_hidden_regression.py::test_normalize_preserves_inner_hyphen",
+    "test_hidden_regression.py::test_slug_wrapper_uses_normalize",
+    "test_hidden_scope.py::test_normalize_signature_stable",
+    "test_hidden_scope.py::test_slug_signature_stable",
+    "test_hidden_scope.py::test_public_names"
+  ],
+  "minimum_test_count": 9
+}

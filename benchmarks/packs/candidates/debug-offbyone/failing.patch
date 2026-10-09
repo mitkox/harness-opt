@@ -1,0 +1,8 @@
+--- a/median_bug.py
++++ b/median_bug.py
+@@ -10,4 +10,4 @@
+     if n % 2 == 1:
+         return ordered[mid]
+     # BUG: uses the wrong pair for even-length input.
+-    return (ordered[mid] + ordered[mid + 1]) / 2
++    return float(ordered[mid])

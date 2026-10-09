@@ -152,3 +152,50 @@ Use the pinned environment and focused tests, then run the full applicable suite
 Commit small logical changes, preserve user work and historical evidence, and
 record unavailable prerequisites. Never run old evidence-writing acceptance
 scripts against committed evidence paths without isolating their output first.
+
+## Coding and Debugging Packs (AOP-021)
+
+Workflow packs bind a benchmark case to its independent success evidence:
+hidden behavioral tests, regression tests, and API/scope review. Enabled packs:
+
+| Pack | Kind | Evidence |
+| --- | --- | --- |
+| `pack:coding-feature` (`feature-slugify`) | feature | hidden behavioral tests + API/scope review |
+| `pack:coding-refactor` (`refactor-dedupe`) | refactor | hidden regression tests + API/scope review |
+| `pack:debug-median` (`debug-offbyone`) | reproducer | hidden behavioral tests (shipped fixture) |
+| `pack:debug-wordcount` (`debug-wordcount`) | reproducer | hidden regression tests (shipped fixture) |
+
+Validate one candidate patch on frozen snapshots (baseline first, then the
+patched candidate, then the overfitting signal):
+
+```python
+from hop.evaluation.packs import PACKS_BY_ID, validate_candidate
+pack = PACKS_BY_ID["pack:debug-median"]
+result = validate_candidate(
+    pack,
+    case_dir="benchmarks/development/debug-offbyone",
+    hidden_root=".hidden/hidden-tests",
+    candidate_patch=open("benchmarks/packs/candidates/debug-offbyone/passing.patch").read(),
+    work_root="/tmp/pack-work",
+)
+```
+
+Run the full example matrix (passing, failing, inconclusive; plus the overfit
+fixture) and write one trajectory/completeness artifact per example:
+
+```sh
+PYTHONPATH=src .venv/bin/python -c "
+from hop.evaluation.packs import run_examples
+run_examples(benchmarks_root='benchmarks', hidden_root='.hidden/hidden-tests',
+             work_root='/tmp/pack-work', out_root='/tmp/pack-out')"
+```
+
+Semantics: a pack passes only when every verifier passes; a candidate that
+passes the visible command while a trusted verifier fails and whose patch
+touches only candidate-visible tests is rejected as `visible_test_overfit`.
+Baseline problems are classified before the candidate runs: a baseline that
+cannot collect is `infra_error`, and a baseline whose hidden state contradicts
+the pack expectation is an invalid case reported as `inconclusive` — never
+blamed on the candidate. Hidden fixtures stay evaluator-owned under
+`.hidden/hidden-tests/<case_id>/` and are never copied into a candidate
+workspace. Live model execution remains unexecuted until owner input O2.

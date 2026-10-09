@@ -24,6 +24,8 @@ NEAR_DUPLICATE_THRESHOLD = 0.8
 _INDEX_LINE = re.compile(r"^index [0-9a-f]+\.\.[0-9a-f]+(?: \d+)?$")
 _DIFF_GIT = re.compile(r"^diff --git a/(.+?) b/(.+)$")
 _HUNK = re.compile(r"^@@ ")
+_PLUS = re.compile(r"^\+\+\+ b/(.+?)(?:\t.*)?$")
+_MINUS = re.compile(r"^--- a/(.+?)(?:\t.*)?$")
 
 
 class ProvenanceError(ValueError):
@@ -52,12 +54,26 @@ def patch_digest(patch: str) -> str:
 
 
 def changed_files(patch: str) -> list[str]:
-    """Sorted unique post-image paths touched by the patch."""
+    """Sorted unique post-image paths touched by the patch.
+
+    Handles ``git diff`` output (``diff --git a/... b/...``) and plain unified
+    diffs (``--- a/...`` / ``+++ b/...``), which the pack candidate patches use.
+    """
     paths = {
         match.group(2).strip()
         for line in patch.splitlines()
         if (match := _DIFF_GIT.match(line)) is not None
     }
+    if not paths:
+        for line in patch.splitlines():
+            match = _PLUS.match(line)
+            if match and match.group(1) != "/dev/null":
+                paths.add(match.group(1).strip())
+    if not paths:
+        for line in patch.splitlines():
+            match = _MINUS.match(line)
+            if match and match.group(1) != "/dev/null":
+                paths.add(match.group(1).strip())
     return sorted(paths)
 
 

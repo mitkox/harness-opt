@@ -1,0 +1,16 @@
+task_id: refactor-dedupe-t1
+case_id: refactor-dedupe
+workflow: refactor
+split: development
+time_budget_s: 600
+verifier_ref: verifier:refactor-dedupe:v1
+verifier_id: verifier:refactor-dedupe
+repo_subdir: repo
+allowed_paths:
+  - normalize.py
+  - helpers.py
+  - tests/test_normalize_visible.py
+protected_paths: []
+acceptance:
+  - Hidden regression tests preserve the shipped normalization behavior.
+  - Public API and scope review pass.

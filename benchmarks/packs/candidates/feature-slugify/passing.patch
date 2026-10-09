@@ -1,0 +1,29 @@
+--- a/slugify.py
++++ b/slugify.py
+@@ -1,13 +1,16 @@
+-"""Slug helpers.
+-
+-`slugify` is specified but not implemented yet.
+-"""
++"""Slug helpers."""
+ 
+ 
+ def slugify(text):
+-    """Return a URL-safe slug.
+-
+-    Lowercase; keep ASCII letters/digits; collapse every run of other
+-    characters to a single "-"; strip leading/trailing "-"; "" for empty input.
+-    """
+-    raise NotImplementedError("slugify is not implemented")
++    """Return a URL-safe slug."""
++    out = []
++    pending_separator = False
++    for char in text.lower():
++        if char.isascii() and char.isalnum():
++            if pending_separator and out:
++                out.append("-")
++            pending_separator = False
++            out.append(char)
++        else:
++            pending_separator = True
++    return "".join(out)
