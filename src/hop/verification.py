@@ -718,6 +718,7 @@ def run_verification(
     timeout_s: float = 120.0,
     work_root: str | None = None,
     manifest: dict | None = None,
+    hidden_source: str = "",
 ) -> EvaluationResult:
     """Run hidden tests against the frozen snapshot inside confined namespaces."""
     manifest = manifest or load_verifier_manifest(hidden_case_dir)
@@ -1022,11 +1023,15 @@ def run_verification(
     evidence["report"] = report
     evidence["isolation"] = details["isolation"]
     evidence["resources"] = resources
+    if hidden_source:
+        evidence["hidden_source"] = hidden_source
     evidence_digest = hashlib.sha256(json.dumps(evidence, sort_keys=True).encode()).hexdigest()
     with open(os.path.join(out_dir, "verification.json"), "w") as fh:
         json.dump(evidence, fh, indent=2, sort_keys=True)
     details["verification"] = evidence
     details["evidence_digest"] = evidence_digest
+    if hidden_source:
+        details["hidden_source"] = hidden_source
     return EvaluationResult(
         run_id=run_id,
         attempt_id=attempt_id,

@@ -19,6 +19,7 @@ import threading
 import time
 import traceback
 import uuid
+from dataclasses import dataclass
 from functools import lru_cache, partial
 
 import yaml  # type: ignore[import-untyped]
@@ -40,6 +41,7 @@ from .contracts.records import (
     TrajectoryEvent,
     Verdict,
 )
+from .evaluation.sealed import SealedAccessDenied, SealedIntegrityError, SealedStore
 from .files import atomic_json, ensure_owner_dir, identifier
 from .harnesses.broker import Broker
 from .harnesses.pi_adapter import PiJsonAdapter
@@ -104,6 +106,119 @@ def require_worker_network_isolation(harness: str, report: dict) -> dict:
     if harness == "pi" and not report.get("enforced"):
         raise InfraError("worker_network_isolation_unavailable", str(report.get("reason", "")))
     return report
+
+
+class SealedAdoptionError(RuntimeError):
+    """A declared sealed holdout could not be resolved at the trusted boundary."""
+
+
+@dataclass
+class HiddenCase:
+    """Where the verifier's hidden case came from, for evidence purposes."""
+
+    hidden_dir: str
+    source: str  # "sealed" | "legacy-unsealed"
+    sealed_case_id: str = ""
+    hidden_ref_digest: str = ""
+    ledger_path: str = ""
+    exposure_count: int = 0
+    repeated: bool = False
+    promotion_eligible: bool = True
+
+
+def plan_hidden_case(
+    case_id: str,
+    *,
+    legacy_root: str,
+    sealed_root: str = "",
+    index_path: str = "",
+) -> tuple[str, dict]:
+    """Decide the hidden-case source without reading or ledgering anything.
+
+    Returns ``("sealed", entry)`` when a case index declares a ``hidden_ref``
+    for this benchmark case, else ``("legacy-unsealed", {})``. Planning is
+    side-effect free so a duplicate/idempotent submission cannot record a
+    spurious holdout read.
+    """
+    from .evaluation.splits import default_sealed_root
+
+    index_file = index_path or os.environ.get("HOP_CASE_PACKAGE_INDEX", "")
+    if not sealed_root and not index_file:
+        # No sealed store is configured: stay on the legacy path and do not
+        # touch the default sealed root (which may not exist or be writable).
+        return "legacy-unsealed", {}
+    root = sealed_root or default_sealed_root()
+    if not index_file:
+        index_file = os.path.join(root, "case-index.json")
+    if not os.path.isfile(index_file):
+        return "legacy-unsealed", {}
+    try:
+        with open(index_file, encoding="utf-8") as fh:
+            payload = json.load(fh)
+    except (OSError, json.JSONDecodeError) as exc:
+        raise SealedAdoptionError(f"cannot read case index {index_file}: {exc}") from exc
+    cases = payload.get("cases", payload) if isinstance(payload, dict) else {}
+    entry = dict(cases.get(case_id, {})) if isinstance(cases, dict) else {}
+    if entry.get("hidden_ref"):
+        return "sealed", entry
+    return "legacy-unsealed", {}
+
+
+def materialize_sealed_case(
+    entry: dict,
+    run_dir: str,
+    *,
+    run_id: str,
+    sealed_root: str = "",
+) -> HiddenCase:
+    """Owner-read the sealed holdout (ledgered) and stage it in the run dir.
+
+    Any failure is a hard ``SealedAdoptionError``: a declared sealed case never
+    falls back to the interim ``.hidden/`` tree.
+    """
+    from .evaluation.splits import default_sealed_root
+
+    root = sealed_root or default_sealed_root()
+    hidden_ref = str(entry.get("hidden_ref", ""))
+    sealed_case_id = str(entry.get("case_id", ""))
+    try:
+        store = SealedStore(root)
+        material = store.read(
+            hidden_ref,
+            actor=f"verifier:{run_id}",
+            role="verifier",
+            purpose="evaluation",
+            run_id=run_id,
+        )
+    except (SealedAccessDenied, SealedIntegrityError, KeyError, ValueError) as exc:
+        raise SealedAdoptionError(str(exc)) from exc
+    destination = os.path.join(run_dir, "sealed-case")
+    if os.path.isdir(destination):
+        shutil.rmtree(destination)
+    os.makedirs(destination, mode=0o700)
+    for rel, data in sorted(material.items()):
+        target = os.path.join(destination, rel)
+        os.makedirs(os.path.dirname(target) or destination, mode=0o700, exist_ok=True)
+        fd = os.open(target, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+        try:
+            os.write(fd, data)
+            os.fsync(fd)
+        finally:
+            os.close(fd)
+    report = store.exposure()
+    repeated = sealed_case_id in set(store.repeated_exposure())
+    return HiddenCase(
+        hidden_dir=destination,
+        source="sealed",
+        sealed_case_id=sealed_case_id,
+        hidden_ref_digest="sha256:" + hashlib.sha256(hidden_ref.encode()).hexdigest()[:16],
+        ledger_path=store.ledger.path,
+        exposure_count=int(report.get("counts", {}).get(sealed_case_id, 0)),
+        repeated=repeated,
+        # A repeated holdout exposure invalidates promotion claims for the runs
+        # that read it, not just for a single run reading it twice.
+        promotion_eligible=store.promotion_eligible(run_id) and not repeated,
+    )
 
 
 class InfraError(RuntimeError):
@@ -550,24 +665,50 @@ class Runner:
             compiled_target=(profile_target if profile_info else ""),
             compiled_target_digest=(profile_info["artifact_digest"] if profile_info else ""),
         )
+        # The hidden case is resolved once, here: the sealed store is the only
+        # source when a case index declares a hidden_ref (its read is ledgered),
+        # otherwise the interim .hidden/ tree is used and reported as legacy.
+        run_id = new_id("run")
+        run_dir = os.path.join(self.runs_dir, run_id)
         hidden_root = (
             str(self.paths.verifier / "hidden-tests") if self._explicit_paths else HIDDEN_ROOT
         )
-        hidden_case_dir = os.path.join(hidden_root, case_id)
         verifier_error: VerifierSetupError | None = None
+        hidden_case = HiddenCase(
+            hidden_dir=os.path.join(hidden_root, case_id), source="legacy-unsealed"
+        )
         try:
-            verifier_manifest = load_verifier_manifest(hidden_case_dir)
-            verifier_id = verifier_manifest["verifier_id"]
-            verifier_version = verifier_manifest["version"]
-        except VerifierSetupError as exc:
+            hidden_source, sealed_entry = plan_hidden_case(
+                case_id,
+                legacy_root=hidden_root,
+                sealed_root=os.environ.get("HOP_SEALED_ROOT", ""),
+                index_path=os.environ.get("HOP_CASE_PACKAGE_INDEX", ""),
+            )
+        except SealedAdoptionError as exc:
+            hidden_source, sealed_entry = "legacy-unsealed", {}
+            verifier_error = VerifierSetupError("sealed_case_unavailable", str(exc))
+        hidden_case_dir = os.path.join(hidden_root, case_id)
+        if hidden_source == "sealed":
+            # The sealed manifest is only available after the owner read, which
+            # happens post-admission so duplicate submissions cannot ledger one.
             verifier_manifest = None
-            verifier_error = exc
+            verifier_id, verifier_version = "", ""
+        elif verifier_error is None:
+            try:
+                verifier_manifest = load_verifier_manifest(hidden_case_dir)
+                verifier_id = verifier_manifest["verifier_id"]
+                verifier_version = verifier_manifest["version"]
+            except VerifierSetupError as exc:
+                verifier_manifest = None
+                verifier_error = exc
+                verifier_id, verifier_version = "", ""
+        else:
+            verifier_manifest = None
             verifier_id, verifier_version = "", ""
 
         repo_digest = "sha256:" + hash_tree(repo_src)
         env_digest = environment_digest(case_dir)
         model_digest = model_deployment_digest(deployment)
-        run_id = new_id("run")
         record, created = self.store.admit(
             RunRecord(
                 run_id=run_id,
@@ -593,6 +734,23 @@ class Runner:
         run_id = record.run_id
         run_dir = os.path.join(self.runs_dir, run_id)
         ensure_owner_dir(run_dir)
+        hidden_case = HiddenCase(hidden_dir=hidden_case_dir, source=hidden_source)
+        if hidden_source == "sealed":
+            # Trusted boundary: the only sealed read happens here, once, for the
+            # run that was actually created; it is recorded in the holdout ledger.
+            try:
+                hidden_case = materialize_sealed_case(
+                    sealed_entry,
+                    run_dir,
+                    run_id=run_id,
+                    sealed_root=os.environ.get("HOP_SEALED_ROOT", ""),
+                )
+                hidden_case_dir = hidden_case.hidden_dir
+                verifier_manifest = load_verifier_manifest(hidden_case_dir)
+                verifier_error = None
+            except (SealedAdoptionError, VerifierSetupError) as exc:
+                verifier_manifest = None
+                verifier_error = VerifierSetupError("sealed_case_unavailable", str(exc))
         ledger = EventLedger(os.path.join(run_dir, "events.jsonl"))
         seq: dict[str, int] = {}
         attempt = self.store.new_attempt(
@@ -659,6 +817,15 @@ class Runner:
             profile_info=profile_info,
             profile_target=profile_target,
         )
+        # Hidden-case provenance is evidence, not a contract field: keep it on
+        # the context so the manifest and evaluation report can record it.
+        ctx.hidden_source = hidden_case.source  # type: ignore[attr-defined]
+        ctx.sealed_case_id = hidden_case.sealed_case_id  # type: ignore[attr-defined]
+        ctx.hidden_ref_digest = hidden_case.hidden_ref_digest  # type: ignore[attr-defined]
+        ctx.holdout_ledger = hidden_case.ledger_path  # type: ignore[attr-defined]
+        ctx.holdout_exposure_count = hidden_case.exposure_count  # type: ignore[attr-defined]
+        ctx.holdout_repeated = hidden_case.repeated  # type: ignore[attr-defined]
+        ctx.holdout_promotion_eligible = hidden_case.promotion_eligible  # type: ignore[attr-defined]
         try:
             with CancellationWatch(cancel, cancel_file):
                 return self._run_inner(ctx)
@@ -888,6 +1055,16 @@ class Runner:
                 "hidden_test_hash": hash_hidden_dir(ctx.hidden_case_dir)
                 if os.path.isdir(ctx.hidden_case_dir)
                 else "",
+                # Where the holdout came from: the sealed store (ledgered) or the
+                # interim .hidden/ tree, which stays readable and is reported
+                # legacy/unsealed rather than silently upgraded.
+                "hidden_source": getattr(ctx, "hidden_source", "legacy-unsealed"),
+                "sealed_case_id": getattr(ctx, "sealed_case_id", ""),
+                "hidden_ref_digest": getattr(ctx, "hidden_ref_digest", ""),
+                "holdout_ledger": getattr(ctx, "holdout_ledger", ""),
+                "holdout_exposure_count": getattr(ctx, "holdout_exposure_count", 0),
+                "holdout_repeated": getattr(ctx, "holdout_repeated", False),
+                "holdout_promotion_eligible": getattr(ctx, "holdout_promotion_eligible", True),
             },
         }
         manifest["network"] = network
@@ -1452,10 +1629,21 @@ class Runner:
                     timeout_s=120.0,
                     work_root=os.path.join(ctx.run_dir, "verify"),
                     manifest=ctx.verifier_manifest,
+                    hidden_source=getattr(ctx, "hidden_source", ""),
                 )
                 verifier_ran = True
                 verifier_dt = time.monotonic() - verifier_t0
                 eval_result.agent_claim = execution.output.agent_claim
+                if getattr(ctx, "hidden_source", "") == "sealed":
+                    eval_result.details["holdout"] = {
+                        "source": "sealed",
+                        "sealed_case_id": getattr(ctx, "sealed_case_id", ""),
+                        "hidden_ref_digest": getattr(ctx, "hidden_ref_digest", ""),
+                        "ledger": getattr(ctx, "holdout_ledger", ""),
+                        "exposure_count": getattr(ctx, "holdout_exposure_count", 0),
+                        "repeated": getattr(ctx, "holdout_repeated", False),
+                        "promotion_eligible": getattr(ctx, "holdout_promotion_eligible", True),
+                    }
                 _write_json(
                     os.path.join(ctx.run_dir, "evaluation.json"),
                     eval_result.model_dump(mode="json"),
