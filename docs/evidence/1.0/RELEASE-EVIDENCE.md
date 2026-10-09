@@ -53,9 +53,13 @@ suite_exit=0
 ```
 
 So `scripts/dev check` exits 0 with 0 findings and the full non-live suite is
-551 passed / 0 failed. Historical bytes are unchanged:
-`git diff --numstat -- docs/evidence docs/acceptance-m1.md docs/acceptance-m2.md
-docs/acceptance-m3.md specs` is empty.
+551 passed / 0 failed. Historical bytes are preserved: **no historical file under
+`docs/evidence/foundation/` or `docs/acceptance-foundation.md` is modified or
+deleted anywhere on the branch — the branch only ADDS new files** (the 1.0 pack,
+the new remeasurement and delivery-matrix files). Proven by
+`git diff --numstat 4ba5b1a..HEAD -- docs/evidence/foundation docs/acceptance-foundation.md`
+showing additions only, and `git diff --diff-filter=DM --name-only 4ba5b1a..HEAD -- docs/`
+being empty. The historical M1–M3 acceptance records and `specs/` are untouched.
 
 ## 3. Live local-model acceptance (G8)
 
@@ -79,9 +83,13 @@ qualification of the installed path, not a generalization claim.
   every migration exit code observed from the installed artifact
   (`legacy_env_removed` exit 2 naming `HOP_RUNS_DIR`, `legacy_command_removed`
   exit 2 with rewrite hints, `aop` absent, `AOP_PI_BASE_URL` scrub active). Wheel
-  sha256 `9acc72e73db5653b3e01ba89ec1d89f6b95fa310b2e81c269574a2efe18edaf8`;
-  sdist sha256 `a3a26569c3b1bfa798d7bf73336ab12cb9e5fbd4787f26b6c415227ea1353ffa`
-  is **provisional until task-50** rebuilds it with the migration guide.
+  sha256 `729aeee95c5cf2e83310c64f0383eb7ddaa8803c117e77bb8dafcac72a6f37eb`;
+  sdist sha256 `b38611e7c2ac231b1e13da4829194e456b831aaa440c259fa4b1a87c9a74a3e2`
+  (as-built; the sdist now ships `hop-1.0.0/docs/migration-1.0.md` — task-50
+  complete). The wheel is **byte-reproducible only with `SOURCE_DATE_EPOCH=1700000000`**;
+  plain rebuilds differ in embedded per-file timestamps while content is identical
+  (0 of 79 entries differ in content), so R-026's functional qualification carries
+  over to the final wheel. The wheel still omits `docs/` (D-2, 1.0.1 candidate).
 - `docs/verification/offline-install.md`: **Part B executed end-to-end offline on
   the delivery host** (sdist + wheel built from the tree with the pinned venv,
   installed into a clean venv from a local wheelhouse with `--no-index
@@ -120,14 +128,18 @@ qualification of the installed path, not a generalization claim.
 
 ## 7. Independent review verdict index
 
-`docs/verification/reviews.md` holds R-001–R-024 plus the R-022-HOST closure. Each
-entry binds its verdict to a commit sha; the pack cites those shas above and does
-not restate them. Confirmed entries include R-001 `f5dc9ed`, R-003 `9bcae6e`,
-R-005 `3ba4bad`, R-007 `55e9a9e`, R-009 `1beb23d`, R-010 `105fba5`, R-011
-`f412c84`, R-012 `53f2084`, R-013 `189a782`, R-014 `931d31f`, R-015 `45d8a2e`,
-R-016 `3dd6a21`, R-017 `81213fc`, R-018 `f759151`, R-019 `d71943b`, R-020
-`d1739b4`, R-021 `a4c5934`, R-022 `d920e92` (+ host closure), R-023 `6edbdf2`,
-R-024 `1248b69` (corrections cleared at `6dd0196`).
+`docs/verification/reviews.md` holds R-001–R-027 plus the R-022-HOST closure and
+the R-027 addendum. Each entry binds its verdict to a commit sha; the pack cites
+those shas above and does not restate them. Confirmed entries include R-001
+`f5dc9ed`, R-003 `9bcae6e`, R-005 `3ba4bad`, R-007 `55e9a9e`, R-009 `1beb23d`,
+R-010 `105fba5`, R-011 `f412c84`, R-012 `53f2084`, R-013 `189a782`, R-014
+`931d31f`, R-015 `45d8a2e`, R-016 `3dd6a21`, R-017 `81213fc`, R-018 `f759151`,
+R-019 `d71943b`, R-020 `d1739b4`, R-021 `a4c5934`, R-022 `d920e92` (+ host
+closure), R-023 `6edbdf2`, R-024 `1248b69` (corrections cleared at `6dd0196`),
+R-025 task-35 release engineering `0123cdc`, R-026 task-48 artifact qualification
+`777d753`, R-027 task-36 release evidence pack (this pack) + addendum.
+R-008 is retained as the **pre-fix defect record (NOT CONFIRMED)**; G1 cites
+R-009, not R-008.
 
 ## 8. Unexecuted / blocked (with reasons)
 

@@ -1,130 +1,105 @@
 # Foundation Acceptance Matrix
 
-Date: 2026-10-09.
-Delivery branch: `esf/hop-1.0`.
-Branch tip measured: `f5dc9ed03d8eae1de9d0fdadb39fae4e6e73369a`.
-Historical baseline record: `4e6d6a243e5f46b80318fb35981251ef0392d200` (2026-10-01).
+Date: 2026-10-01. Baseline: `4e6d6a243e5f46b80318fb35981251ef0392d200`.
+Worktree: `/tmp/hop-foundation`, branch `esf/hop-foundation`.
 Work items: HOP-R01-R05. Overall gate: **BLOCKED / PARTIAL DELIVERY**.
-No M4-M10 implementation and no release qualification is claimed. The release
-gate is re-run at the freeze commit; this matrix is a working-branch record.
+No M4-M10 implementation or renewed live release qualification is claimed.
 
-Every row below states whether it was executed in this pass. Cube rows were
-executed by `factory-delivery` and are cited with their run id and artifact
-path; they are not re-labelled as this reviewer's runs. Nothing was published,
-pushed, merged, or deployed.
+## Results
 
-## Results (executed at tip `f5dc9ed`)
+Commands ran from the isolated worktree using the approved offline wheelhouse
+at `/home/mitko/dev/harness-opt/.vendor/wheels`. Shell commands were invoked
+through `rtk proxy`. Sandbox integration required execution outside the tool's
+outer sandbox, which otherwise prevents local socket binding and namespaces.
+This is not disabling HOP's worker sandbox.
 
-Commands run from the delivery worktree with the pinned offline environment
-(`HOP_WHEELHOUSE=/home/mitko/dev/harness-opt/.vendor/wheels scripts/dev bootstrap`).
-
-| Gate | Command | Observed Result |
+| Gate | Command or Regression | Observed Result |
 |---|---|---|
-| Full non-live regression | `scripts/dev test --suite all` | exit 1: **17 failed, 270 passed, 1 deselected, 7 errors** - all red nodes namespace-dependent (see Environment Classification) |
-| Unit suite | `scripts/dev test --suite unit` | exit 0: **203 passed, 92 deselected** |
-| Contract suite | `scripts/dev test --suite contract` | exit 1: **1 failed** (`test_pi_adapter.py::test_prompt_acceptance_is_not_completion`, bwrap), 14 passed, 280 deselected |
-| WP-0.4 focused regressions | `PYTHONPATH=src .venv/bin/python -m pytest tests/test_foundation_fresh_clone.py tests/test_foundation_migration.py tests/test_m2_cli.py::test_migration_keeps_m1_runs_readable tests/test_rename_compat.py::test_historical_m1_runs_readable -o addopts= -q` | exit 0: **9 passed** |
-| Static checks | `scripts/dev check` | exit 3: **BLOCKED** - host `ruff` build does not match the approved pin; approved offline `mypy` is not pinned (`status=blocked`), no PATH substitute accepted (HOP-R02) |
-| Lint | `ruff check src tests scripts/dev scripts/measure_foundation.py` | exit 0: All checks passed (host ruff 0.16.10) |
-| Formatting | `ruff format --check src tests scripts/dev scripts/measure_foundation.py` | exit 0: 84 files already formatted |
-| CLI help | `./hop --help` | exit 0 |
-| Nested CLI help | `./hop profile --help` from the worktree and from `/tmp` | exit 0, usage printed |
-| Measurement utility | `PYTHONDONTWRITEBYTECODE=1 .venv/bin/python scripts/measure_foundation.py --baseline <pinned 4e6d6a2 checkout>` | exit 0; baseline source bytes/lines/sha256 reproduce the 2026-10-01 record exactly |
+| Full non-live regression | `scripts/dev test --suite all` | 278 passed, 1 deselected in 20.38s; exit 0 |
+| Fresh offline developer bootstrap | `HOP_WHEELHOUSE=/home/mitko/dev/harness-opt/.vendor/wheels scripts/dev bootstrap --run-tests` | Pinned install, help validation and non-live suite passed; managed launcher switched; exit 0 |
+| Runtime-only bootstrap | `HOP_WHEELHOUSE=/home/mitko/dev/harness-opt/.vendor/wheels HOP_LOCK_VENV=.venv-runtime scripts/dev bootstrap --runtime` | 11 pinned packages, including trusted-verifier dependencies; exit 0 |
+| Runtime verification | `PYTHONPATH=src .venv-runtime/bin/python -m pytest --noconftest tests/test_verification.py -o addopts= -q` | 17 passed in 1.61s; real verifier isolation, baseline/repair and adversarial cases; exit 0 |
+| Lint and formatting | `scripts/dev check` | Ruff lint and formatting pass; type checker unavailable; aggregate exit 3 |
+| Measurement utility static checks | `ruff check src tests scripts/dev scripts/measure_foundation.py`; corresponding `ruff format --check` | PASS with pinned Ruff 0.16.8 |
+| Installed Pi contract | `scripts/dev test --suite live` | 1 failed, 276 deselected at probe time: observed 1.0.0, historical assertion requires 0.85; exit 1 |
+| Nested help from another directory | `/tmp/hop-foundation/hop profile --help` from `/tmp` | PASS; all five groups additionally covered by tests |
+| CLI and offline setup regressions | `tests/test_foundation_cli.py`, `test_foundation_bootstrap.py` | Included in 278-pass suite; exclusive init, path precedence, missing model, failed replacement preservation |
+| Trust and recovery regressions | `tests/test_foundation_integrity.py`, `test_runner_e2e.py` | Concurrent independent stores, stale workers, corrupt paths/indexes/blobs, pending writes, empty sidecars, spool redelivery, cancellation and terminal store failure |
+| Historical readers | `tests/test_foundation_migration.py`, M2/M3 suites | Committed fixtures copied to temporary directories; malformed data remains an error; history is not rewritten |
+| Backlog reconciliation | YAML parse plus unique-ID/dependency reference checks | 59 unique items; all referenced dependencies exist; stable AOP IDs retained |
+| Historical file preservation | `git diff --numstat -- docs/evidence specs examples requirements.lock AGENTS.md` before new evidence was added | Empty; M1-M3 evidence, schemas, examples and original dependency lock unchanged |
+| Original worktree preservation | `git status --short` in original checkout | Only the pre-existing `M AGENTS.md` |
+| Diff hygiene | `git diff --check` | PASS |
 
-## Cube Gate Results (executed by `factory-delivery`)
+The fresh-bootstrap success preceded the final runtime-dependency regression
+test; the final 278-pass suite covers that additional check. The successful
+runtime bootstrap independently validates the corrected dependency split.
 
-| Run | Revision | Result |
-|---|---|---|
-| `hop-gate-baseline-4ba5b1a3` | `4ba5b1a` | Factory `VERIFICATION_FAILED`; `pytest-nonlive` exit 1 with **18 failed + 7 errors**. Environment-classified (see below). Artifact: `.factory/runs/hop-gate-baseline-4ba5b1a3/`, summary in `.factory/hop-v1/evidence.md` |
-| `hop-gate-diag-m1` | `4ba5b1a` | exit 0: the two M1-evidence tests **PASSED** (`test_migration_keeps_m1_runs_readable`, `test_historical_m1_runs_readable`). Confirms the WP-0.1 expected-RED premise does not hold at this revision. Artifact: `.factory/hop-v1/diag-two-tests.toml` |
+## Failed Attempts Preserved
 
-`./bin/factory sandboxes` reported no remaining sandboxes after both runs
-(`CleanupVerified — NoSandboxesRemain`); no writes were made to
-`/home/mitko/dev/harness-opt`.
-
-## Environment Classification
-
-Both red sets are attributed to the execution environment, not to product
-behavior, and neither is hidden or converted into a pass:
-
-1. **Cube workspace on `tpl-eb9b6ee957064ac09b80cd8e`: `bwrap` not installed.**
-   HOP's hardened runner fails closed with `hop.sandbox.SandboxUnavailable:
-   bwrap missing; refusing to run unisolated`, producing the runner/verification/
-   inference/boundary failures and `error_class='verifier_sandbox_unavailable'`.
-   `bwrap` is installable in this template and the sandbox-marked suite is green
-   there once installed (independent-verifier task-5); the gate workspace had not
-   installed it.
-2. **Cube template interpreter CPython 3.12.12 vs the CPython 3.14/Linux
-   x86-64 wheelhouse.** The three `test_foundation_bootstrap.py` failures follow
-   directly from the offline wheelhouse refusing a non-3.14 interpreter.
-3. **Host (this session): user namespaces denied.** `bwrap` is present but
-   `apparmor_restrict_unprivileged_userns=1` and `unshare --user` fails, so the
-   agent's outer sandbox denies namespace creation. This is the same class of
-   limitation recorded historically ("sandbox integration required execution
-   outside the tool's outer sandbox").
-
-Fixing (1) and (2) belongs to the delivery tooling and boundary work items
-(WP-0.2/WP-1.2/WP-1.4). No sandbox test was weakened to obtain a green result.
+Two earlier fresh-bootstrap attempts encountered real ENOSPC failures: `/tmp`
+reached 1,048,576 used inodes while free byte capacity remained. One attempt had
+3 failures and 4 setup errors; a retry with test scratch on another filesystem
+had 10 APM failures writing checkout-local profile state. Both returned exit 3,
+removed only their unpublished candidate environment, and preserved the active
+launcher. The APM fixture now supplies a temporary home. After host inode
+capacity recovered, fresh bootstrap and the final non-live suite passed.
+No unrelated temporary files or historical environments were deleted.
 
 ## Measurements
 
-Reproduce the historical baseline and the current tip:
+Reproduce with:
 
 ```sh
-# Pinned historical baseline (4e6d6a2), extracted read-only into a scratch dir:
-git archive 4e6d6a243e5f46b80318fb35981251ef0392d200 | tar -x -C <scratch>
-PYTHONDONTWRITEBYTECODE=1 .venv/bin/python scripts/measure_foundation.py --baseline <scratch>
+.venv/bin/python scripts/measure_foundation.py --baseline /home/mitko/dev/harness-opt
+du -s -B1 /home/mitko/dev/harness-opt/.venv-m1 .venv-runtime/
 ```
 
-Raw samples, hashes and the full remeasurement block: `docs/evidence/foundation/measurements.json`.
+Raw samples and source hashes: `docs/evidence/foundation/measurements.json`.
+Same Python 3.14.4 executable, warm local filesystem, ten help timings after
+warmup, five profile compilations after warmup, five trajectory samples.
+The trajectory case returns 100 of 10,000 events while validating the entire
+chain. The old path constructs the full ledger and event list; the new path
+retains only a page plus source counters. It remains O(history) in CPU time;
+it is not an indexed random-access claim.
 
-| Category | Historical (2026-10-01, `4e6d6a2`) | Re-measured baseline (`4e6d6a2`, 2026-10-09) | Current tip (`f5dc9ed`) |
-|---|---:|---:|---:|
-| Python source bytes | 353,395 | 353,395 | 383,408 |
-| Python source lines | 8,342 | 8,342 | 10,390 |
-| Source sha256 | `df79e9a9...` | `df79e9a9...` | `409da094...` |
-| Help startup median | 26.40 ms | 29.15 ms | 30.05 ms |
-| Profile compile median | 7.44 ms | 7.27 ms | 7.27 ms |
-| First trajectory page median | 433.95 ms | 482.01 ms | 90.63 ms |
-| Trajectory peak Python allocation median | 47,143,569 B | 47,139,841 B | 1,266,964 B |
+| Category | Baseline | Current |
+|---|---:|---:|
+| Python source bytes | 353,395 | 383,408 |
+| Python source lines | 8,342 | 10,390 |
+| Runtime environment allocated bytes | 46,616,576 | 42,323,968 |
+| Locked runtime packages | 16 including developer packages | 11 including verifier |
+| Help startup median | 26.40 ms | 30.58 ms |
+| Profile compile median | 7.44 ms | 7.34 ms |
+| First trajectory page median | 433.95 ms | 84.02 ms |
+| Trajectory peak Python allocation median | 47,143,569 bytes | 1,266,471 bytes |
 
-Source bytes/lines/sha256 reproduce the historical baseline exactly, which is
-the reproducibility check for this pass. Wall-clock medians differ by host load
-and patch interpreter version (CPython 3.14.4 historically, 3.14.8 now); they
-are not a model-speed or production-performance claim. The trajectory case
-returns 100 of 10,000 events while validating the whole chain and remains
-O(history) in CPU time; it is not an indexed random-access claim.
-
-The historical `runtime_installation` block (allocated environment bytes and
-locked package counts) is retained in `measurements.json` and was **not
-re-measured** in this pass.
-
-## Unexecuted in This Pass
-
-| Not executed | Reason |
-|---|---|
-| All namespace-dependent tests (sandbox marker): the 17 host failures + 7 fixture errors, and the Cube 18 failures + 7 errors | No usable user namespaces in either environment used in this pass: the host denies them via AppArmor, and the default Cube workspace does not install `bwrap` (installable there). Re-run required on a namespace-capable workspace/template. |
-| `scripts/dev test --suite live` / installed-Pi contract | Owner input O2 (loopback local model) absent; Pi version requalification is owned by HOP-R04/task-9. Historical observation (Pi 1.0.0 vs the 0.85.1 assertion) remains unrequalified. |
-| `scripts/dev check` type checking | Approved offline `mypy` artifact not available (HOP-R02, owner input O1). Recorded as BLOCKED, exit 3 - not a pass. |
-| `HOP_WHEELHOUSE=... scripts/dev bootstrap --run-tests` | Not re-run in this pass. On the current environments it cannot pass, because it runs the full non-live suite (same namespace limitation); the historical 2026-10-01 pass is retained as history, not as a current result. |
-| Runtime-only bootstrap (`--runtime`) | Historical row retained; not re-run in this pass. |
-| Independent security review | Not performed. Required by HOP-R01/R04 before any closure of the three open boundary findings. |
-| Full local-model runs, external observability services, extra adapters, signing, promotion | Out of scope for this foundation pass. |
+Source grew with explicit lifecycle records, correctness controls, CLI commands,
+and mechanical formatting; this is not a line-count reduction. Installation
+shrinks about 9.2%, not the preliminary 26 MB experiment, which incorrectly
+omitted the trusted verifier and was corrected before delivery. Environment
+size excludes system interpreter targets, source, wheelhouse and retained run
+data. Help is modestly slower; compilation is essentially unchanged in this
+sample. No inference, GPU, statistical quality or production-speed claim is made.
 
 ## Outstanding Exit Criteria
 
-* HOP-R01/R04: independent review and closure of worker egress, aggregate
-  descendant resource limits, and current-case verifier isolation. All three
-  remain **OPEN** in `docs/foundation-review.md`; the independent-review block
-  there is unsigned.
-* HOP-R02: approved offline `mypy` artifact and full transitive development
-  lock; `scripts/dev check` must exit 0 offline.
-* HOP-R03: typed request/result/error interfaces, consistent diagnostics across
-  legacy handlers, and early-admission terminal-evidence ownership.
-* HOP-R04: automated pending-write recovery remains unqualified; incomplete
+- HOP-R01/R04: independent review and closure of worker egress, aggregate
+  descendant resource limits, and current-case verifier isolation findings.
+- HOP-R02: approved offline mypy artifact and full transitive development lock.
+  The installed Ruff binary is pinned; a portable developer tool distribution
+  is not yet complete. No packages were downloaded to hide this gap.
+- HOP-R03: uniform typed request/result/error interfaces, consistent diagnostics
+  across all legacy handlers, and early-admission terminal-evidence ownership.
+- HOP-R04: automated pending-write recovery remains unqualified; incomplete
   evidence is retained and rejected rather than silently repaired.
-* HOP-R05: renewed M0-M3 acceptance on a qualified Pi/local-model host.
+- HOP-R05: renewed M0-M3 acceptance on a qualified Pi/local-model host. The
+  historical matrices are evidence, not a substitute for a current run.
+- Full local-model runs, external observability services, additional adapters,
+  signing and promotion were not executed. Independent security review has
+  not occurred. Nothing was published, pushed, merged or deployed.
 
-Next work is foundation closure. AOP-020 remains the next roadmap root only
-after foundation acceptance. All later original acceptance criteria remain in
+Next work is foundation closure, starting with HOP-R02 offline tooling and
+HOP-R04 boundary design/review. AOP-020 remains the next roadmap root only after
+foundation acceptance. All later original acceptance criteria remain in
 `BACKLOG.yaml`; scoped historical delivery does not erase deferred requirements.

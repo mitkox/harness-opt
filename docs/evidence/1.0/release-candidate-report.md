@@ -33,7 +33,7 @@ this release.
 | CI jobs (Part A of offline install) | no external CI execution on this host; deviation list recorded in `docs/verification/offline-install.md` |
 | Host-side bwrap suite in the agent shell | AppArmor-confined shell cannot create namespaces; executed in the Cube gate instead |
 | `scripts/dev test --suite live` green claim | reported by the Lead; not independently re-run in this pack (G8 itself is evidenced by `run-58f5589ef776`) |
-| task-48 artifact qualification | in progress; not claimed (G9 open sub-item) |
+| task-48 artifact qualification | **landed at `777d753`** (`docs/verification/artifact-qualification.md`, R-026); G9 is PASS with an open sub-item: the sdist hash is provisional until task-50 rebuilds it |
 | Hostile-workload qualification | not claimed: scripted adversaries only |
 | Optimizer-vs-interactive scheduling | no optimizer exists in 1.0 |
 | Multi-tenant / shared-host isolation | out of scope (single owner, ADR-011) |
