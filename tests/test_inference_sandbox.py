@@ -2,6 +2,8 @@
 
 import json
 import os
+import shutil
+import sys
 import threading
 import time
 from http.server import BaseHTTPRequestHandler, HTTPServer
@@ -343,3 +345,101 @@ def test_worker_reaches_the_harness_bundle_through_the_binds(tmp_path):
         timeout_s=30.0,
     )
     assert "MISSING" in Path(missing.stdout_path).read_text()
+
+
+# --- WP-1.8: duplicate ro-bind destinations (task-44, G8 blocker #3) ---------
+
+
+def test_build_bwrap_cmd_deduplicates_ro_bind_destinations(tmp_path):
+    layout = sandbox.prepare_layout(str(tmp_path / "worker"))
+    dupes = sandbox.interpreter_ro_binds()
+    dupes = dupes + dupes
+    argv = sandbox.build_bwrap_cmd(
+        ["/bin/true"],
+        cwd=str(layout.workspace),
+        ro_binds=dupes,
+        rw_binds=[(layout.root, layout.root)],
+        share_network=False,
+    )
+    destinations = [argv[i + 2] for i, item in enumerate(argv) if item == "--ro-bind"]
+    assert destinations, "expected ro-binds in the command"
+    assert len(destinations) == len(set(destinations)), (
+        "a destination bound twice makes bwrap fail while creating the path"
+    )
+
+
+def test_duplicate_dir_and_file_binds_still_execute(tmp_path):
+    """Compose the real shape: a directory bind plus a file inside it, twice."""
+    base = tmp_path / "prefix"
+    (base / "bin").mkdir(parents=True)
+    interpreter = base / "bin" / "python"
+    interpreter.write_text("#!/bin/sh\necho RUNS\n")
+    interpreter.chmod(0o700)
+    layout = sandbox.prepare_layout(str(tmp_path / "worker"))
+    probe = sandbox.probe_worker_network_isolation(str(tmp_path / "probe"))
+    if not probe["enforced"]:
+        assert probe["reason"], probe
+        return
+    binds = [(p, p) for p in sandbox.SYSTEM_RO_BINDS]
+    binds += [(str(base), str(base)), (str(interpreter), str(interpreter))]
+    binds += [(str(base), str(base)), (str(interpreter), str(interpreter))]
+    res = sandbox.spawn_confined(
+        [str(interpreter)],
+        cwd=str(layout.workspace),
+        env=sandbox.scrub_worker_env(dict(os.environ)),
+        ro_binds=binds,
+        rw_binds=[(layout.root, layout.root)],
+        spec=sandbox.SandboxSpec(cpu_time_s=30, memory_bytes=2**30),
+        timeout_s=30.0,
+    )
+    assert res.exit_code == 0, Path(res.stderr_path).read_text()[-400:]
+    assert "RUNS" in Path(res.stdout_path).read_text()
+
+
+# --- WP-1.9: relay must exec the qualified absolute harness path (task-45) ---
+
+
+def test_broker_relay_refuses_a_bare_harness_name(monkeypatch):
+    from hop.harnesses import broker_relay
+
+    with pytest.raises(broker_relay.RelayError):
+        broker_relay.qualified_command(["pi", "-p"])
+    with pytest.raises(broker_relay.RelayError):
+        broker_relay.qualified_command([])
+    assert broker_relay.qualified_command(["/abs/pi", "-p"]) == ["/abs/pi", "-p"]
+    executed: dict = {}
+    monkeypatch.setattr(broker_relay, "loopback_up", lambda: True)
+    monkeypatch.setattr(broker_relay.os, "fork", lambda: 1)
+    monkeypatch.setattr(broker_relay.os, "execv", lambda path, argv: executed.update(path=path))
+    monkeypatch.setattr(sys, "argv", ["broker_relay.py", "/tmp/x.sock", "1", "--", "pi", "-p"])
+    with pytest.raises(broker_relay.RelayError):
+        broker_relay.main()
+    assert executed == {}, "a bare harness name must never be exec'd through PATH"
+
+
+def test_broker_relay_ignores_a_hostile_path(tmp_path, monkeypatch):
+    """An absolute qualified path wins even when PATH holds a fake harness."""
+    from hop.harnesses import broker_relay
+
+    real = tmp_path / "real" / "pi"
+    real.parent.mkdir(parents=True)
+    real.write_text("#!/bin/sh\necho REAL\n")
+    real.chmod(0o700)
+    shim_dir = tmp_path / "shim"
+    shim_dir.mkdir()
+    shim = shim_dir / "pi"
+    shim.write_text("#!/bin/sh\necho SHIM\n")
+    shim.chmod(0o700)
+    monkeypatch.setenv("PATH", f"{shim_dir}{os.pathsep}{os.environ.get('PATH', '')}")
+    assert shutil.which("pi") == str(shim)
+    executed: dict = {}
+    monkeypatch.setattr(broker_relay, "loopback_up", lambda: True)
+    monkeypatch.setattr(broker_relay.os, "fork", lambda: 1)
+    monkeypatch.setattr(
+        broker_relay.os, "execv", lambda path, argv: executed.update(path=path, argv=argv)
+    )
+    monkeypatch.setattr(sys, "argv", ["broker_relay.py", "/tmp/x.sock", "1", "--", str(real), "-p"])
+    broker_relay.main()
+    assert executed["path"] == str(real)
+    assert executed["argv"][0] == str(real)
+    assert shim_dir.name not in executed["path"]

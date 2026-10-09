@@ -1113,6 +1113,9 @@ class Runner:
             )
             adapter = PiJsonAdapter(
                 deployment=ctx.deployment,
+                # The probed absolute harness path: the relay must never resolve
+                # the harness through the sandbox PATH.
+                executable=ctx.harness_build.executable,
                 spec=spec,
                 compiled_dir=compiled_dir,
                 broker=broker,

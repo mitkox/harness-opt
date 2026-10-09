@@ -29,6 +29,29 @@ IFF_UP = 0x1
 BACKLOG = 32
 
 
+class RelayError(RuntimeError):
+    """The relay was given a harness command it must not resolve itself."""
+
+
+def qualified_command(command: list[str]) -> list[str]:
+    """Return the harness argv to exec, requiring an absolute ``argv[0]``.
+
+    The relay runs inside the worker's network namespace, where ``PATH`` may
+    contain a stale or hostile shim (a stale ``~/.radicle/bin/pi`` shadowed the
+    qualified mise install). Resolution therefore happens outside the sandbox:
+    the runner passes the probed absolute harness path and this process never
+    searches ``PATH``.
+    """
+    if not command:
+        raise RelayError("relay requires a harness command")
+    if not os.path.isabs(command[0]):
+        raise RelayError(
+            f"harness command must be an absolute path, got {command[0]!r}; "
+            "PATH resolution inside the worker namespace is not allowed"
+        )
+    return command
+
+
 def loopback_up(ifname: str = "lo") -> bool:
     """Bring ``ifname`` up using the kernel ioctl, without iproute2."""
     try:
@@ -93,9 +116,7 @@ def main() -> None:
         raise SystemExit(2) from None
     socket_path = sys.argv[1]
     port = int(sys.argv[2])
-    command = sys.argv[separator + 1 :]
-    if not command:
-        raise SystemExit(2)
+    command = qualified_command(sys.argv[separator + 1 :])
     if not loopback_up():
         # No loopback means no inference path at all; fail before running the
         # harness rather than letting it hang.
@@ -114,7 +135,9 @@ def main() -> None:
             _serve(socket_path, port)
         finally:
             os._exit(0)
-    os.execvpe(command[0], command, os.environ)
+    # execv, never execvpe: the qualified absolute path must not be re-resolved
+    # through the sandbox PATH.
+    os.execv(command[0], command)
 
 
 if __name__ == "__main__":

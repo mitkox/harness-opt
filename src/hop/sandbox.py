@@ -354,6 +354,11 @@ def build_bwrap_cmd(
     for src, dst in list(ro_binds):
         if not os.path.exists(src):
             continue
+        if dst in seen:
+            # Composed bind sets (spawn_isolated + a harness spec) can list the
+            # same destination twice; bwrap cannot mount it twice and dies while
+            # creating the path. The first occurrence wins.
+            continue
         args += ["--ro-bind", src, dst]
         seen.add(dst)
     for src, dst in rw_binds:
