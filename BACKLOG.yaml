@@ -68,7 +68,7 @@ work_items:
   - scripts/dev
   - requirements-runtime.lock
   - development-tools.lock.json
-  evidence: docs/verification/o1-request.md; docs/verification/offline-install.md
+  evidence: internal O1 request and offline-install records (not published)
   acceptance_criteria:
   - Bootstrap without network and preserve the previous environment on failure
   - Separate runtime dependencies and unit, contract, sandbox, and live suites

@@ -204,7 +204,7 @@ limitations. Apply this delta when the ADR is implemented (task-9 owns the file)
   from inside its own execution, regardless of what the agent writes.
 * Live agent runs gain a hard prerequisite: `--unshare-net` plus a working
   in-namespace loopback. On this host the ESF Cube template must be probed
-  (task-5 `docs/verification/cube-capabilities.md`); if the template cannot
+  (task-5 internal Cube capability record, not published); if the template cannot
   create the namespace, the honest outcome is a blocked live path, not a
   qualified one.
 * One additional control-plane process per run, one extra ro mount, and a small

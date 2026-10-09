@@ -99,12 +99,12 @@ after, and independent review confirms the enforcement actually in effect.
 Design inputs already committed: `docs/adr/ADR-012-worker-egress-broker.md`,
 `docs/adr/ADR-013-aggregate-resource-quotas.md`,
 `docs/adr/ADR-005-revision-plan.md`, and
-`docs/verification/boundary-design.md` (task-11). No enforcement is claimed.
+the internal boundary-design study (task-11, not published). No enforcement is claimed.
 
 ### Independent review of the boundary records
 
 Status: **SIGNED** — `independent-verifier`, 2026-10-09, revision `f5dc9ed`
-(review text `5006cf7`; full detail in `docs/verification/reviews.md`, R-004).
+(review text `5006cf7`; full detail in the internal review index, R-004, not published).
 The reviewer independently reproduced the OPEN dispositions, confirmed
 `git diff 4ba5b1a..f5dc9ed -- src/hop` and the boundary tests are empty, and
 required one evidence-text clarification (which is applied above).
@@ -125,7 +125,7 @@ Attestation (verbatim):
 > assigned to task-9, and no boundary test was weakened — subject to the single
 > evidence-text clarification above.
 
-Carried to task-9 from the same review (`docs/verification/reviews.md`, R-002):
+Carried to task-9 from the same review (internal review index, R-002, not published):
 
 * ADR-012 §Decision 1 references `ATTEMPT_KIND == "agent"`, which does not exist
   anywhere in `src/hop` at `f5dc9ed`; task-9 must introduce the guard or name the

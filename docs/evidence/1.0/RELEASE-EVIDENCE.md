@@ -82,7 +82,7 @@ freeze-gate run table is in [freeze-gate.md](freeze-gate.md).
 
 ## 4. Offline install and release artifacts
 
-- `docs/verification/artifact-qualification.md` (commit `777d753`): **offline
+- Internal artifact-qualification record (commit `777d753`, not published): **offline
   fresh-venv install of `hop-1.0.0` from the wheel with `--no-index
   --require-hashes` — zero downloads, one console script, `pip check` clean**, and
   every migration exit code observed from the installed artifact
@@ -105,7 +105,7 @@ freeze-gate run table is in [freeze-gate.md](freeze-gate.md).
   two plain builds 4 s apart differ only in embedded zip timestamps while all 80
   per-entry sha256 values are equal. So the wheel is byte-reproducible only with the
   epoch set; the sdist digest is recorded as-built.
-- `docs/verification/offline-install.md`: **Part B executed end-to-end offline on
+- Internal offline-install record (not published): **Part B executed end-to-end offline on
   the delivery host** (sdist + wheel built from the tree with the pinned venv,
   installed into a clean venv from a local wheelhouse with `--no-index
   --require-hashes`, `hop --help` / `hop doctor` / smoke command recorded, wheel
@@ -143,7 +143,7 @@ freeze-gate run table is in [freeze-gate.md](freeze-gate.md).
 
 ## 7. Independent review verdict index
 
-`docs/verification/reviews.md` holds R-001–R-027 plus the R-022-HOST closure and
+The internal review index (not published) holds R-001–R-027 plus the R-022-HOST closure and
 the R-027 addendum. Each entry binds its verdict to a commit sha; the pack cites
 those shas above and does not restate them. Confirmed entries include R-001
 `f5dc9ed`, R-003 `9bcae6e`, R-005 `3ba4bad`, R-007 `55e9a9e`, R-009 `1beb23d`,
@@ -161,7 +161,7 @@ R-009, not R-008.
 | Item | Status | Reason |
 |------|--------|--------|
 | CI jobs (Part A of offline install) | unexecuted | no external CI execution on this host; deviation list recorded |
-| sdist installation qualification | unexecuted | only the wheel was installed and qualified; the sdist contents were inspected (`docs/verification/artifact-qualification.md` §9) and its hash is provisional until task-50 |
+| sdist installation qualification | unexecuted | only the wheel was installed and qualified; the sdist contents were inspected (internal artifact-qualification record §9, not published) and its hash is provisional until task-50 |
 | `hop run start` from the installed artifact | unexecuted | needs a registered local deployment and a namespace-capable shell; the source-tree equivalent is G8 |
 | Sandboxed isolation from the installed artifact | unexecuted | the agent shell cannot create user namespaces; covered for the source tree by the ESF Cube gate |
 | Host-side bwrap-dependent suite in the agent shell | blocked | the agent shell is AppArmor-confined and cannot create namespaces; executed in the Cube gate instead |

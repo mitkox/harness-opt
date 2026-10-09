@@ -16,7 +16,7 @@ BUILD_VENV="${HOP_BUILD_VENV:-$ROOT/.venvs/release-build}"
 PROBE_VENV="${HOP_PROBE_VENV:-$ROOT/.venvs/release-probe}"
 
 # Approved local build backend (host artifact; no download). See
-# docs/verification/offline-install.md for provenance. 78.1.1 is rejected: it
+# the internal offline-install record for provenance. 78.1.1 is rejected: it
 # fails on CPython 3.14 with AttributeError: install_layout.
 SETUPTOOLS_VERSION="79.0.1"
 SETUPTOOLS_SHA256="e147c0549f27767ba362f9da434eab9c5dc0045d5304feb602a0af001089fc51"

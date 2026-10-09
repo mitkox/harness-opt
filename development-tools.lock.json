@@ -23,7 +23,7 @@
       "manifest": "mypy-cp313-library-manifest.sha256",
       "manifest_sha256": "8196564ee5eea6b4da0c78fa428a494cdd07f54c8cb8ae68f8c6a66113203edb",
       "status": "pinned_local_environment",
-      "source": "Owner input O1 (fallback): the mypy 2.3.1 install in /home/mitko/dev/casa/.venv. The pure-python repack from that tree cannot run on CPython 3.14 because mypy hard-imports the compiled-only librt package; this pin therefore runs mypy with the pinned CPython 3.13.13 interpreter that owns the verified library tree. See docs/verification/o1-request.md.",
+      "source": "Owner input O1 (fallback): the owner-supplied mypy 2.3.1 environment (path not published). The pure-python repack from that tree cannot run on CPython 3.14 because mypy hard-imports the compiled-only librt package; this pin therefore runs mypy with the pinned CPython 3.13.13 interpreter that owns the verified library tree. See the internal O1 request record (not published).",
       "deviation": "Type checking executes under CPython 3.13.13 with --python-version 3.14 targeting the evidenced platform; the toolchain is hash-verified by interpreter_sha256 + manifest_sha256 and no PATH mypy is accepted."
     }
   }

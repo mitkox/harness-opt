@@ -20,7 +20,7 @@ explicitly **not** part of this release.
 
 ## Release artifacts
 
-Built at the **frozen revision `779e73f61f5112b681242e0376ed9c78c6e2d9e1`** with
+Built at the **release revision** with
 
 ```sh
 SOURCE_DATE_EPOCH=1700000000 HOP_WHEELHOUSE=/home/mitko/dev/esf/worktrees/hop-wheelhouse \
@@ -43,9 +43,9 @@ wheels) was refreshed by the same run. The installed wheel reports
 
 **These hashes supersede the earlier artifacts.** WP-4.1 (`9acc72e7…` wheel,
 `a3a26569…` sdist) and WP-4.5 (`729aeee9…` wheel, `b38611e7…` sdist) were built
-before task-51 (`456aa7b`) added `hop/evaluation/legacy.py`, so they did not
-cover the frozen content; they must not be cited as the 1.0.0 artifacts. The
-frozen-revision wheel has **80 entries including `hop/evaluation/legacy.py`**.
+before task-51 added `hop/evaluation/legacy.py`, so they did not
+cover the release content; they must not be cited as the 1.0.0 artifacts. The
+release wheel has **80 entries including `hop/evaluation/legacy.py`**.
 
 **Artifact contents.** The wheel stays minimal: `hop/` plus its dist-info (80
 entries, no `docs/`), because the installed CLI diagnostics are self-contained.
@@ -57,7 +57,7 @@ migration diagnostic points at) and `docs/release-1.0.0.md`, declared in
 **Reproducibility.** Setuptools embeds per-file timestamps in the wheel, so a
 plain rebuild changes the wheel's bytes even when its contents are identical.
 Building with `SOURCE_DATE_EPOCH=1700000000` makes the wheel byte-reproducible:
-two consecutive builds at the frozen revision both produced the `42439320…`
+two consecutive builds at the release revision both produced the `42439320…`
 hash above. The sdist's *contents* are stable, but its compressed bytes still
 vary between builds, so its digest is recorded as built at this run rather than
 as a reproducible value.
@@ -119,12 +119,11 @@ acceptance records remain byte-identical and readable.
 - Owner-confirmed local activation and rollback (M8).
 - Optional local build-repair fixtures (AOP-023) and calibrated local judges
   (AOP-026).
-- Live local-model acceptance was **executed and passed** at
-  `138a4ef` (`run-58f5589ef776`: `outcome: pass`, `verdict: pass`,
-  `agent_seconds 47.71`, Pi 1.1.0 qualified, deployment
-  `qwen-flash-next-IQ2_S_-_2.5_bpw`); see
-  `docs/evidence/1.0/live-model-acceptance.md`. It is re-run at the frozen sha
-  by the freeze gate (WP-5.1). The pinned Pi 1.1.0 build was requalified
+- Live local-model acceptance was **executed and passed**
+  (`run-58f5589ef776`: `outcome: pass`, `verdict: pass`, `agent_seconds 47.71`,
+  Pi 1.1.0 qualified, deployment `qwen-flash-next-IQ2_S_-_2.5_bpw`) and re-run at
+  the release revision (`run-85d1c3a117ef`: `outcome: pass`, `verdict: pass`,
+  `agent_seconds 44.71`); see `docs/evidence/1.0/live-model-acceptance.md`. The pinned Pi 1.1.0 build was requalified
   (task-19). Nothing here is inferred from fixtures.
 - The M10 end-to-end lifecycle demonstration (AOP-054) is delivered with gate
   `hop-gate-task32-674b991`: import → protected splits → frozen evaluation →
@@ -142,7 +141,7 @@ acceptance records remain byte-identical and readable.
   evidence pack (`docs/evidence/1.0/`, WP-4.2).
 - `scripts/dev check` exits 0 with 0 findings; the host unit suite is green.
 - Independent verification: the verdict index in
-  `docs/verification/reviews.md` (R-001–R-023) binds each confirmed claim to a
+  the internal review index (not published) (R-001–R-023) binds each confirmed claim to a
   commit sha.
 
 ## Owner actions

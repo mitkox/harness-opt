@@ -82,7 +82,7 @@ was fixed with a regression test and an ESF gate run:
   adversarial network-denial test — and 12 failed + 7 errors before the bind
   fixes.) Exact commands and output are in `.factory/host-final-r4.log`.
 - Independent verification of the sandbox/isolation changes is recorded in
-  `docs/verification/reviews.md` (R-008…R-022); the Cube gate proves the same
+  the internal review index (not published) (R-008…R-022); the Cube gate proves the same
   paths wherever namespaces are available.
 
 ## Limitations

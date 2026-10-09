@@ -95,10 +95,10 @@ gate **PASSED** (CPython 3.12.12 + bubblewrap 0.8.0, sandbox suite with zero
 skips, 0 leftover sandboxes), `scripts/dev check` exits **0** with no findings,
 and the offline release artifacts (`hop-1.0.0-py3-none-any.whl`,
 `hop-1.0.0.tar.gz`) build and install with no network
-([offline-install.md](docs/verification/offline-install.md)). Live local-model
-acceptance and the pinned Pi requalification remain **unexecuted** (no qualified
-local deployment); CI definitions are unexecuted on this host. A merge into
-`master` does not waive these or authorize M5–M9.
+([release-1.0.0.md](docs/release-1.0.0.md)). Live local-model
+acceptance **passed** against the registered loopback deployment and the pinned Pi
+1.1.0 build is requalified; CI definitions remain unexecuted on this host. A merge
+into `master` does not waive these or authorize M5–M9.
 
 Implemented (M0–M3 plus the AOP → HOP rename, foundation acceptance, and the
 WP-4.1a CI/release path):
@@ -210,8 +210,8 @@ No manual `PYTHONPATH`, editable install, or package download is required.
 Type checking is pinned to an approved offline `local_environment`
 (`development-tools.lock.json`) and `scripts/dev check` exits 0 at the accepted
 tip; the cp313-interpreter deviation and the CI-vs-local difference are recorded
-in [o1-request.md](docs/verification/o1-request.md) and
-[offline-install.md](docs/verification/offline-install.md).
+in `development-tools.lock.json` and the internal verification records (not
+published); see [release-1.0.0.md](docs/release-1.0.0.md).
 
 Register the machine's real deployments and harnesses:
 
@@ -309,8 +309,9 @@ tests/              unit, contract, security, and e2e tests
   `blocked` with an explicit `unenforced[]`; the verifier runs candidate code in
   its own namespace over a frozen snapshot. This is boundary enforcement with
   honest capability reporting, **not** hostile-workload qualification.
-- Live local-model acceptance and the pinned Pi build requalification are
-  unexecuted; no live capability is claimed from fixtures.
+- Live local-model acceptance passed against the registered loopback deployment
+  and the pinned Pi 1.1.0 build is requalified; no live capability is claimed from
+  fixtures.
 - PostgreSQL, multi-node scheduling, remote publishers, and organizational
   administration are out of scope, not deferred requirements. See
   [the single-user decision](docs/adr/ADR-011-single-user.md).

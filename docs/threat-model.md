@@ -260,7 +260,7 @@ must not be described as closed:
   protection beyond the current mounts remain future work.
 - **Host-specific gaps.** Whether a given host/template can create the network
   namespace or delegate cgroups is measured per host (WP-0.5
-  `docs/verification/cube-capabilities.md`); a template that cannot do so yields
+  internal Cube capability record, not published); a template that cannot do so yields
   blocked/limited status, not a qualified live path. Measured so far: Cube
   template `tpl-eb9b6ee957064ac09b80cd8e` has cgroup v2 fully delegated
   (`mkdir`/`subtree_control`/limit writes/placement/`rmdir` all succeed), so the
@@ -289,7 +289,7 @@ Implemented at baseline:
 
 Required new fixtures for the approved designs (must be RED before and GREEN
 after the corresponding implementation; inventory and commands in
-`docs/verification/boundary-design.md` §5):
+internal boundary-design study §5, not published):
 
 - Worker cannot reach a host listener, public DNS, or any non-loopback address
   under `--unshare-net`.
@@ -324,14 +324,14 @@ This section is the release sign-off. The design sections above are the historic
 M1/AOP-003 record and are **not rewritten**; where they say "approved design, not
 implemented", that status is superseded for 1.0.0 by the independent verdicts
 below. Every control cited here points at a review entry in
-`docs/verification/reviews.md`.
+the internal review index (not published).
 
 ## Approved designs: implemented and independently confirmed
 
 | Design | Status in 1.0.0 | Independent evidence |
 |--------|-----------------|----------------------|
-| ADR-012 worker egress broker (no-network worker + per-run broker socket/token) | implemented | R-010 at `105fba5`; broker isolation test in `docs/verification/overhead-report.md`; gate `hop-gate-task31-4cfb317` |
-| ADR-013 aggregate cgroup v2 quotas (enforced/limited/blocked with `unenforced[]`) | implemented; host reports limited/unavailable honestly | R-009 at `1beb23d`; `docs/verification/cube-capabilities.md` |
+| ADR-012 worker egress broker (no-network worker + per-run broker socket/token) | implemented | R-010 at `105fba5`; broker isolation test in the internal overhead report (not published); gate `hop-gate-task31-4cfb317` |
+| ADR-013 aggregate cgroup v2 quotas (enforced/limited/blocked with `unenforced[]`) | implemented; host reports limited/unavailable honestly | R-009 at `1beb23d`; internal Cube capability record (not published) |
 | ADR-005 revision: verifier trusted host + candidate namespace | implemented | R-009 at `1beb23d`; R-016 at `3dd6a21`; `hop-gate-task32-674b991` (sandbox 99/0/0/0) |
 | Sealed evaluator storage, splits and access ledger | implemented and adopted in the run/verify path | R-011 at `f412c84`, R-014 at `931d31f`, R-016 at `3dd6a21` |
 | Owner-only storage, worker path isolation, activity history | implemented | R-012 at `53f2084` |

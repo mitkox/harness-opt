@@ -127,7 +127,7 @@ Test shape (fails before this change, passes after):
 
 These are the negative/adversarial tests that must be RED before task-9's
 verifier change and GREEN after; the full test inventory is in
-`docs/verification/boundary-design.md`.
+the internal boundary-design study (not published).
 
 ## ADR-005 text changes to apply (task-9 owns `docs/adr/` for this work)
 

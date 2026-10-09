@@ -45,7 +45,7 @@ counted as acceptance failures; the Cube gate result is authoritative.
 | Item | Disposition | Evidence |
 |------|-------------|----------|
 | HOP-R01 baseline and scope reconciliation | closed | `docs/foundation-review.md`, `docs/acceptance-foundation.md` (historical 2026-10-01 matrix, bytes preserved), `docs/acceptance-foundation-delivery-2026-10-09.md` (renewed delivery-branch matrix, WP-4.7), independent sign-off commits |
-| HOP-R02 reproducible tests and non-destructive offline setup | closed at toolchain level | `scripts/dev` fail-closed resolution; `scripts/dev check` exit 0; `docs/verification/o1-request.md` |
+| HOP-R02 reproducible tests and non-destructive offline setup | closed at toolchain level | `scripts/dev` fail-closed resolution; `scripts/dev check` exit 0; internal O1 request record (not published) |
 | HOP-R03 typed lifecycle orchestration and CLI configuration | closed | typed lifecycle interfaces; unified exit codes 0/1/2/3/130; slice tests in the gate run |
 | HOP-R04 integrity, isolation and recovery | closed | egress broker (ADR-012), cgroup quotas with honest `unenforced[]` (ADR-013), verifier candidate isolation (ADR-005 revision); negative tests in `tests/security/**`; independent reviews R-008/R-009/R-010 |
 | HOP-R05 documentation consolidation and renewed acceptance | closed | this document; `docs/runbook.md`; README/AGENTS/BUILD_PLAN/BACKLOG reconciliation |

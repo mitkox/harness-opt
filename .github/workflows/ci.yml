@@ -2,7 +2,7 @@
 #
 # Honest status of this definition (WP-4.1a):
 #   * NOT EXECUTED on the delivery host: that host has no network and no GitHub
-#     runner. Local evidence lives in docs/verification/offline-install.md; this
+#     runner. Local evidence lives in the internal offline-install record (not published); this
 #     file is a definition, not evidence that a job passed.
 #   * No job uses `continue-on-error`, `if: false`, or a silent skip. A gate that
 #     cannot run fails red rather than reporting green.
@@ -54,7 +54,7 @@ jobs:
       - uses: astral-sh/setup-uv@v6
         with:
           version: "0.12.24"
-      # DEVIATION (recorded in docs/verification/offline-install.md): the local
+      # DEVIATION (recorded in the internal offline-install record, not published): the local
       # authoritative pin runs mypy 2.3.1 with the cp313 interpreter and verifies
       # a 1149-file sha256 manifest. A GitHub runner cannot reproduce that tree.
       # This job is therefore a different execution path that pins the same
