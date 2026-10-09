@@ -1,0 +1,11 @@
+--- a/textnorm.py
++++ b/textnorm.py
+@@ -3,7 +3,7 @@
+ 
+ def normalize(value: str) -> str:
+     """Trim surrounding whitespace and lower-case the text."""
+-    return value.strip().lower()
++    return value.lower()
+ 
+ 
+ def titleize(value: str) -> str:

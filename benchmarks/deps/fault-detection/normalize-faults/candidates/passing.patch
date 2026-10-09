@@ -1,0 +1,21 @@
+--- a/tests/test_visible.py
++++ b/tests/test_visible.py
+@@ -1,7 +1,15 @@
+-"""Candidate-visible tests (initially no behavioral coverage)."""
++"""Candidate-visible behavioral tests."""
+ 
+ import textnorm
+ 
+ 
+-def test_module_imports():
+-    assert textnorm is not None
++def test_normalize_strips_and_lowercases():
++    assert textnorm.normalize("  MiXeD  ") == "mixed"
++
++
++def test_normalize_blank():
++    assert textnorm.normalize("   ") == ""
++
++
++def test_titleize_trims():
++    assert textnorm.titleize("  hello world ") == "Hello World"

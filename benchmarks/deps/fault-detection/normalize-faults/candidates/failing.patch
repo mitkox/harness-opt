@@ -1,0 +1,13 @@
+--- a/tests/test_visible.py
++++ b/tests/test_visible.py
+@@ -1,7 +1,7 @@
+-"""Candidate-visible tests (initially no behavioral coverage)."""
++"""Candidate-visible tests (misses the strip fault)."""
+ 
+ import textnorm
+ 
+ 
+-def test_module_imports():
+-    assert textnorm is not None
++def test_normalize_lowercases():
++    assert textnorm.normalize("MiXeD") == "mixed"

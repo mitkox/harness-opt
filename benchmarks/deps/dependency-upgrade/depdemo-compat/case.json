@@ -1,0 +1,32 @@
+{
+  "case_id": "depdemo-compat",
+  "title": "Upgrade a pinned local dependency with compatibility evidence",
+  "repo_subdir": "repo",
+  "compatibility_tests": ["test_compat.py"],
+  "upgrades": [
+    {
+      "package": "depdemo",
+      "from_version": "1.0.0",
+      "to_version": "1.1.0",
+      "source_dir": "deps/depdemo-1.1.0",
+      "expectation": "pass",
+      "notes": "additive release; documented format_value contract preserved"
+    },
+    {
+      "package": "depdemo",
+      "from_version": "1.0.0",
+      "to_version": "2.0.0",
+      "source_dir": "deps/depdemo-2.0.0",
+      "expectation": "fail",
+      "notes": "breaking behavior change; the compatibility verifier must reject it"
+    },
+    {
+      "package": "depdemo",
+      "from_version": "1.0.0",
+      "to_version": "3.0.0",
+      "source_dir": "deps/depdemo-3.0.0",
+      "expectation": "blocked",
+      "notes": "no local artifact and no local source tree"
+    }
+  ]
+}
