@@ -31,8 +31,8 @@
     "public_tests": {"type": "array", "items": {"type": "string", "minLength": 1}},
     "hidden_ref": {
       "type": "string",
-      "minLength": 1,
-      "description": "OPAQUE holdout token. Packs must not resolve it; sealed storage is AOP-020 half B."
+      "pattern": "^(unassigned|sealed-unassigned:case-[0-9a-f]{16}|[0-9a-f]{32})$",
+      "description": "OPAQUE holdout token in one of three legitimate forms. Packs must not resolve it; sealed tokens are attached in memory and never persisted in package files (AOP-020 half B)."
     },
     "visible_tests": {"type": "array", "items": {"type": "string", "minLength": 1}},
     "provenance_path": {"type": "string"},

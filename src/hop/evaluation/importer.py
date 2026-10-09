@@ -175,11 +175,14 @@ def _tree_entries(repo: str | Path, sha: str, *, limit: int = 20000) -> list[Rep
 
 
 def _tree_digest(entries: list[RepositoryEntry]) -> str:
+    """Digest every manifest entry field, including the content ``sha256``."""
     digest = hashlib.sha256()
     for entry in entries:
         digest.update(entry.path.encode())
         digest.update(b"\0")
         digest.update(entry.blob_sha.encode())
+        digest.update(b"\0")
+        digest.update(entry.sha256.encode())
         digest.update(b"\0")
     return "sha256:" + digest.hexdigest()
 
@@ -246,6 +249,16 @@ def import_snapshot(
                 issue_ref=issue_reference(message, _branch_topic(repo, sha)),
             )
         )
+
+    # A typo in an explicit group must fail loudly rather than silently
+    # re-grouping the remaining commits.
+    known = set(shas)
+    for explicit in explicit_groups or []:
+        unknown = sorted(sha for sha in explicit if sha not in known)
+        if unknown:
+            raise SnapshotImportError(
+                "explicit group references unknown commits: " + ", ".join(unknown)
+            )
 
     groups = group_commits(facts, window_minutes=window_minutes, explicit_groups=explicit_groups)
     by_sha = {fact.commit_sha: fact for fact in facts}

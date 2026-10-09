@@ -27,6 +27,11 @@ from .provenance import near_duplicate, patch_digest
 
 DEFAULT_WINDOW_MINUTES = 180
 
+
+class GroupingError(ValueError):
+    """Grouping inputs are inconsistent (e.g. an unknown explicit commit)."""
+
+
 _TRAILER = re.compile(
     r"(?im)^\s*(?:case|issue|refs?|fixes|closes)\s*:\s*([A-Za-z0-9][A-Za-z0-9._/-]*)"
 )
@@ -141,6 +146,11 @@ def group_commits(
                 union(left.commit_sha, right.commit_sha)
 
     for members in explicit_groups or []:
+        unknown = sorted(sha for sha in members if sha not in parent)
+        if unknown:
+            raise GroupingError(
+                "explicit group references unknown commits: " + ", ".join(unknown)
+            )
         present = [sha for sha in members if sha in parent]
         for sha in present[1:]:
             union(present[0], sha)

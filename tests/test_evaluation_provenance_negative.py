@@ -8,8 +8,16 @@ import subprocess
 from pathlib import Path
 
 import pytest
+import yaml
+from pydantic import ValidationError
 
-from hop.contracts.evaluation import EnvironmentLock, RepositoryManifest, SourceProvenance
+from hop.contracts.evaluation import (
+    CaseGroup,
+    CasePackage,
+    EnvironmentLock,
+    RepositoryManifest,
+    SourceProvenance,
+)
 from hop.evaluation import cases
 from hop.evaluation.cases import CaseImportError, write_case_package
 from hop.evaluation.importer import SnapshotImportError, import_snapshot
@@ -141,7 +149,7 @@ def test_writer_rejects_inconsistent_provenance_and_empty_hidden_ref(tmp_path):
             repository_manifest=manifest,
             environment_lock=lock,
             provenance=provenance,
-            hidden_ref="opaque:token",
+            hidden_ref=f"sealed-unassigned:{provenance.case_id}",
         )
     with pytest.raises(CaseImportError, match="hidden_ref"):
         write_case_package(
@@ -170,5 +178,123 @@ def test_writer_rejects_manifest_commit_mismatch(tmp_path):
             repository_manifest=manifest,
             environment_lock=lock,
             provenance=provenance,
-            hidden_ref="opaque:token",
+            hidden_ref=f"sealed-unassigned:{provenance.case_id}",
         )
+
+
+# -- WP-2.1f integrity tightening (A-5..A-9) --------------------------------
+
+
+def test_manifest_digest_covers_entry_sha256(tmp_path):
+    """A-6: mutating entries[].sha256 must invalidate the manifest digest."""
+    out = tmp_path / "out"
+    result = import_snapshot(_repo(tmp_path), out)
+    root = out / result.packages[0].case_id
+    path = root / "repository.manifest.json"
+    data = json.loads(path.read_text())
+    assert data["entries"], "fixture must contain at least one entry"
+    data["entries"][0]["sha256"] = "sha256:" + "00" * 32
+    path.write_text(json.dumps(data, indent=2, sort_keys=True) + "\n")
+    with pytest.raises(CaseImportError, match="manifest digest mismatch"):
+        cases.load_case_package(root)
+
+
+def test_verify_case_package_detects_tamper(tmp_path):
+    """A-5: a trusted recorded digest detects an edited package."""
+    out = tmp_path / "out"
+    result = import_snapshot(_repo(tmp_path), out)
+    root = out / result.packages[0].case_id
+    recorded = cases.load_case_package(root).content_digest
+    assert cases.verify_case_package(root, recorded) == recorded
+    prompt = root / "prompt.md"
+    prompt.write_text(prompt.read_text() + "tampered\n")
+    with pytest.raises(CaseImportError, match="content digest mismatch"):
+        cases.verify_case_package(root, recorded)
+
+
+def test_sealed_token_never_appears_in_package_files(tmp_path):
+    """A-7: a sealed token is attached in memory, never persisted."""
+    from hop.evaluation.sealed.store import with_hidden_ref
+
+    out = tmp_path / "out"
+    result = import_snapshot(_repo(tmp_path), out)
+    root = out / result.packages[0].case_id
+    token = "ab" * 16
+    record = cases.load_case_package(root)
+    attached = with_hidden_ref(record, token)
+    assert attached.hidden_ref == token
+    for path in root.rglob("*"):
+        if path.is_file():
+            assert token not in path.read_text(errors="ignore"), path
+
+    task = root / "task.yaml"
+    data = yaml.safe_load(task.read_text())
+    data["hidden_ref"] = token
+    task.write_text(yaml.safe_dump(data, sort_keys=True))
+    with pytest.raises(CaseImportError, match="sealed tokens are never persisted"):
+        cases.load_case_package(root)
+
+
+@pytest.mark.parametrize(
+    "payload",
+    [
+        {
+            "group_id": "group-" + "0" * 16,
+            "repository": "sha256:" + "11" * 32,
+            "commit_shas": ["not-a-sha"],
+            "patch_digests": ["sha256:" + "22" * 32],
+        },
+        {
+            "group_id": "group-" + "0" * 16,
+            "repository": "sha256:" + "11" * 32,
+            "commit_shas": ["a" * 40],
+            "patch_digests": ["not-a-digest"],
+        },
+    ],
+)
+def test_case_group_items_are_patterned(payload):
+    """A-8: per-item patterns reject non-sha/non-digest members."""
+    with pytest.raises(ValidationError):
+        CaseGroup.model_validate(payload)
+
+
+def test_provenance_ancestry_items_are_patterned():
+    with pytest.raises(ValidationError):
+        SourceProvenance(
+            case_id="case-" + "ab" * 8,
+            origin="local-git",
+            repository="sha256:" + "11" * 32,
+            commit_sha="a" * 40,
+            ancestry=["not-a-sha"],
+            patch_digest="sha256:" + "22" * 32,
+        )
+
+
+@pytest.mark.parametrize("value", ["../../etc/passwd", "not a token", "case-" + "ab" * 8])
+def test_hidden_ref_pattern_rejects_unknown_forms(value):
+    with pytest.raises(ValidationError):
+        CasePackage(
+            case_id="case-" + "ab" * 8,
+            group_id="group-" + "0" * 16,
+            root="pkg",
+            task_path="task.yaml",
+            hidden_ref=value,
+        )
+
+
+def test_explicit_group_unknown_sha_is_a_typed_error(tmp_path):
+    """A-9: a typo in an explicit group fails instead of silently dropping."""
+    from hop.evaluation.grouping import CommitFact, GroupingError, group_commits
+
+    repo = _repo(tmp_path)
+    with pytest.raises(SnapshotImportError, match="unknown commits"):
+        import_snapshot(repo, tmp_path / "out", explicit_groups=[["f" * 40]])
+
+    fact = CommitFact(
+        repository="sha256:" + "11" * 32,
+        commit_sha="a" * 40,
+        committed_at=WHEN,
+        patch="--- a/x\n+++ b/x\n@@\n+x\n",
+    )
+    with pytest.raises(GroupingError, match="unknown commits"):
+        group_commits([fact], explicit_groups=[["f" * 40]])

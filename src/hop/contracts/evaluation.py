@@ -9,11 +9,18 @@ the holdout access ledger, and split assignment are owned by AOP-020 half B
 Determinism: every identifier here is derived from content (repository identity,
 commit shas, patch digests) so re-importing the same local snapshot yields
 byte-identical records. No wall-clock value is embedded in a written package.
+
+Tightening (WP-2.1f, A-5..A-9): list items are patterned rather than free
+strings, ``hidden_ref`` is restricted to its three legitimate forms, and the
+repository-manifest digest covers every entry field. These are stricter
+validations only; existing valid records remain readable.
 """
 
 from __future__ import annotations
 
-from pydantic import BaseModel, ConfigDict, Field
+from typing import Annotated
+
+from pydantic import BaseModel, ConfigDict, Field, StringConstraints
 
 from .base import AopBase
 
@@ -23,6 +30,13 @@ SHA256_PATTERN = r"^sha256:[0-9a-f]{64}$"
 GIT_SHA_PATTERN = r"^[0-9a-f]{40}([0-9a-f]{24})?$"
 GROUP_ID_PATTERN = r"^group-[0-9a-f]{16}$"
 CASE_ID_PATTERN = r"^case-[0-9a-f]{16}$"
+#: hidden_ref is opaque, but only three forms are legitimate: the unassigned
+#: in-memory placeholder, half A's deterministic non-secret token, and half B's
+#: sealed-store token. Anything else is a contract violation.
+HIDDEN_REF_PATTERN = r"^(unassigned|sealed-unassigned:case-[0-9a-f]{16}|[0-9a-f]{32})$"
+
+Sha256Item = Annotated[str, StringConstraints(pattern=SHA256_PATTERN)]
+GitShaItem = Annotated[str, StringConstraints(pattern=GIT_SHA_PATTERN)]
 
 #: Required file names in every case package written by the importer.
 CASE_PACKAGE_FILES = (
@@ -48,7 +62,7 @@ class SourceProvenance(AopBase):
     origin: str = Field(min_length=1, description='e.g. "local-git"')
     repository: str = Field(pattern=SHA256_PATTERN)
     commit_sha: str = Field(pattern=GIT_SHA_PATTERN)
-    ancestry: list[str] = Field(default_factory=list)
+    ancestry: list[GitShaItem] = Field(default_factory=list)
     patch_digest: str = Field(pattern=SHA256_PATTERN)
     changed_files: list[str] = Field(default_factory=list)
     authored_at: str = Field(default="", description="commit author time, UTC ISO-8601")
@@ -95,8 +109,8 @@ class CaseGroup(AopBase):
     kind: str = Field(default="CaseGroup", frozen=True)
     group_id: str = Field(pattern=GROUP_ID_PATTERN)
     repository: str = Field(pattern=SHA256_PATTERN)
-    commit_shas: list[str] = Field(min_length=1)
-    patch_digests: list[str] = Field(min_length=1)
+    commit_shas: list[GitShaItem] = Field(min_length=1)
+    patch_digests: list[Sha256Item] = Field(min_length=1)
     created_at: str = Field(default="", description="earliest commit time, UTC ISO-8601")
 
 
@@ -114,7 +128,7 @@ class CasePackage(AopBase):
     root: str = Field(min_length=1)
     task_path: str = Field(min_length=1)
     public_tests: list[str] = Field(default_factory=list)
-    hidden_ref: str = Field(min_length=1)
+    hidden_ref: str = Field(pattern=HIDDEN_REF_PATTERN)
     visible_tests: list[str] = Field(default_factory=list)
     provenance_path: str = Field(default="")
     repository_manifest_path: str = Field(default="")
