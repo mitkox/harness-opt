@@ -74,8 +74,8 @@ def resolve_profile(
         roots.append((ComponentType.HARNESS_OVERLAY, _ref(profile.harness.overlay_ref)))
 
     resolver = _Resolver(registry, profile, context)
-    for ctype, ref in roots:
-        resolver.require(ctype, ref, reason=f"profile.{_ref_owner(ref, profile)}")
+    for ctype, root_ref in roots:
+        resolver.require(ctype, root_ref, reason=f"profile.{_ref_owner(root_ref, profile)}")
     resolver.resolve_all()
     return resolver.build()
 
@@ -232,29 +232,29 @@ class _Resolver:
         # node -> dependency node keys, resolved against candidates by name.
         edges: dict[str, set[str]] = {node: set() for node in self.candidates}
         for node, candidate in self.candidates.items():
-            for dep in candidate.dependencies:
-                target = self._candidate_for_name(dep.name)
+            for dependency in candidate.dependencies:
+                target = self._candidate_for_name(dependency.name)
                 if target is None:
                     raise ResolutionError(
                         "missing_dependency",
-                        f"{node} depends on unregistered {dep.ref}",
-                        {"from": node, "dependency": dep.ref},
+                        f"{node} depends on unregistered {dependency.ref}",
+                        {"from": node, "dependency": dependency.ref},
                     )
                 edges[node].add(target)
         # Kahn with lexicographic tie-break for determinism.
         indegree = {node: 0 for node in edges}
         for node, deps in edges.items():
-            for dep in deps:
-                indegree[dep] += 1
+            for dependency_node in deps:
+                indegree[dependency_node] += 1
         ready = sorted(n for n, d in indegree.items() if d == 0)
         order: list[str] = []
         while ready:
             node = ready.pop(0)
             order.append(node)
-            for dep in sorted(edges[node]):
-                indegree[dep] -= 1
-                if indegree[dep] == 0:
-                    ready.append(dep)
+            for successor in sorted(edges[node]):
+                indegree[successor] -= 1
+                if indegree[successor] == 0:
+                    ready.append(successor)
                     ready.sort()
         if len(order) != len(edges):
             cyclic = sorted(n for n in edges if n not in order)
@@ -438,8 +438,8 @@ def select_variant(
             value = str(selector.get("value", ""))
             actual = context.get(dimension, "")
             if dimension == "capability":
-                capabilities = context.get("capability", "")
-                capabilities = {c.strip() for c in capabilities.split(",") if c.strip()}
+                declared = context.get("capability", "")
+                capabilities = {c.strip() for c in declared.split(",") if c.strip()}
                 if value not in capabilities:
                     matched = False
                     break

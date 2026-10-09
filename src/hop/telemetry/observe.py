@@ -135,7 +135,7 @@ class InferenceRecord:
     extra: dict = field(default_factory=dict)  # runtime-specific, namespaced
 
     def to_attributes(self) -> dict:
-        attrs = {
+        attrs: dict[str, object] = {
             "deployment_id": self.deployment_id,
             "deployment_digest": self.deployment_digest,
             "model_id": self.model_id,

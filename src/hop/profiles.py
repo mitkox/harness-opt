@@ -21,6 +21,9 @@ from .contracts.profile import (
     ComponentType,
     Lockfile,
     Profile,
+    ProfileContextPolicy,
+    ProfilePrompt,
+    ProfileToolPolicy,
     ResolvedProfile,
 )
 from .files import atomic_json, digest_hex, file_lock
@@ -400,11 +403,19 @@ def _profile_from_resolved(resolved: ResolvedProfile) -> Profile:
     return Profile(
         metadata=ProfileMetadata(name=resolved.profile_name, version=resolved.profile_version),
         harness=ProfileHarness(name="pi"),
-        system={"prompt_ref": f"{prompt.name}@{prompt.version}"} if prompt else {},
+        system=ProfilePrompt(prompt_ref=f"{prompt.name}@{prompt.version}")
+        if prompt
+        else ProfilePrompt(),
         agents=agents,
         skills=skills,
-        tools={"policy_ref": f"{tools.name}@{tools.version}"} if tools else {},
-        context={"policy_ref": f"{context.name}@{context.version}"} if context else {},
+        tools=ProfileToolPolicy(policy_ref=f"{tools.name}@{tools.version}")
+        if tools
+        else ProfileToolPolicy(),
+        context=(
+            ProfileContextPolicy(policy_ref=f"{context.name}@{context.version}")
+            if context
+            else ProfileContextPolicy()
+        ),
     )
 
 

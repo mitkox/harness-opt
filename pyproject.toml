@@ -38,3 +38,12 @@ markers = [
 [tool.ruff]
 line-length = 100
 target-version = "py311"
+
+[tool.mypy]
+
+# Owner-approved narrow exception (WP-1.2b, 2026-10-09): PyYAML ships no stubs and
+# no offline types-PyYAML artifact exists, so the `yaml` import is exempted here.
+# No other module or error code is relaxed; every other diagnostic remains an error.
+[[tool.mypy.overrides]]
+module = ["yaml"]
+ignore_missing_imports = true

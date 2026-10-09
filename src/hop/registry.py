@@ -251,9 +251,9 @@ class ComponentRegistry:
 
     def verify_all(self) -> list[dict]:
         """Recompute every record; return per-record integrity evidence."""
-        results = []
+        results: list[dict] = []
         for record in self.all_components():
-            entry = {
+            entry: dict[str, object] = {
                 "type": record.component_type.value,
                 "name": record.logical_name,
                 "version": record.version,

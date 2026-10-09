@@ -3,11 +3,15 @@
 from __future__ import annotations
 
 import json
+from typing import TYPE_CHECKING
 
 from .contracts.base import sha256_hex
 from .contracts.harness import HarnessBuild
 from .contracts.model import ModelDeployment
 from .policy import POLICY_ID
+
+if TYPE_CHECKING:
+    from .contracts.records import ExecutionBundle
 
 
 def model_deployment_digest(model: ModelDeployment) -> str:
@@ -35,7 +39,7 @@ def compile_bundle(
     lock_digest: str = "",
     compiled_target: str = "",
     compiled_target_digest: str = "",
-) -> dict:
+) -> tuple[ExecutionBundle, dict[str, str]]:
     """Returns (ExecutionBundle, source_map). Raises on unresolved inputs.
 
     M3: profile/lock/compiled-target identity participates in the bundle digest

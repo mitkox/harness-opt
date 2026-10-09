@@ -11,6 +11,7 @@ import json
 import threading
 import urllib.request
 from dataclasses import dataclass, field
+from http.client import HTTPResponse
 
 from .policy import assert_local_url
 
@@ -69,7 +70,7 @@ class LocalEndpointClient:
     def __post_init__(self):
         assert_local_url(self.base_url)
 
-    def _post(self, path: str, payload: dict, timeout: float) -> urllib.request.addinfourl:
+    def _post(self, path: str, payload: dict, timeout: float) -> HTTPResponse:
         url = self.base_url.rstrip("/") + path
         assert_local_url(url)
         req = urllib.request.Request(
