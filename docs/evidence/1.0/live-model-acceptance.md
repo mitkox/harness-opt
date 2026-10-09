@@ -66,10 +66,12 @@ was fixed with a regression test and an ESF gate run:
 - Host probe at `d920e92`: `probe_worker_network_isolation()` →
   `enforced=true`, `host_reachable=false`, `public_reachable=false`,
   `loopback_up=true`, `unix_ok=true`.
-- Host non-live suite: `scripts/dev test --suite all` → 517 passed / 1 failed
-  before task-43 (the single failure was a test-side false positive in the
-  adversarial network-denial test, fixed by task-43) — see the run log in
-  `.factory/` for the exact command.
+- Host non-live suite after the bind fixes and the task-43 test correction:
+  `scripts/dev test --suite all` → **539 passed, 0 failed, exit 0**, and
+  `scripts/dev check` → **exit 0, 0 findings**. (Intermediate states were
+  517 passed / 1 failed — the one failure was a test-side false positive in the
+  adversarial network-denial test — and 12 failed + 7 errors before the bind
+  fixes.) Exact commands and output are in `.factory/host-final-r4.log`.
 - Independent verification of the sandbox/isolation changes is recorded in
   `docs/verification/reviews.md` (R-008…R-022); the Cube gate proves the same
   paths wherever namespaces are available.
