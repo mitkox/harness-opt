@@ -192,6 +192,28 @@ def test_hidden_ref_is_opaque_and_paths_are_contained(tmp_path):
         with_hidden_ref(package, "not-a-token")
 
 
+def test_with_hidden_ref_handles_dataclass_and_dict_packages(tmp_path):
+    """Both the pydantic contract and an equivalent stand-in are supported."""
+    from dataclasses import dataclass
+
+    store = _store(tmp_path)
+
+    @dataclass
+    class StandIn:
+        case_id: str
+        group_id: str
+        hidden_ref: str = "unassigned"
+
+    token = _seal(store)
+    stand_in = StandIn(case_id=CASE, group_id="group-0000000000000021")
+    attached = with_hidden_ref(stand_in, token)
+    assert attached.hidden_ref == token and stand_in.hidden_ref == "unassigned"
+    mapping = {"case_id": CASE, "hidden_ref": "unassigned"}
+    assert with_hidden_ref(mapping, token)["hidden_ref"] == token
+    with pytest.raises(TypeError):
+        with_hidden_ref(object(), token)
+
+
 def test_seal_rejects_unsafe_or_empty_material(tmp_path):
     store = _store(tmp_path)
     with pytest.raises(ValueError):

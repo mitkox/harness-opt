@@ -16,6 +16,7 @@ run that exposed a sealed case is ineligible for a promotion-eligible claim.
 
 from __future__ import annotations
 
+import dataclasses
 import hashlib
 import json
 import os
@@ -96,11 +97,13 @@ def with_hidden_ref(package, token: str, *, split: str = Split.SEALED.value):
         raise ValueError("only sealed-evaluator packages may carry a sealed hidden_ref")
     if not TOKEN_RE.fullmatch(token):
         raise ValueError(f"invalid sealed token: {token!r}")
+    if isinstance(package, dict):
+        return {**package, "hidden_ref": token}
     model_copy = getattr(package, "model_copy", None)
     if callable(model_copy):
         return model_copy(update={"hidden_ref": token})
-    if isinstance(package, dict):
-        return {**package, "hidden_ref": token}
+    if dataclasses.is_dataclass(package) and not isinstance(package, type):
+        return dataclasses.replace(package, hidden_ref=token)
     raise TypeError(f"cannot attach hidden_ref to {type(package).__name__}")
 
 
