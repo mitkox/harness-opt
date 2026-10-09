@@ -255,3 +255,30 @@ def test_empty_evidence_chain_is_healthy(tmp_path, monkeypatch):
     assert chain["runs"] == 0 and chain["missing"] == [] and chain["fenced"] == []
     code = backup_main(["chain", "--home", str(paths.home), "--runs", str(paths.runs)])
     assert code == 0
+
+
+def test_unix_socket_in_the_runs_tree_is_skipped_not_fatal(tmp_path, monkeypatch):
+    """D-1: a leftover unix socket must not crash or block a backup."""
+    import socket as socket_mod
+
+    paths = _paths(tmp_path, monkeypatch)
+    report = _make_run(paths, "bk-socket")
+    sock_path = Path(paths.runs) / "verify" / "rpc" / "candidate.sock"
+    sock_path.parent.mkdir(parents=True, exist_ok=True)
+    listener = socket_mod.socket(socket_mod.AF_UNIX, socket_mod.SOCK_STREAM)
+    try:
+        listener.bind(str(sock_path))
+        backup = create_backup(str(tmp_path / "backup"), paths=paths)
+        assert backup["files"] > 0
+        assert "runs/verify/rpc/candidate.sock" in backup["skipped"]
+        manifest = json.loads((Path(backup["destination"]) / MANIFEST_NAME).read_text())
+        assert manifest["skipped"] == backup["skipped"]
+        assert all("candidate.sock" not in item["path"] for item in manifest["entries"])
+        assert verify_backup(backup["destination"])["ok"] is True
+        shutil.rmtree(paths.runs)
+        result = restore_backup(backup["destination"], paths=paths)
+        assert result["chain"]["ok"] is True
+        assert result["chain"]["runs"] == 1
+        assert (Path(report["run_dir"]) / "report.json").is_file()
+    finally:
+        listener.close()

@@ -49,6 +49,11 @@ def _sha256_file(path: Path) -> str:
 
 
 def _rel_files(root: Path, *, skip_ledger: bool = False) -> list[Path]:
+    """Regular files under ``root`` that can be copied as evidence.
+
+    Non-regular entries (unix sockets, fifos, devices) are not evidence and
+    cannot be copied; they are reported separately by ``_skipped_files``.
+    """
     if not root.exists():
         return []
     found: list[Path] = []
@@ -59,8 +64,24 @@ def _rel_files(root: Path, *, skip_ledger: bool = False) -> list[Path]:
                 continue
             if skip_ledger and name.startswith(_LEDGER_DB):
                 continue
-            found.append(Path(dirpath) / name)
+            candidate = Path(dirpath) / name
+            if not os.path.isfile(candidate):
+                continue
+            found.append(candidate)
     return found
+
+
+def _skipped_files(root: Path) -> list[str]:
+    """Non-regular entries under ``root`` that a backup deliberately omits."""
+    if not root.exists():
+        return []
+    skipped: list[str] = []
+    for dirpath, _dirnames, filenames in os.walk(root):
+        for name in sorted(filenames):
+            candidate = Path(dirpath) / name
+            if not os.path.isfile(candidate) and not os.path.islink(candidate):
+                skipped.append(str(candidate.relative_to(root)))
+    return sorted(skipped)
 
 
 def _component_roots(paths: Paths) -> dict[str, Path]:
@@ -126,6 +147,7 @@ def create_backup(
     ensure_owner_dir(staging)
     entries: list[dict] = []
     databases: list[dict] = []
+    skipped: list[str] = []
     try:
         for component, root in _component_roots(paths).items():
             if root.is_file():
@@ -140,9 +162,13 @@ def create_backup(
                 rel = f"{component}/{source.relative_to(root)}"
                 dest = staging / rel
                 ensure_owner_dir(dest.parent)
-                shutil.copyfile(source, dest)
+                try:
+                    shutil.copyfile(source, dest)
+                except OSError as exc:
+                    raise BackupError("unreadable_file", f"cannot copy {source}: {exc}") from exc
                 os.chmod(dest, 0o600)
                 entries.append(_entry(rel, dest, component))
+            skipped.extend(f"{component}/{name}" for name in _skipped_files(root))
         ledger = Path(paths.runs) / _LEDGER_DB
         if ledger.exists():
             rel = f"runs/{_LEDGER_DB}"
@@ -163,6 +189,7 @@ def create_backup(
             },
             "databases": databases,
             "entries": entries,
+            "skipped": sorted(skipped),
         }
         manifest["set_digest"] = _set_digest(entries)
         _write_json(staging / MANIFEST_NAME, manifest)
@@ -173,6 +200,7 @@ def create_backup(
     return {
         "destination": str(target),
         "files": len(entries),
+        "skipped": sorted(skipped),
         "databases": databases,
         "set_digest": manifest["set_digest"],
         "manifest": str(target / MANIFEST_NAME),
