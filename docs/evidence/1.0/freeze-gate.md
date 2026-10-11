@@ -31,9 +31,8 @@ The final published artifacts are:
 | `dist/hop-1.0.0.tar.gz` | `f3d7342d35f1f3735c644ad0f209b02a93f4d5dc7bf30ac68471e22c349be9f0` | recorded as-built; includes the G2 interpreter fix and its regression tests |
 
 **Superseded (must not be cited as the published artifacts):** the intermediate
-release-branch sdists `ca8e8d91…` (commit `e2a6837`) and `326800aa…` (commit
-`4791eba`, the `b71d2a7` cycle, retained only as this explicitly labelled
-superseded record), and the earlier pre-task-51 pair `729aeee9…` wheel /
+release-branch sdists (retained only as this explicitly labelled superseded
+record), and the earlier pre-task-51 pair `729aeee9…` wheel /
 `b38611e7…` sdist.
 
 ## Wheel reproducibility (independently confirmed, R-029)

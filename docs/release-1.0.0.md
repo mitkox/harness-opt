@@ -44,9 +44,9 @@ wheels) was refreshed by the same run. The installed wheel reports
 **These hashes supersede the earlier artifacts.** The published artifacts above
 replace the older WP-4.1 (`9acc72e7…` wheel, `a3a26569…` sdist) and WP-4.5
 (`729aeee9…` wheel, `b38611e7…` sdist) builds and the intermediate
-release-branch sdists `ca8e8d91…` (commit `e2a6837`) and `326800aa…` (commit
-`4791eba`, before the G2 interpreter fix and its regression tests); the `b71d2a7`
-cycle is retained only as this explicitly labelled superseded record. None of
+release-branch sdists (built before the G2 interpreter fix and its regression
+tests); the pre-fix cycle is retained only as this explicitly labelled
+superseded record. None of
 those may be cited as the published 1.0.0 artifacts. The wheel hash is
 **identical** to the earlier build because no packaged input changed — nothing
 under `src/hop/` or `pyproject.toml` differs, and `README.md` is not declared as

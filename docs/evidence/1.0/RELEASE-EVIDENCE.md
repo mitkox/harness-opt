@@ -99,7 +99,7 @@ freeze-gate run table is in [freeze-gate.md](freeze-gate.md).
   active, backup create/verify/chain 0/0/0, `hop/evaluation/legacy.py` installed). These
   **supersede for publication** the earlier pre-task-51 builds
   (`729aeee9…`/`b38611e7…`, `9acc72e7…`/`a3a26569…`) and the intermediate
-  release-branch sdists (`ca8e8d91…`/`326800aa…`); the `b71d2a7` cycle is retained
+  release-branch sdists; the earlier pre-fix cycle is retained
   only as an explicitly labelled superseded record. The wheel digest is
   unchanged from the frozen build because no packaged input changed; only the shipped
   documentation payload moved the sdist digest.

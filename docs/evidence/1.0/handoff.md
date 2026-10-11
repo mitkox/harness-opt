@@ -73,8 +73,8 @@ the internal review index (not published) (R-001…R-029).
 These are the final artifacts (the wheel ships `hop/evaluation/legacy.py`; the
 sdist ships `docs/migration-1.0.md` and includes the G2 interpreter fix).
 Superseded and not to be cited: the intermediate release-branch sdists
-`ca8e8d91…` and `326800aa…` (the `b71d2a7` cycle, retained only as this
-explicitly labelled superseded record) and the pre-task-51 pair `729aeee9…` /
+(retained only as this explicitly labelled superseded record) and the
+pre-task-51 pair `729aeee9…` /
 `b38611e7…`.
 
 ## Evidence pack
