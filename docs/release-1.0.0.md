@@ -1,8 +1,10 @@
 # HOP 1.0.0 — release description
 
-> **Status: release engineering complete; NOT RELEASED.** No tag, no pushed
-> branch, and no artifact publication is claimed by this document. Publication
-> is an explicit owner action. The artifacts below were built and qualified
+> **Status: RELEASED (owner-authorized).** Branch `hop-1.0.0` and tag `v1.0.0`
+> were pushed to `github.com/mitkox/harness-opt` on 2026-10-11. The tag points at
+> this commit; the qualification runs were executed at the public release
+> revision `d1bf6ccbee0c3790fbc757a596e059ddbe7f7db5`, which differs from it only
+> in evidence-document commits. The artifacts below were built and qualified
 > locally and offline from the approved wheelhouse.
 
 ## Summary

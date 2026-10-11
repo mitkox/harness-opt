@@ -6,7 +6,9 @@ handoff record generated from the private development branch; it is retained for
 the owners who hold that history and is not itself republished.
 
 **G11 (owner handoff/publication):** the owner authorized the push/tag on
-2026-10-11; execution is recorded in this handoff after the push.
+2026-10-11 and it was executed — branch `hop-1.0.0` was pushed to
+`github.com/mitkox/harness-opt` (the branch tip is the latest commit on it),
+and tag `v1.0.0` names the release commit. Nothing was merged to `master`.
 
 ## Bundle (internal handoff record)
 
@@ -108,7 +110,7 @@ the HOP G8 run directory is `runs/run-916a66ca4487/`.
 - [x] Wheel and sdist re-qualified offline
 - [x] No live sandboxes after any run
 - [x] Secret scan clean; reference repository untouched
-- [x] Owner authorized publication (push/tag) on 2026-10-11; execution recorded after the push
+- [x] Owner authorized publication (push/tag) on 2026-10-11; executed as branch `hop-1.0.0` + tag `v1.0.0`
 
 ## Owner actions available
 
