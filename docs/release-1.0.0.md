@@ -20,7 +20,7 @@ explicitly **not** part of this release.
 
 ## Release artifacts
 
-Built on branch **`release/1.0.0`** (tree at `8f424e7` (includes the `MANIFEST.in` self-reference fix and the documented toolchain overrides)) with
+Built on branch **`public/1.0.0`** (tree at `d1bf6ccbee0c3790fbc757a596e059ddbe7f7db5`, which includes the `MANIFEST.in` self-reference fix, the documented toolchain overrides and the G2 interpreter fix) with
 
 ```sh
 SOURCE_DATE_EPOCH=1700000000 HOP_WHEELHOUSE=/path/to/approved/wheelhouse \
@@ -41,18 +41,17 @@ wheels) was refreshed by the same run. The installed wheel reports
 `hop version: 1.0.0` and exposes exactly one console script (`hop`); the removed
 `aop` alias is absent from `entry_points.txt`.
 
-**These hashes supersede the earlier artifacts, including the frozen-revision
-pair.** For publication the release-branch artifacts above replace the frozen
-`779e73f` pair (wheel `42439320855807682c7bd1b63bb0aa8d6a599d682ea0786b05a605a87644aee6`, sdist `1c8769cbd3e1a98412fd7a763d3e45533d34bc1b3b07aa62170025d1275ff0bd`) and the older
-WP-4.1 (`9acc72e7…` wheel, `a3a26569…` sdist) and WP-4.5 (`729aeee9…` wheel,
-`b38611e7…` sdist) builds, and the intermediate release-branch sdists
-`ca8e8d91…` (commit `e2a6837`) and `326800aa…` (commit `4791eba`, before the
-G2 interpreter fix and its regression tests); none of those may be cited as the
-published 1.0.0 artifacts. The wheel hash is **identical** to the frozen build because no
-packaged input changed between `779e73f` and this branch — nothing under
-`src/hop/` or `pyproject.toml` differs, and `README.md` is not declared as the
-project's long description, so it is not embedded in the wheel `METADATA`; the
-sdist digest changed because the shipped documentation payload changed. The
+**These hashes supersede the earlier artifacts.** The published artifacts above
+replace the older WP-4.1 (`9acc72e7…` wheel, `a3a26569…` sdist) and WP-4.5
+(`729aeee9…` wheel, `b38611e7…` sdist) builds and the intermediate
+release-branch sdists `ca8e8d91…` (commit `e2a6837`) and `326800aa…` (commit
+`4791eba`, before the G2 interpreter fix and its regression tests); the `b71d2a7`
+cycle is retained only as this explicitly labelled superseded record. None of
+those may be cited as the published 1.0.0 artifacts. The wheel hash is
+**identical** to the earlier build because no packaged input changed — nothing
+under `src/hop/` or `pyproject.toml` differs, and `README.md` is not declared as
+the project's long description, so it is not embedded in the wheel `METADATA`;
+the sdist digest changed because the shipped documentation payload changed. The
 wheel has **80 entries including `hop/evaluation/legacy.py`**.
 
 **Artifact contents.** The wheel stays minimal: `hop/` plus its dist-info (80
@@ -130,12 +129,12 @@ acceptance records remain byte-identical and readable.
 - Owner-confirmed local activation and rollback (M8).
 - Optional local build-repair fixtures (AOP-023) and calibrated local judges
   (AOP-026).
-- Live local-model acceptance was **executed and passed**
-  (`run-58f5589ef776`: `outcome: pass`, `verdict: pass`, `agent_seconds 47.71`,
-  Pi 1.1.0 qualified, deployment `qwen-flash-next-IQ2_S_-_2.5_bpw`) and re-run at
-  the release revision (`run-85d1c3a117ef`: `outcome: pass`, `verdict: pass`,
-  `agent_seconds 44.71`); see `docs/evidence/1.0/live-model-acceptance.md`. The pinned Pi 1.1.0 build was requalified
-  (task-19). Nothing here is inferred from fixtures.
+- Live local-model acceptance was **executed and passed** at the public release
+  revision (`run-916a66ca4487`: `outcome: pass`, `verdict: pass`, `agent_seconds
+  44.8`, `total_seconds 47.71`, Pi 1.1.0 qualified, deployment
+  `qwen-flash-next-IQ2_S_-_2.5_bpw`); see
+  `docs/evidence/1.0/live-model-acceptance.md`. The pinned Pi 1.1.0 build was
+  requalified (task-19). Nothing here is inferred from fixtures.
 - The M10 end-to-end lifecycle demonstration (AOP-054) is delivered with gate
   `hop-gate-task32-674b991`: import → protected splits → frozen evaluation →
   trajectory/completeness → profile compile → APM export → evidence read-back,

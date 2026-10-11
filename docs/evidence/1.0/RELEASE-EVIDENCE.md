@@ -1,6 +1,6 @@
 # HOP 1.0.0 release evidence pack
 
-Release candidate revision: **`0123cdc29464`** (branch `esf/hop-1.0`), the tip the
+Public release revision: **`d1bf6ccbee0c3790fbc757a596e059ddbe7f7db5`** (branch `public/1.0.0`), the revision the
 Lead verified with a namespace-capable shell. This pack is the release
 qualification evidence; the release checklist is
 [docs/release-checklist.md](../../release-checklist.md) and the security sign-off is
@@ -14,9 +14,9 @@ at a run id, a command, or a recorded artifact.
 
 | Run id | Revision | Result | Cleanup |
 |--------|----------|--------|---------|
-| `hop-gate-20261009-203429-8` | `0123cdc29464` | PASSED; sandbox lane 99 ran / 0 failed / 0 skipped | 0 remaining, verified |
-| `lead-tip-0123cdc` | `0123cdc29464` | PASSED; sandbox lane 99/0/0 | 0 remaining |
-| `lead-tip-0123cdc-disconnected` | `0123cdc29464` | disconnected profile PASSED | 0 remaining |
+| `rel-hopv1-d1bf6cc` | `d1bf6ccbee0c` | PASSED; `Verified=True`, 6/6 steps, sandbox lane 0 failed / 0 errors / 0 skipped | 0 remaining, verified |
+| `rel-disc-d1bf6cc` | `d1bf6ccbee0c` | PASSED; disconnected profile 2/2 (DNS/LAN/link-local blocked, loopback connected) | 0 remaining, verified |
+| `rel-live-d1bf6cc` | `d1bf6ccbee0c` | PASSED; live OpenCode Go agent, exit 0 in 17.75 s, real patch `src/hop/health.py` + `tests/test_health.py` | 0 remaining, verified |
 | `hop-gate-20261009-190107-3` | `4d576a81127f` | PASSED; sandbox lane 86/0/0 (two-phase) | 0 remaining |
 | `hop-gate-task32-674b991` | `674b991` | PASSED; sandbox lane 99/0/0; non-live 0 failures | 0 remaining, verified |
 | `hop-gate-task43-4f651c9` | `4f651c9` | PASSED; sandbox lane 91/0/0 | 0 remaining |
@@ -41,19 +41,20 @@ also has a `-disconnected` profile run where the listing shows one.
 
 ## 2. Host verification at the release revision
 
-Recorded by the Lead at `0123cdc29464` (log:
+Recorded by the Lead at `d1bf6ccbee0c3790fbc757a596e059ddbe7f7db5` (log:
 `/home/mitko/dev/esf/.factory/lead-1.0-verify.log`):
 
 ```
 All checks passed!
 Success: no issues found in 73 source files
 check_exit=0
-551 passed, 1 deselected in 51.24s
+565 passed, 1 deselected
 suite_exit=0
 ```
 
-So `scripts/dev check` exits 0 with 0 findings and the full non-live suite is
-551 passed / 0 failed. Historical bytes are preserved: **no historical file under
+So `scripts/dev check` exits 0 with 0 findings (the fail-closed pin requires the
+approved ruff 0.16.10 on `PATH` and refuses the newer mise `latest` 0.17.0) and the
+full non-live suite is 565 passed, 1 deselected / 0 failed. Historical bytes are preserved: **no historical file under
 `docs/evidence/foundation/` or `docs/acceptance-foundation.md` is modified or
 deleted anywhere on the branch — the branch only ADDS new files** (the 1.0 pack,
 the new remeasurement and delivery-matrix files). Proven by
@@ -69,12 +70,12 @@ M1–M3 acceptance records and `specs/` are untouched.
 
 | Field | Value |
 |-------|-------|
-| Run id (frozen revision) | `run-85d1c3a117ef` at `779e73f` (rebound in `6c7bc87`) |
+| Run id (public revision) | `run-916a66ca4487` at `d1bf6cc` |
 | Outcome / verdict | `pass` / `pass` (trusted verifier) |
 | Harness | `pi` 1.1.0 (qualified; executable sha256 `c44ddd4e…`) |
 | Deployment | `qwen-flash-next-IQ2_S_-_2.5_bpw`, `mitko` at `http://127.0.0.1:8000/v1` |
-| Agent seconds | 44.71 s |
-| Evidence | [live-model-acceptance.md](live-model-acceptance.md) (Lead-recorded at the frozen revision); the pre-freeze G8 `run-58f5589ef776` (47.71 s, revision `138a4ef`) is superseded by this frozen run |
+| Agent time / total | 44.8 s / 47.71 s |
+| Evidence | [live-model-acceptance.md](live-model-acceptance.md) (Lead-recorded at the public revision); earlier G8 attempts are retained in the internal review record and are superseded by this release-bound run |
 
 Coverage limitation: one live case on one deployment and one harness. This is a
 qualification of the installed path, not a generalization claim. The full
@@ -89,15 +90,17 @@ freeze-gate run table is in [freeze-gate.md](freeze-gate.md).
   (`legacy_env_removed` exit 2 naming `HOP_RUNS_DIR`, `legacy_command_removed`
   exit 2 with rewrite hints, `aop` absent, `AOP_PI_BASE_URL` scrub active). The
   wheel still omits `docs/` (D-2, 1.0.1 candidate).
-- **Published-candidate artifacts on `release/1.0.0` (supersede the frozen-revision pair).**
+- **Published artifacts at the public release revision `d1bf6cc`.**
   wheel `42439320855807682c7bd1b63bb0aa8d6a599d682ea0786b05a605a87644aee6` — 80 entries including `hop/evaluation/legacy.py` — and sdist
   `f3d7342d35f1f3735c644ad0f209b02a93f4d5dc7bf30ac68471e22c349be9f0` (ships `CHANGELOG.md`, `README.md`, `docs/migration-1.0.md`; deliberately omits
   `docs/release-1.0.0.md` so the archive cannot cite its own hash). Both were re-qualified
   offline in fresh venvs on the release branch (`--no-index --require-hashes`, zero
   downloads; version 1.0.0, one console script, help exits 0, migration exit codes 2, scrub
   active, backup create/verify/chain 0/0/0, `hop/evaluation/legacy.py` installed). These
-  **supersede for publication** the frozen-revision pair (wheel `42439320855807682c7bd1b63bb0aa8d6a599d682ea0786b05a605a87644aee6`, sdist `1c8769cbd3e1a98412fd7a763d3e45533d34bc1b3b07aa62170025d1275ff0bd`) and the
-  pre-task-51 builds (`729aeee9…`/`b38611e7…`, `9acc72e7…`/`a3a26569…`). The wheel digest is
+  **supersede for publication** the earlier pre-task-51 builds
+  (`729aeee9…`/`b38611e7…`, `9acc72e7…`/`a3a26569…`) and the intermediate
+  release-branch sdists (`ca8e8d91…`/`326800aa…`); the `b71d2a7` cycle is retained
+  only as an explicitly labelled superseded record. The wheel digest is
   unchanged from the frozen build because no packaged input changed; only the shipped
   documentation payload moved the sdist digest.
 - **Wheel reproducibility (R-029, independently confirmed by independent-verifier):**
@@ -162,7 +165,7 @@ R-009, not R-008.
 | Item | Status | Reason |
 |------|--------|--------|
 | CI jobs (Part A of offline install) | unexecuted | no external CI execution on this host; deviation list recorded |
-| sdist installation qualification | unexecuted | only the wheel was installed and qualified; the sdist contents were inspected (internal artifact-qualification record §9, not published) and its hash is provisional until task-50 |
+| sdist installation qualification | unexecuted | only the wheel was installed and qualified; the sdist contents were inspected (internal artifact-qualification record §9, not published) and its digest is now `f3d7342d…` at the public release revision |
 | `hop run start` from the installed artifact | unexecuted | needs a registered local deployment and a namespace-capable shell; the source-tree equivalent is G8 |
 | Sandboxed isolation from the installed artifact | unexecuted | the agent shell cannot create user namespaces; covered for the source tree by the ESF Cube gate |
 | Host-side bwrap-dependent suite in the agent shell | blocked | the agent shell is AppArmor-confined and cannot create namespaces; executed in the Cube gate instead |
@@ -185,6 +188,4 @@ qualification, and `hop run start --case debug-offbyone --model qwen-flash-next`
 Internal consistency: `docs/release-1.0.0.md` was corrected by the Lead to record
 AOP-053/AOP-054 and the G8 live run as delivered; this pack and
 [docs/release-checklist.md](../../release-checklist.md) cite the corrected doc.
-The release candidate is `0123cdc29464`; the branch tip later moved for
-verification addenda (`reviews.md` R-024 addendum) without changing the shipped
-code paths.
+The public release revision is `d1bf6ccbee0c3790fbc757a596e059ddbe7f7db5` on `public/1.0.0`.
