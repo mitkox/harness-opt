@@ -9,6 +9,8 @@ import sys
 from contextvars import ContextVar
 
 from .config import Paths, active_paths, current_paths
+from .envcompat import MIGRATION_DOC, LegacyEnvRemoved
+from .lifecycle import EXIT_CANCELLED, EXIT_USAGE, LifecycleError, RunRequest
 
 _output_format = ContextVar("hop_output_format", default="json")
 
@@ -30,6 +32,15 @@ def _print(payload) -> None:
             print("  ".join(f"{k}={v}" for k, v in row.items()) if isinstance(row, dict) else row)
     else:
         print(payload)
+
+
+def _report_error(code: str, message: str, exit_code: int, action: str) -> int:
+    """Single diagnostic channel for handler failures (json or text)."""
+    if _output_format.get() == "json":
+        print(json.dumps({"code": code, "error": message, "action": action}), file=sys.stderr)
+    else:
+        print(f"{code}: {message}. {action}", file=sys.stderr)
+    return exit_code
 
 
 def _fail(message: str, code: int = 2) -> int:
@@ -77,7 +88,7 @@ def cmd_discover(_args) -> int:
         if dep["status"] == "qualified":
             pair = dep["deployment_id"]
             break
-    pi = next((h for h in harnesses["harnesses"] if h["harness"] == "pi"), {})
+    pi: dict = next((h for h in harnesses["harnesses"] if h["harness"] == "pi"), {})
     _print(
         {
             "local_pair": {"model": pair, "harness": f"pi@{pi.get('version')}"},
@@ -96,23 +107,31 @@ def cmd_run(args) -> int:
 
         model = load_profile(args.profile).model.deployment_ref
     if not model:
-        return _fail("model_required: supply --model with a registered deployment ID or alias")
+        raise LifecycleError(
+            "model_required",
+            "supply --model with a registered deployment ID or alias",
+            EXIT_USAGE,
+        )
     paths = current_paths()
     overrides = _parse_sets(getattr(args, "set", []))
     runner = Runner(runs_dir=str(paths.runs), hop_home=str(paths.home), paths=paths)
     try:
-        report = runner.execute(
-            args.case,
-            model_alias=model,
-            harness=args.harness,
-            timeout_s=args.timeout,
-            idempotency_key=args.idempotency_key or "",
-            profile=args.profile or "",
-            profile_target=getattr(args, "target", "pi") or "pi",
-            variant_overrides=overrides or None,
+        result = runner.execute_request(
+            RunRequest(
+                case_id=args.case,
+                model_alias=model,
+                harness=args.harness,
+                timeout_s=args.timeout,
+                idempotency_key=args.idempotency_key or "",
+                profile=args.profile or "",
+                profile_target=getattr(args, "target", "pi") or "pi",
+                variant_overrides=overrides or None,
+                legacy=bool(args.legacy),
+            )
         )
     finally:
         runner.close()
+    report = result.report
     keys = [
         "run_id",
         "case_id",
@@ -126,9 +145,7 @@ def cmd_run(args) -> int:
         "profile",
     ]
     _print({k: report[k] for k in keys if k in report})
-    if args.legacy:
-        return 0 if report["outcome"] == "pass" else 1
-    return {"pass": 0, "fail": 1, "cancelled": 130}.get(report["outcome"], 3)
+    return result.exit_code
 
 
 def cmd_report(args) -> int:
@@ -175,8 +192,9 @@ def cmd_run_investigate(args) -> int:
     elif args.sub == "replay-check":
         _print(inv.replay_check(run_dir, runs_dir, run_id))
     else:
-        print(f"unknown run subcommand {args.sub}", file=sys.stderr)
-        return 2
+        raise LifecycleError(
+            "unknown_run_subcommand", f"unknown run subcommand {args.sub}", EXIT_USAGE
+        )
     return 0
 
 
@@ -432,6 +450,8 @@ class CommandGroups:
             "skill",
             "registry",
             "deployment",
+            "evaluation",
+            "backup",
         }:
             if namespace not in self.groups:
                 group = self.top.add_parser(
@@ -442,6 +462,51 @@ class CommandGroups:
                 verb, parents=[self.common], conflict_handler="resolve"
             )
         return self.top.add_parser(name, parents=[self.common], conflict_handler="resolve")
+
+
+def cmd_evaluation_import(args) -> int:
+    """Import a LOCAL git snapshot into deterministic case packages (AOP-020)."""
+    from hop.evaluation import importer
+
+    explicit_groups = None
+    if args.groups:
+        try:
+            with open(args.groups) as stream:
+                payload = json.load(stream)
+        except (OSError, ValueError) as exc:
+            raise LifecycleError(
+                "invalid_group_spec", f"cannot read --groups {args.groups}: {exc}", EXIT_USAGE
+            ) from exc
+        specs = payload.get("groups") if isinstance(payload, dict) else None
+        if not isinstance(specs, list) or not all(
+            isinstance(spec, dict) and isinstance(spec.get("commit_shas"), list) for spec in specs
+        ):
+            raise LifecycleError(
+                "invalid_group_spec",
+                "--groups must be {'groups': [{'commit_shas': [...]}]}",
+                EXIT_USAGE,
+            )
+        explicit_groups = [list(spec["commit_shas"]) for spec in specs]
+
+    try:
+        result = importer.import_snapshot(
+            args.repository,
+            args.out,
+            revisions=args.rev or None,
+            explicit_groups=explicit_groups,
+            window_minutes=args.window_minutes,
+        )
+    except importer.SnapshotImportError as exc:
+        raise LifecycleError("snapshot_import_failed", str(exc), EXIT_USAGE) from exc
+
+    _print(
+        {
+            "out_root": result.out_root,
+            "groups": [group.model_dump(mode="json") for group in result.groups],
+            "packages": [package.model_dump(mode="json") for package in result.packages],
+        }
+    )
+    return 0
 
 
 def cmd_local(args):
@@ -463,7 +528,42 @@ def cmd_local(args):
     return status
 
 
-def _main(argv=None, prog: str = "hop", legacy: bool = False) -> int:
+def cmd_backup(args) -> int:
+    """Local evidence backup/restore (AOP-051).
+
+    Additive wiring over ``hop.backup``: same semantics and exit codes as the
+    documented module entry point (``python -m hop.backup``), emitted through the
+    shared output channel so redirected output is JSON.
+    """
+    from hop import backup
+    from hop.config import Paths
+
+    paths = Paths.resolve(home=args.home or None, runs=getattr(args, "runs", None) or None)
+    try:
+        if args.backup_verb == "create":
+            payload = backup.create_backup(args.destination, paths=paths, force=args.force)
+            status = 0
+        elif args.backup_verb == "verify":
+            payload = backup.verify_backup(args.backup)
+            status = 0 if payload["ok"] else 3
+        elif args.backup_verb == "restore":
+            payload = backup.restore_backup(args.backup, paths=paths, force=args.force)
+            chain = payload.get("chain", {})
+            status = 0 if chain.get("ok", True) else 3
+        else:
+            payload = backup.verify_evidence_chain(paths)
+            # An empty chain returns early without an "ok" key; no runs and no
+            # missing references is healthy, so treat a missing key as ok.
+            status = 0 if payload.get("ok", True) else 3
+    except backup.BackupError as exc:
+        return _report_error(
+            exc.code, str(exc), 2, "Check the backup path and HOP home, then retry."
+        )
+    _print(payload)
+    return status
+
+
+def _main(argv=None, prog: str = "hop") -> int:
     parser = argparse.ArgumentParser(prog=prog)
     parser.add_argument("--workspace", default=argparse.SUPPRESS)
     parser.add_argument("--runs-dir", default=argparse.SUPPRESS)
@@ -477,7 +577,7 @@ def _main(argv=None, prog: str = "hop", legacy: bool = False) -> int:
     sub.add_parser("discover").set_defaults(func=cmd_discover)
     r = sub.add_parser("run")
     r.add_argument("--case", required=True)
-    r.add_argument("--model", default="qwen-flash-next" if legacy else "")
+    r.add_argument("--model", default="")
     r.add_argument("--harness", default="pi")
     r.add_argument("--timeout", type=float, default=None)
     r.add_argument("--idempotency-key", default="")
@@ -579,6 +679,47 @@ def _main(argv=None, prog: str = "hop", legacy: bool = False) -> int:
     pve.add_argument("path")
     pve.add_argument("--profile", default="")
     pve.set_defaults(func=cmd_profile_verify_export)
+
+    # -- M4: evaluation case import (AOP-020 half A) ----------------------
+    ei = sub.add_parser("evaluation-import")
+    ei.add_argument("repository", help="path to a LOCAL git snapshot (no network)")
+    ei.add_argument("--out", required=True, help="output root for case packages")
+    ei.add_argument("--rev", action="append", default=[], help="commit/rev to import (repeatable)")
+    ei.add_argument(
+        "--groups",
+        default="",
+        help="JSON file {'groups': [{'commit_shas': [...]}]} for explicit grouping",
+    )
+    # Matches hop.evaluation.grouping.DEFAULT_WINDOW_MINUTES (imported lazily).
+    ei.add_argument("--window-minutes", type=int, default=180)
+    ei.set_defaults(func=cmd_evaluation_import)
+
+    # -- M4: protected splits, sealed store, access ledger (AOP-020 half B) --
+    # Registered on the shared ``evaluation`` namespace so
+    # ``hop evaluation splits assign|show|ledger`` are reachable. Handlers keep
+    # their own exit codes (0/2/3) and emit JSON when output is redirected.
+    from .evaluation.sealed import cli as evaluation_cli
+
+    evaluation_cli.register_splits_commands(sub.groups["evaluation"])
+
+    # -- AOP-051: local evidence backup/restore (additive wiring) -------------
+    backup_create = sub.add_parser("backup-create")
+    backup_create.add_argument("--destination", required=True)
+    backup_create.add_argument("--runs", default="")
+    backup_create.add_argument("--force", action="store_true")
+    backup_create.set_defaults(func=cmd_backup, backup_verb="create")
+    backup_verify = sub.add_parser("backup-verify")
+    backup_verify.add_argument("--backup", required=True)
+    backup_verify.set_defaults(func=cmd_backup, backup_verb="verify")
+    backup_restore = sub.add_parser("backup-restore")
+    backup_restore.add_argument("--backup", required=True)
+    backup_restore.add_argument("--runs", default="")
+    backup_restore.add_argument("--force", action="store_true")
+    backup_restore.set_defaults(func=cmd_backup, backup_verb="restore")
+    backup_chain = sub.add_parser("backup-chain")
+    backup_chain.add_argument("--runs", default="")
+    backup_chain.set_defaults(func=cmd_backup, backup_verb="chain")
+
     for name, operation in (
         ("doctor", "doctor"),
         ("init", "init"),
@@ -592,9 +733,9 @@ def _main(argv=None, prog: str = "hop", legacy: bool = False) -> int:
             command.add_argument("left")
             command.add_argument("right")
     args = parser.parse_args(argv)
-    args.legacy = legacy
+    args.legacy = False
     output_token = _output_format.set(
-        "json" if legacy else getattr(args, "format", "text" if sys.stdout.isatty() else "json")
+        getattr(args, "format", "text" if sys.stdout.isatty() else "json")
     )
     path_token = None
     try:
@@ -606,52 +747,52 @@ def _main(argv=None, prog: str = "hop", legacy: bool = False) -> int:
         path_token = active_paths.set(paths)
         args.home = str(paths.home)
         return args.func(args)
+    except LegacyEnvRemoved as exc:
+        return _report_error(
+            "legacy_env_removed",
+            str(exc),
+            EXIT_USAGE,
+            f"Set {exc.canonical} instead (see {MIGRATION_DOC}).",
+        )
+    except LifecycleError as exc:
+        return _report_error(
+            exc.code, str(exc), exc.exit_code, "Check command arguments and run hop doctor."
+        )
     except KeyboardInterrupt:
-        return _fail("cancelled: interrupted by user", 130)
+        return _report_error(
+            "cancelled", "interrupted by user", EXIT_CANCELLED, "Re-run when ready."
+        )
     except (OSError, ValueError, KeyError, TypeError) as exc:
         code = getattr(exc, "code", "invalid_input")
-        if _output_format.get() == "json":
-            print(
-                json.dumps(
-                    {
-                        "code": code,
-                        "error": str(exc),
-                        "action": "Check command arguments and run hop doctor.",
-                    }
-                ),
-                file=sys.stderr,
-            )
-        else:
-            _fail(f"{code}: {exc}. Check command arguments and run hop doctor.")
-        return 2
+        return _report_error(
+            code, str(exc), EXIT_USAGE, "Check command arguments and run hop doctor."
+        )
     finally:
         if path_token is not None:
             active_paths.reset(path_token)
         _output_format.reset(output_token)
 
 
-def main(argv=None, *, _legacy: bool = False) -> int:
-    """Canonical nested commands with narrow 0.1 syntax shims."""
+def _legacy_removed(form: str, replacement: str) -> int:
+    """Fail closed for a removed 0.1/0.2 command form."""
+    return _report_error(
+        "legacy_command_removed",
+        f"hop 1.0 removed the legacy {form}; use {replacement} (see {MIGRATION_DOC})",
+        EXIT_USAGE,
+        f"Rewrite the command as {replacement} (see {MIGRATION_DOC}).",
+    )
+
+
+def main(argv=None) -> int:
+    """Canonical nested commands only; the 0.1/0.2 shims were removed in 1.0."""
     argv = list(sys.argv[1:] if argv is None else argv)
     if len(argv) >= 2 and argv[0] == "run" and argv[1].startswith("--") and argv[1] != "--help":
-        print("hop: deprecated run syntax; use hop run start", file=sys.stderr)
-        return _main(["run", "start"] + argv[1:], legacy=True)
+        return _legacy_removed("`hop run --case ...` syntax", "`hop run start`")
     if argv and "-" in argv[0]:
         namespace, verb = argv[0].split("-", 1)
         if namespace in ("run", "profile", "component", "skill", "registry"):
-            print("hop: deprecated flat command; use nested commands", file=sys.stderr)
-            return _main([namespace, verb] + argv[1:], legacy=True)
-    return _main(argv, legacy=_legacy)
-
-
-def legacy_main(argv=None) -> int:
-    """Deprecated `aop` alias: same implementation, warns, same semantics."""
-    print(
-        "hop: warning: the `aop` command is deprecated; use `hop` "
-        "(alias removal target: 0.3 after M4 acceptance)",
-        file=sys.stderr,
-    )
-    return main(argv, _legacy=True)
+            return _legacy_removed(f"flat command `{argv[0]}`", f"`hop {namespace} {verb}`")
+    return _main(argv)
 
 
 if __name__ == "__main__":

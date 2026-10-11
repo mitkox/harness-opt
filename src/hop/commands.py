@@ -11,9 +11,10 @@ from .config import CONFIG_NAME, Paths
 
 
 def doctor(paths: Paths) -> dict:
-    checks = [
+    checks: list[dict[str, object]] = [
         {"name": "python", "available": True, "version": platform.python_version()},
-        *({"name": name, "available": bool(shutil.which(name))} for name in ("bwrap", "pi")),
+        {"name": "bwrap", "available": bool(shutil.which("bwrap"))},
+        {"name": "pi", "available": bool(shutil.which("pi"))},
         {"name": "deployment_inventory", "available": paths.deployments.is_file()},
         {"name": "verifier_store", "available": paths.verifier.is_dir()},
     ]
@@ -42,7 +43,7 @@ def deployments(paths: Paths) -> list[dict]:
 
 
 def list_runs(paths: Paths) -> list[dict]:
-    rows = []
+    rows: list[dict] = []
     if not paths.runs.exists():
         return rows
     for directory in sorted(paths.runs.iterdir()):

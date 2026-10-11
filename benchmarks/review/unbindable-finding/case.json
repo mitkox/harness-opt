@@ -1,0 +1,23 @@
+{
+  "case_id": "unbindable-finding",
+  "expects": {
+    "outcome": "inconclusive"
+  },
+  "labels": [
+    {
+      "path": "src/present.py",
+      "line": 1,
+      "rule": "naming",
+      "severity": "info"
+    }
+  ],
+  "findings": [
+    {
+      "path": "src/absent.py",
+      "line": 1,
+      "rule": "naming",
+      "severity": "info",
+      "message": "references a file that is not in the snapshot"
+    }
+  ]
+}

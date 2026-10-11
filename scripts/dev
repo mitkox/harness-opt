@@ -37,6 +37,182 @@ def run(command, **kwargs):
     ).returncode
 
 
+class ToolUnavailable(ValueError):
+    """An approved offline tool artifact is not available; never substitute one."""
+
+
+SHA256 = re.compile(r"[0-9a-f]{64}")
+
+# name, pin kind, arguments. The kind is the resolution contract: a wheel_artifact
+# or local_environment is only ever executed from its approved artifact, never from PATH.
+CHECK_COMMANDS = (
+    ("ruff", "local_binary", ("check", "src", "tests", "scripts/dev")),
+    ("ruff", "local_binary", ("format", "--check", "src", "tests", "scripts/dev")),
+    ("mypy", "local_environment", ("--python-version", "3.14", "src/hop")),
+)
+
+
+def load_tools():
+    path = ROOT / "development-tools.lock.json"
+    if not path.is_file():
+        raise ToolUnavailable(f"approved tool lock {path.name} is missing")
+    lock = json.loads(path.read_text())
+    if lock.get("schema_version") not in (1, 2):
+        raise ToolUnavailable(f"unsupported tool lock schema {lock.get('schema_version')!r}")
+    return lock.get("tools") or {}
+
+
+def expand_pin_path(value):
+    """Expand the documented ${HOME}/~ forms in a pinned path. Never guesses."""
+    return os.path.expanduser(os.path.expandvars(value))
+
+
+def lock_wheelhouse():
+    path = ROOT / "development-tools.lock.json"
+    try:
+        value = json.loads(path.read_text()).get("wheelhouse")
+    except (OSError, ValueError):
+        return None
+    if not isinstance(value, str) or not value:
+        return None
+    return expand_pin_path(value)
+
+
+def approved_wheelhouse():
+    wheelhouse = Path(
+        os.environ.get("HOP_WHEELHOUSE", lock_wheelhouse() or str(ROOT / ".vendor/wheels"))
+    ).resolve()
+    if not wheelhouse.is_dir():
+        raise ToolUnavailable(f"approved wheelhouse is missing: {wheelhouse}")
+    return wheelhouse
+
+
+def tools_environment():
+    environment = Path(os.environ.get("HOP_TOOLS_VENV", str(ROOT / ".venvs" / "tools")))
+    if not environment.is_absolute():
+        environment = ROOT / environment
+    return environment
+
+
+def verified_artifact(wheelhouse, name, entry):
+    filename = entry.get("wheel")
+    digest = entry.get("sha256")
+    if not filename or not isinstance(digest, str) or not SHA256.fullmatch(digest):
+        raise ToolUnavailable(f"approved offline {name} is unpinned (wheel+sha256 required)")
+    if Path(filename).name != filename:
+        raise ToolUnavailable(f"approved offline {name} pin must name a wheel file, not a path")
+    artifact = wheelhouse / filename
+    if not artifact.is_file():
+        raise ToolUnavailable(f"approved offline {name} wheel is not in the wheelhouse: {artifact}")
+    if hashlib.sha256(artifact.read_bytes()).hexdigest() != digest:
+        raise ToolUnavailable(f"{name} wheel integrity check failed: {artifact}")
+    return artifact
+
+
+def verify_manifest(manifest, name):
+    """Verify every file named by an approved artifact manifest, failing closed."""
+    for number, line in enumerate(manifest.read_text().splitlines(), 1):
+        if not line.strip():
+            continue
+        digest, separator, path = line.partition("  ")
+        target = Path(path)
+        if separator != "  " or not SHA256.fullmatch(digest) or not target.is_absolute():
+            raise ToolUnavailable(f"approved offline {name} manifest line {number} is malformed")
+        if not target.is_file():
+            raise ToolUnavailable(f"approved offline {name} manifest file is missing: {target}")
+        if hashlib.sha256(target.read_bytes()).hexdigest() != digest:
+            raise ToolUnavailable(f"{name} manifest integrity check failed: {target}")
+
+
+def resolve_approved_tool(tools, name, kind):
+    """Return the argv prefix for an approved tool, or fail closed. Never guesses."""
+    pin = tools.get(name)
+    if not isinstance(pin, dict):
+        raise ToolUnavailable(
+            f"approved offline {name} is not configured in development-tools.lock.json"
+        )
+    if pin.get("kind", "local_binary") != kind:
+        raise ToolUnavailable(
+            f"approved offline {name} pin kind {pin.get('kind')!r} does not match required {kind!r}"
+        )
+    if kind == "local_binary":
+        if pin.get("status") != "pinned_local_binary" or not SHA256.fullmatch(
+            pin.get("sha256") or ""
+        ):
+            raise ToolUnavailable(f"approved offline {name} is unpinned")
+        executable = shutil.which(name)
+        if not executable:
+            raise ToolUnavailable(f"approved offline {name} executable is unavailable")
+        if hashlib.sha256(Path(executable).read_bytes()).hexdigest() != pin["sha256"]:
+            raise ToolUnavailable(f"{name} build does not match the approved local pin")
+        return [executable]
+    if kind == "wheel_artifact":
+        if pin.get("status") != "pinned_wheel":
+            raise ToolUnavailable(
+                f"approved offline {name} is not pinned (status={pin.get('status', 'absent')}); "
+                "no PATH substitute is accepted"
+            )
+        wheelhouse = approved_wheelhouse()
+        for entry in (pin, *pin.get("requirements", [])):
+            verified_artifact(wheelhouse, entry.get("name", name), entry)
+        interpreter = tools_environment() / "bin/python"
+        if not interpreter.is_file():
+            raise ToolUnavailable(
+                f"approved offline {name} environment is missing: {interpreter.parent.parent} "
+                "(run scripts/dev bootstrap-tools)"
+            )
+        return [str(interpreter), "-m", pin.get("module") or name]
+    if kind == "local_environment":
+        if pin.get("status") != "pinned_local_environment":
+            raise ToolUnavailable(
+                f"approved offline {name} is not pinned (status={pin.get('status', 'absent')}); "
+                "no PATH substitute is accepted"
+            )
+        override_var = f"HOP_{name.upper()}_PYTHON"
+        configured_value = os.environ.get(override_var, "") or pin.get("interpreter")
+        if not isinstance(configured_value, str) or not configured_value:
+            raise ToolUnavailable(
+                f"approved offline {name} needs a pinned interpreter; "
+                f"set {override_var} to an approved copy"
+            )
+        # A pin may use the documented ${HOME}/~ forms so the repository carries
+        # no hardcoded username.
+        interpreter = expand_pin_path(configured_value)
+        if not Path(interpreter).is_absolute():
+            raise ToolUnavailable(
+                f"approved offline {name} needs an absolute pinned interpreter; "
+                f"set {override_var} to an approved copy"
+            )
+        # The configured path is what gets EXECUTED: for a venv it selects the
+        # venv's site-packages. ``resolved`` (the symlink target) is used only
+        # for the integrity hash, which is what the pin records.
+        resolved = Path(interpreter).resolve()
+        if not resolved.is_file():
+            raise ToolUnavailable(
+                f"approved offline {name} interpreter is missing: {interpreter}; "
+                f"set {override_var} to an approved copy of "
+                f"{pin.get('interpreter_version', 'the pinned version')} "
+                "(it must match the pinned sha256)"
+            )
+        if hashlib.sha256(resolved.read_bytes()).hexdigest() != pin.get("interpreter_sha256"):
+            raise ToolUnavailable(
+                f"{name} interpreter does not match the approved pin; "
+                f"{override_var} must point at the same approved build"
+            )
+        wheelhouse = approved_wheelhouse()
+        manifest_name = pin.get("manifest")
+        if not manifest_name or Path(manifest_name).name != manifest_name:
+            raise ToolUnavailable(f"approved offline {name} needs a manifest file name")
+        manifest = wheelhouse / manifest_name
+        if not manifest.is_file():
+            raise ToolUnavailable(f"approved offline {name} manifest is missing: {manifest}")
+        if hashlib.sha256(manifest.read_bytes()).hexdigest() != pin.get("manifest_sha256"):
+            raise ToolUnavailable(f"{name} manifest does not match the approved pin")
+        verify_manifest(manifest, name)
+        return [interpreter, "-m", pin.get("module") or name]
+    raise ToolUnavailable(f"approved offline {name} uses an unknown pin kind {kind!r}")
+
+
 def bootstrap(args):
     if (
         sys.version_info[:2] != (3, 14)
@@ -48,13 +224,9 @@ def bootstrap(args):
             "Offline wheelhouse currently evidenced for CPython 3.14/Linux x86-64 only."
         )
     wheelhouse = Path(
-        os.environ.get(
-            "HOP_WHEELHOUSE", os.environ.get("AOP_WHEELHOUSE", str(ROOT / ".vendor/wheels"))
-        )
+        os.environ.get("HOP_WHEELHOUSE", lock_wheelhouse() or str(ROOT / ".vendor/wheels"))
     ).resolve()
-    target = Path(
-        os.environ.get("HOP_LOCK_VENV", os.environ.get("AOP_LOCK_VENV", str(ROOT / ".venv")))
-    )
+    target = Path(os.environ.get("HOP_LOCK_VENV", str(ROOT / ".venv")))
     if not target.is_absolute():
         target = ROOT / target
     if target.parent.resolve() != ROOT or not target.name.startswith(".venv"):
@@ -132,12 +304,92 @@ def bootstrap(args):
             shutil.rmtree(directory)
 
 
+def bootstrap_tools(args):
+    """Build the approved tool environment from pinned wheels only. Never installs unpinned."""
+    tools = load_tools()
+    pins = [
+        (name, pin)
+        for name, pin in sorted(tools.items())
+        if isinstance(pin, dict) and pin.get("kind") == "wheel_artifact"
+    ]
+    all_pins = sorted(name for name, pin in tools.items() if isinstance(pin, dict))
+    if not all_pins:
+        raise ToolUnavailable("no approved offline tool artifacts are configured")
+    if not pins:
+        local = all_pins
+        print(
+            "no approved offline wheel-artifact tools to build; local pins resolve in place: "
+            f"{', '.join(local) or 'none'}. Relocate the approved toolchain with "
+            "HOP_WHEELHOUSE / HOP_MYPY_PYTHON (both hash-verified; a PATH tool is never "
+            "accepted). See README.md."
+        )
+        return 0
+    wheelhouse = approved_wheelhouse()
+    lines = []
+    for name, pin in pins:
+        if pin.get("status") != "pinned_wheel":
+            raise ToolUnavailable(
+                f"approved offline {name} is not pinned (status={pin.get('status', 'absent')})"
+            )
+        for entry in (pin, *pin.get("requirements", [])):
+            verified_artifact(wheelhouse, entry.get("name", name), entry)
+            lines.append(
+                f"{entry.get('name', name)}=={entry.get('version')} --hash=sha256:{entry['sha256']}"
+            )
+    target = tools_environment()
+    if target.exists() or target.is_symlink():
+        raise ToolUnavailable(
+            f"Preserving existing tool environment {target}; remove it to rebuild."
+        )
+    parent = ROOT / ".venvs"
+    parent.mkdir(exist_ok=True)
+    directory = Path(tempfile.mkdtemp(prefix="tools-", dir=parent))
+    published = False
+    try:
+        venv.EnvBuilder(with_pip=True, symlinks=True).create(directory)
+        executable = str(directory / "bin/python")
+        requirements = directory / "tools-requirements.lock"
+        requirements.write_text("\n".join(lines) + "\n")
+        command = [
+            executable,
+            "-m",
+            "pip",
+            "install",
+            "--disable-pip-version-check",
+            "--no-cache-dir",
+            "--no-index",
+            "--no-deps",
+            "--find-links",
+            str(wheelhouse),
+            "--require-hashes",
+            "-r",
+            str(requirements),
+        ]
+        if run(command):
+            raise ToolUnavailable("Offline tool installation failed; no environment published.")
+        for name, pin in pins:
+            module = pin.get("module") or name
+            if run([executable, "-c", f"import {module}"]):
+                raise ToolUnavailable(f"New tool environment cannot import approved {name}.")
+        os.rename(directory, target)
+        published = True
+        print(json.dumps({"tool_environment": str(target), "tools": [name for name, _ in pins]}))
+        return 0
+    finally:
+        if not published:
+            shutil.rmtree(directory)
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     sub = parser.add_subparsers(dest="command", required=True)
     build = sub.add_parser("bootstrap", help="Build and validate a new offline environment")
     build.add_argument("--runtime", action="store_true")
     build.add_argument("--run-tests", action="store_true")
+    sub.add_parser(
+        "bootstrap-tools",
+        help="Build the pinned approved-artifact tool environment (offline, no PATH fallback)",
+    )
     test = sub.add_parser("test", help="Run a selected test suite")
     test.add_argument(
         "--suite", choices=("unit", "contract", "sandbox", "all", "live"), default="unit"
@@ -150,6 +402,8 @@ def main():
             if args.runtime and args.run_tests:
                 raise ValueError("Runtime-only environments do not include test dependencies.")
             return bootstrap(args)
+        if args.command == "bootstrap-tools":
+            return bootstrap_tools(args)
         if args.command == "test":
             marker = "not live" if args.suite == "all" else args.suite
             return run([python(), "-m", "pytest", "tests", "-m", marker, "-o", "addopts=", "-q"])
@@ -161,29 +415,16 @@ def main():
                 file=sys.stderr,
             )
             return status or tests or 3
+        tools = load_tools()
         statuses = []
-        tools = json.loads((ROOT / "development-tools.lock.json").read_text())["tools"]
-        for command in (
-            ["ruff", "check", "src", "tests", "scripts/dev"],
-            ["ruff", "format", "--check", "src", "tests", "scripts/dev"],
-            ["mypy", "src/hop"],
-        ):
-            executable = shutil.which(command[0])
-            identity = tools.get(command[0], {})
-            if not executable or not identity.get("sha256"):
-                print(
-                    f"BLOCKED: approved offline {command[0]} unavailable or unpinned",
-                    file=sys.stderr,
-                )
+        for name, kind, arguments in CHECK_COMMANDS:
+            try:
+                command = resolve_approved_tool(tools, name, kind)
+            except ToolUnavailable as exc:
+                print(f"BLOCKED: {exc}", file=sys.stderr)
                 statuses.append(3)
-            elif hashlib.sha256(Path(executable).read_bytes()).hexdigest() != identity["sha256"]:
-                print(
-                    f"BLOCKED: {command[0]} build does not match the approved local pin",
-                    file=sys.stderr,
-                )
-                statuses.append(3)
-            else:
-                statuses.append(run([executable, *command[1:]]))
+                continue
+            statuses.append(run([*command, *arguments]))
         return next((status for status in statuses if status), 0)
     except (OSError, ValueError) as exc:
         print(f"BLOCKED: {exc}", file=sys.stderr)

@@ -1,0 +1,37 @@
+{
+  "case_id": "normalize-faults",
+  "title": "Detect injected normalization faults with generated tests",
+  "repo_subdir": "repo",
+  "target_module": "textnorm.py",
+  "test_files": ["tests/test_visible.py"],
+  "faults": [
+    {"fault_id": "f1", "patch_file": "faults/f1.patch", "description": "normalize drops the strip"},
+    {"fault_id": "f2", "patch_file": "faults/f2.patch", "description": "normalize upper-cases"},
+    {"fault_id": "f3", "patch_file": "faults/f3.patch", "description": "normalize drops the lower-casing"}
+  ],
+  "mandatory_faults": ["f1", "f2", "f3"],
+  "minimum_kills": 3,
+  "examples": [
+    {
+      "label": "passing",
+      "example_class": "passing",
+      "candidate_patch_file": "candidates/passing.patch",
+      "expected_verdict": "pass",
+      "expected_error_class": ""
+    },
+    {
+      "label": "failing",
+      "example_class": "failing",
+      "candidate_patch_file": "candidates/failing.patch",
+      "expected_verdict": "fail",
+      "expected_error_class": "fault_survived"
+    },
+    {
+      "label": "trivial-coverage",
+      "example_class": "failing",
+      "candidate_patch_file": "candidates/trivial.patch",
+      "expected_verdict": "fail",
+      "expected_error_class": "no_fault_detected"
+    }
+  ]
+}

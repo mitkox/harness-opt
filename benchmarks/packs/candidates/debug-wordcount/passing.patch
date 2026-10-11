@@ -1,0 +1,8 @@
+--- a/counter.py
++++ b/counter.py
+@@ -5,4 +5,4 @@
+     if not text or not text.strip():
+         return 0
+     # BUG: splitting on a single space mishandles tabs and runs of whitespace.
+-    return len(text.strip().split(" "))
++    return len(text.strip().split())

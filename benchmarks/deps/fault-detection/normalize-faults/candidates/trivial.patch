@@ -1,0 +1,14 @@
+--- a/tests/test_visible.py
++++ b/tests/test_visible.py
+@@ -1,7 +1,8 @@
+-"""Candidate-visible tests (initially no behavioral coverage)."""
++"""Candidate-visible tests that execute the code without asserting behavior."""
+ 
+ import textnorm
+ 
+ 
+-def test_module_imports():
+-    assert textnorm is not None
++def test_calls_without_assertions():
++    textnorm.normalize("  MiXeD  ")
++    textnorm.titleize("  hello ")

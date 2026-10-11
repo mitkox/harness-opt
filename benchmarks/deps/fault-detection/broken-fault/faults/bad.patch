@@ -1,0 +1,5 @@
+--- a/missing_module.py
++++ b/missing_module.py
+@@ -1 +1 @@
+-old_value = 1
++old_value = 2

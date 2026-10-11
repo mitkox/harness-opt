@@ -35,8 +35,12 @@ def main() -> int:
         schema = json.load(fh)
     checker = jsonschema.FormatChecker()
     rows = []
-    if not os.path.exists(args.runs_dir):
-        print("[]")
+    if not os.path.isdir(args.runs_dir):
+        # Absent on a fresh clone: runs/ is gitignored, so its absence is
+        # expected rather than an error. Report an empty set and succeed.
+        # A non-directory path is treated identically: there is no run set to
+        # inspect, and listing it would only raise NotADirectoryError.
+        print(json.dumps(rows, indent=2))
         return 0
     for name in sorted(os.listdir(args.runs_dir)):
         run_dir = os.path.join(args.runs_dir, name)

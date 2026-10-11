@@ -39,7 +39,7 @@ def _norm_text(data: bytes) -> str:
     return data.decode("utf-8", errors="replace").replace("\r\n", "\n")
 
 
-def _pick(files: dict[str, bytes], candidates: list[str]) -> tuple[str, bytes] | None:
+def _pick(files: dict[str, bytes], candidates: list[str]) -> tuple[str, bytes]:
     for candidate in candidates:
         if candidate in files:
             return candidate, files[candidate]
@@ -130,7 +130,11 @@ class ProfileCompilerTarget(ABC):
         return {}
 
     def emit_manifest(
-        self, profile: Profile, resolved: ResolvedProfile, lock: Lockfile, files: dict[str, bytes]
+        self,
+        profile: Profile,
+        resolved: ResolvedProfile,
+        lock: Lockfile | None,
+        files: dict[str, bytes],
     ) -> dict[str, bytes]:
         return {}
 

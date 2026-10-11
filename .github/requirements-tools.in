@@ -1,0 +1,11 @@
+# CI-only type-checker toolchain. The delivery host's authoritative pin is the
+# cp313 interpreter + hash-manifested tree in development-tools.lock.json; a
+# GitHub runner cannot reproduce it, so this input pins the same mypy version and
+# its runtime dependencies by exact version. ci.yml expands it with hashes via
+# `uv pip compile --generate-hashes` and installs with --require-hashes.
+mypy==2.3.1
+mypy_extensions==1.1.0
+typing_extensions==4.16.0
+librt==0.15.0
+ast-serialize==0.11.2
+pathspec==1.1.1

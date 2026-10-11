@@ -18,11 +18,11 @@ def read_page(path: str, cursor: int = 0, limit: int = 100, event_type: str = ""
     if Path(path + ".pending").exists():
         raise ValueError("incomplete trajectory write")
     before = source.stat()
-    rows = []
+    rows: list[dict] = []
     count = 0
     next_cursor = cursor
     chain = "0" * 64
-    sequences = {}
+    sequences: dict[str, int] = {}
     with source.open("rb") as stream:
         for raw in stream:
             if not raw.strip():

@@ -1,0 +1,108 @@
+{
+  "baseline_revision": "4e6d6a243e5f46b80318fb35981251ef0392d200",
+  "date": "2026-10-01",
+  "note": "Moved out of docs/evidence/foundation/measurements.json so the historical bytes stay unchanged (WP-4.7).",
+  "remeasurement": {
+    "baseline": {
+      "help_startup_median_ms": 29.14999600034207,
+      "profile_compile_median_ms": 7.265625987201929,
+      "source_bytes": 353395,
+      "source_lines": 8342,
+      "source_sha256": "df79e9a9e4d10c2a484214b1e8d143dcdb1013dd1c64143042e3d67bb9e02562",
+      "trajectory_first_page": {
+        "events": 10000,
+        "median_ms": 482.0056520111393,
+        "median_peak_python_bytes": 47139841,
+        "returned": 100,
+        "samples": [
+          {
+            "events": 10000,
+            "milliseconds": 471.2319720129017,
+            "peak_python_bytes": 47139841,
+            "returned": 100
+          },
+          {
+            "events": 10000,
+            "milliseconds": 483.14747397671454,
+            "peak_python_bytes": 47139841,
+            "returned": 100
+          },
+          {
+            "events": 10000,
+            "milliseconds": 482.26962800254114,
+            "peak_python_bytes": 47139841,
+            "returned": 100
+          },
+          {
+            "events": 10000,
+            "milliseconds": 471.43312101252377,
+            "peak_python_bytes": 47139841,
+            "returned": 100
+          },
+          {
+            "events": 10000,
+            "milliseconds": 482.0056520111393,
+            "peak_python_bytes": 47139841,
+            "returned": 100
+          }
+        ]
+      }
+    },
+    "baseline_revision": "4e6d6a243e5f46b80318fb35981251ef0392d200",
+    "baseline_source": "git archive 4e6d6a243e5f46b80318fb35981251ef0392d200 from the delivery worktree, extracted into a scratch directory outside the repository",
+    "branch": "esf/hop-1.0",
+    "branch_tip": "f5dc9ed03d8eae1de9d0fdadb39fae4e6e73369a",
+    "command": "PYTHONDONTWRITEBYTECODE=1 .venv/bin/python scripts/measure_foundation.py --baseline <scratch checkout of 4e6d6a243e5f46b80318fb35981251ef0392d200>",
+    "current": {
+      "help_startup_median_ms": 30.046170504647307,
+      "profile_compile_median_ms": 7.269383000675589,
+      "source_bytes": 383408,
+      "source_lines": 10390,
+      "source_sha256": "409da0941f6543115630e69d16d051c9f74391cda85072f1b2db8ccc2db08714",
+      "trajectory_first_page": {
+        "events": 10000,
+        "median_ms": 90.62813300988637,
+        "median_peak_python_bytes": 1266964,
+        "returned": 100,
+        "samples": [
+          {
+            "events": 10000,
+            "milliseconds": 90.9179600130301,
+            "peak_python_bytes": 1266964,
+            "returned": 100
+          },
+          {
+            "events": 10000,
+            "milliseconds": 90.69266499136575,
+            "peak_python_bytes": 1266656,
+            "returned": 100
+          },
+          {
+            "events": 10000,
+            "milliseconds": 88.94562200293876,
+            "peak_python_bytes": 1267935,
+            "returned": 100
+          },
+          {
+            "events": 10000,
+            "milliseconds": 90.62813300988637,
+            "peak_python_bytes": 1266348,
+            "returned": 100
+          },
+          {
+            "events": 10000,
+            "milliseconds": 89.831432007486,
+            "peak_python_bytes": 1269274,
+            "returned": 100
+          }
+        ]
+      }
+    },
+    "date": "2026-10-09",
+    "limitations": "Warm local filesystem; same pinned interpreter as the historical run's host class (now CPython 3.14.8, previously 3.14.4); five trajectory samples; no GPU or model-speed claim. Source bytes/lines/hash reproduce the historical baseline record exactly; wall-clock medians differ by host load and patch interpreter version.",
+    "model_inference": false,
+    "path_baseline_note": "The historical command `--baseline /home/mitko/dev/harness-opt` now resolves to revision 4ba5b1aa6760 (`4ba5b1aa67607e2723ca8bb8644fd8772740d26b`), not 4e6d6a2. Re-running that exact path command on the delivery tip measured baseline source_bytes=383408, source_lines=10390, source_sha256=409da0941f6543115630e69d16d051c9f74391cda85072f1b2db8ccc2db08714 -- identical to the current tip, because delivery-branch commits to date change scripts, tests and docs, not src/hop. Use the pinned-revision command above for a reproducible baseline.",
+    "python": "3.14.8 (main, Oct  1 2026, 21:01:09) [Clang 22.1.3 ]"
+  },
+  "schema": "hop-foundation-remeasurement-v1"
+}

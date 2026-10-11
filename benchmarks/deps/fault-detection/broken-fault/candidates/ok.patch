@@ -1,0 +1,13 @@
+--- a/tests/test_visible.py
++++ b/tests/test_visible.py
+@@ -1,7 +1,7 @@
+-"""Candidate-visible tests (initially no behavioral coverage)."""
++"""Candidate-visible behavioral tests."""
+ 
+ import calc
+ 
+ 
+-def test_module_imports():
+-    assert calc is not None
++def test_add():
++    assert calc.add(1, 2) == 3

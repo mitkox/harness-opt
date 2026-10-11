@@ -1,0 +1,8 @@
+{
+  "blocked": [
+    {
+      "leg": "evaluation",
+      "reason": "outcome=infra_error verdict=error error_class=verifier_sandbox_unavailable - the trusted verifier did not return a task verdict"
+    }
+  ]
+}

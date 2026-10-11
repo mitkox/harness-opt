@@ -4,7 +4,7 @@
 
 Implement the single-user local coding tool specified in `BUILD_PLAN.md` and ADR-011. No tenants, accounts, enterprise workflows, provider write-back, signing service, fleet deployment, or role administration. Preserve worker/verifier isolation, local-only inference, and evidence integrity.
 
-M0-M3 are delivered in scoped form. HOP-R01-R05 foundation requalification remains blocked; read its acceptance matrix before M4. Preserve existing repository work and historical evidence. Optional integrations do not gate the single-user core unless enabled.
+M0-M3 are delivered in scoped form and HOP-R01-R05 foundation acceptance is **closed** at the recorded delivery tip (`docs/acceptance-foundation-renewal.md`, ESF gate `hop-gate-task10-2468b04`). M4 is beginning; `AOP-020` is the next roadmap item. Preserve existing repository work and historical evidence. Optional integrations do not gate the single-user core unless enabled.
 
 ## Repository State and Sources of Truth
 
@@ -16,11 +16,14 @@ acceptance, release qualification, or permission to advance dependencies.
   as current or reimplement delivered milestones.
 - `docs/acceptance-m{1,2,3}.md` and `docs/evidence/` describe historical delivered
   slices. Preserve their bytes and the ability to read prior runs and locks.
-- `docs/acceptance-foundation.md`, `docs/single-user-delivery.md`, and ADR-011
-  describe the current incomplete foundation and single-user scope.
-- Latest recorded validation is 284 non-live tests passing. Type checking,
-  current Pi/local-model acceptance, and independent boundary review remain
-  outstanding; verify the installed build rather than trusting old version notes.
+- `docs/acceptance-foundation-renewal.md` records the current acceptance for the
+  closed foundation; `docs/acceptance-foundation.md`, `docs/single-user-delivery.md`,
+  and ADR-011 remain the historical foundation review and single-user scope.
+- Latest recorded validation at the accepted tip: ESF hop-v1 gate PASSED
+  (`hop-gate-task10-2468b04`; Cube CPython 3.12.12 + bubblewrap 0.8.0, 0 leftover
+  sandboxes) and `scripts/dev check` exit 0 (0 findings, 47 files). Live
+  local-model acceptance and the pinned Pi requalification remain unexecuted;
+  verify the installed build rather than trusting old version notes.
 - Only Pi is implemented. Other adapters are optional and explicitly blocked
   until their pinned interfaces are qualified. Automatic optimization does not
   exist yet; do not approximate it with an ad-hoc loop.
@@ -40,7 +43,8 @@ scripts/dev test --suite all
 ./hop profile --help
 ```
 
-`check` must remain blocked when approved type tooling is unavailable. Select
+`check` is fail-closed: it resolves Ruff and mypy only from the approved
+`development-tools.lock.json` pins and refuses an unverified `PATH` binary. Select
 `unit`, `contract`, `sandbox`, or `live` for focused tests. Live probes and full
 local-model acceptance are separate; fixtures never qualify a model. Do not use
 `pip install -e .`, download packages during evaluation, or overwrite an existing
@@ -111,11 +115,15 @@ Report the work-item IDs, files changed, implementation decisions, validations r
 
 ## Current Assignment
 
-Close the foundation acceptance gaps before implementing AOP-020 and the core local coding packs. Keep AOP-024 and AOP-042 out of scope under ADR-011. Do not begin optimization or activation before their dependency evidence exists. A scope reduction is not a passed safety gate.
+Foundation acceptance is closed. Implement provenance/protected splits (AOP-020)
+first, then coding and debugging (AOP-021), local diff review (AOP-022),
+test/dependency maintenance (AOP-025), and advisory calibrated local judges
+(AOP-026). Keep AOP-024 and AOP-042 out of scope under ADR-011. Do not begin
+optimization or activation before their dependency evidence exists, and do not
+advance M5–M9 from this acceptance. A scope reduction is not a passed safety gate.
 
-After foundation acceptance, implement provenance/protected splits (AOP-020),
-coding and debugging (AOP-021), local diff review (AOP-022), test/dependency
-maintenance (AOP-025), and advisory calibrated local judges (AOP-026). Each core
-pack needs passing, failing, and inconclusive examples with complete trajectories
-and completeness reports. AOP-023 local build fixtures remain optional. The
-trusted verifier remains authoritative and insufficient evidence is inconclusive.
+Each core pack needs passing, failing, and inconclusive examples with complete
+trajectories and completeness reports. AOP-023 local build fixtures remain
+optional. The trusted verifier remains authoritative and insufficient evidence is
+inconclusive. Live local-model acceptance and Pi requalification are still
+unexecuted; do not claim them from fixtures.

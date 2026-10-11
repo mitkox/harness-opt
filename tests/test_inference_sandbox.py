@@ -1,6 +1,9 @@
 """Inference + sandbox tests (AOP-007, AOP-008). Hermetic stub servers/processes."""
 
 import json
+import os
+import shutil
+import sys
 import threading
 import time
 from http.server import BaseHTTPRequestHandler, HTTPServer
@@ -8,6 +11,7 @@ from pathlib import Path
 
 import pytest
 
+from hop import runner as hop_runner
 from hop import sandbox
 from hop.inference import (
     ChatRequest,
@@ -146,3 +150,301 @@ def test_workspace_rejects_hidden_markers_and_symlinks(tmp_path):
     Path(os.path.join(ws, "hidden-tests")).write_text("secret")
     with pytest.raises(ValueError):
         sandbox.assert_no_hidden_material(ws, ["hidden-tests"])
+
+
+# --- WP-1.6: symlinked interpreter installs (task-40, G8 blocker) -----------
+
+
+def _fake_symlinked_interpreter(tmp_path, monkeypatch):
+    """A venv whose interpreter chain crosses a symlinked install root.
+
+    Mirrors the host layout ``venv/bin/python -> python3 ->
+    <installs>/python/latest/bin/python3`` where ``latest`` is itself a symlink.
+    """
+    import os
+    import sys as _sys
+
+    real_base = Path(_sys.base_prefix).resolve()
+    installs = tmp_path / "installs" / "python"
+    installs.mkdir(parents=True)
+    (installs / "3.14.8").symlink_to(real_base, target_is_directory=True)
+    (installs / "latest").symlink_to("3.14.8", target_is_directory=True)
+    venv = tmp_path / "venv"
+    (venv / "bin").mkdir(parents=True)
+    (venv / "lib" / "python3.14" / "site-packages").mkdir(parents=True)
+    (venv / "bin" / "python").symlink_to("python3")
+    (venv / "bin" / "python3").symlink_to(installs / "latest" / "bin" / "python3")
+    (venv / "pyvenv.cfg").write_text(
+        f"home = {real_base / 'bin'}\ninclude-system-site-packages = false\n"
+        f"version = {_sys.version.split()[0]}\n"
+    )
+    monkeypatch.setattr(_sys, "executable", str(venv / "bin" / "python"))
+    monkeypatch.setattr(_sys, "prefix", str(venv))
+    monkeypatch.setattr(_sys, "exec_prefix", str(venv))
+    monkeypatch.setattr(_sys, "base_prefix", str(real_base))
+    monkeypatch.setattr(_sys, "base_exec_prefix", str(real_base))
+    assert os.path.realpath(venv / "bin" / "python") == os.path.realpath(
+        real_base / "bin" / "python3"
+    )
+    return venv, installs
+
+
+def test_interpreter_binds_cover_a_symlinked_install_root(tmp_path, monkeypatch):
+    venv, installs = _fake_symlinked_interpreter(tmp_path, monkeypatch)
+    binds = dict(sandbox.interpreter_ro_binds())
+    assert str(venv) in binds, "the venv prefix must stay bound for site-packages"
+    assert str(installs / "latest") in binds, (
+        "the symlinked install root must be bound at its own path, or the venv "
+        "interpreter symlink dangles inside the namespace"
+    )
+    covered_paths = set(binds) | set(sandbox.SYSTEM_RO_BINDS)
+    real_install = os.path.realpath(installs / "latest")
+    assert any(
+        real_install == base or real_install.startswith(base + os.sep) for base in covered_paths
+    ), "the real install root must stay reachable"
+    for link in (venv / "bin" / "python", venv / "bin" / "python3", installs / "latest"):
+        target = os.path.realpath(link)
+        covered = any(target == base or target.startswith(base + os.sep) for base in covered_paths)
+        assert covered, f"{link} -> {target} is not reachable in the namespace"
+
+
+def test_worker_execs_through_a_symlinked_interpreter_chain(tmp_path, monkeypatch):
+    venv, installs = _fake_symlinked_interpreter(tmp_path, monkeypatch)
+    runner = tmp_path / "run.sh"
+    runner.write_text(
+        f'#!/bin/sh\nexec "{venv}/bin/python" -c "import sys; print(\'OK\', sys.prefix)"\n'
+    )
+    os.chmod(runner, 0o700)
+    layout = sandbox.prepare_layout(str(tmp_path / "worker"))
+    probe = sandbox.probe_worker_network_isolation(str(tmp_path / "probe"))
+    if not probe["enforced"]:
+        # Explicit blocked evidence: no namespace here, so no isolation claim.
+        assert probe["reason"], probe
+        return
+    spec = sandbox.SandboxSpec(cpu_time_s=30, memory_bytes=2**30)
+    env = sandbox.scrub_worker_env(dict(os.environ))
+    base = [(p, p) for p in sandbox.SYSTEM_RO_BINDS] + [(str(runner), str(runner))]
+    binds = sandbox.interpreter_ro_binds()
+    fixed = sandbox.spawn_confined(
+        [str(runner)],
+        cwd=str(layout.workspace),
+        env=env,
+        ro_binds=base + binds,
+        rw_binds=[(layout.root, layout.root)],
+        spec=spec,
+        timeout_s=60.0,
+    )
+    assert fixed.exit_code == 0, Path(fixed.stderr_path).read_text()[-500:]
+    assert "OK" in Path(fixed.stdout_path).read_text()
+    # RED: without the symlinked install root bind the same command cannot exec.
+    old = [(src, dst) for src, dst in binds if str(installs / "latest") not in src]
+    broken = sandbox.spawn_confined(
+        [str(runner)],
+        cwd=str(layout.workspace),
+        env=env,
+        ro_binds=base + old,
+        rw_binds=[(layout.root, layout.root)],
+        spec=spec,
+        timeout_s=60.0,
+    )
+    assert broken.exit_code != 0, "the symlinked install root bind must be required"
+
+
+def test_spawn_isolated_binds_the_symlinked_install_root(tmp_path, monkeypatch):
+    """The assembled worker binds must include the symlinked install root."""
+    from hop import sandbox as sandbox_mod
+
+    venv, installs = _fake_symlinked_interpreter(tmp_path, monkeypatch)
+    layout = sandbox_mod.prepare_layout(str(tmp_path / "worker"))
+    captured: dict = {}
+
+    def fake_spawn(cmd, *, cwd, env, ro_binds, rw_binds, spec, **kwargs):
+        captured["ro"] = list(ro_binds)
+        return sandbox_mod.RunResult(
+            exit_code=0, timed_out=False, cancelled=False, stdout_path="", stderr_path=""
+        )
+
+    monkeypatch.setattr(sandbox_mod, "spawn_confined", fake_spawn)
+    sandbox_mod.spawn_isolated(
+        [str(venv / "bin" / "python"), "-c", "pass"],
+        layout,
+        sandbox_mod.SandboxSpec(share_network=False),
+        timeout_s=5.0,
+    )
+    destinations = {dst for _src, dst in captured["ro"]}
+    assert str(installs / "latest") in destinations
+    assert str(venv) in destinations
+
+
+# --- WP-1.7: harness package install binds (task-42, G8 blocker #2) ----------
+
+
+def _fake_harness_install(tmp_path):
+    """A mise-style Pi layout: .bin/pi -> .mise package -> bundle/cli.js."""
+    install = tmp_path / "install"
+    version = install / "1.1.0" / "node_modules"
+    package = (
+        version
+        / ".mise"
+        / "@scope+pkg@1.1.0"
+        / "node_modules"
+        / "@scope"
+        / "pkg"
+        / "dist"
+        / "bundle"
+    )
+    package.mkdir(parents=True)
+    bundle = package / "cli.js"
+    bundle.write_text("console.log('1.1.0')\n")
+    bin_dir = version / ".bin"
+    bin_dir.mkdir()
+    pi = bin_dir / "pi"
+    pi.symlink_to("../.mise/@scope+pkg@1.1.0/node_modules/@scope/pkg/dist/bundle/cli.js")
+    (install / "latest").symlink_to("1.1.0", target_is_directory=True)
+    return pi, install / "latest" / "node_modules" / ".bin" / "pi", bundle
+
+
+def test_harness_binds_resolve_the_package_install_root(tmp_path):
+    _pi, invoked, bundle = _fake_harness_install(tmp_path)
+    binds = dict(hop_runner._harness_ro_binds(str(invoked)))
+    roots = [base for base in binds if base.endswith("node_modules")]
+    assert roots, f"no node_modules install root bound: {sorted(binds)}"
+    covered = [
+        base for base in binds if str(bundle) == base or str(bundle).startswith(base + os.sep)
+    ]
+    assert covered, "the harness bundle must be reachable through the binds"
+    assert any(base.endswith("1.1.0/node_modules") for base in binds)
+    assert any(base.endswith("latest/node_modules") for base in binds)
+
+
+def test_worker_reaches_the_harness_bundle_through_the_binds(tmp_path):
+    _pi, invoked, bundle = _fake_harness_install(tmp_path)
+    layout = sandbox.prepare_layout(str(tmp_path / "worker"))
+    probe = sandbox.probe_worker_network_isolation(str(tmp_path / "probe"))
+    if not probe["enforced"]:
+        assert probe["reason"], probe
+        return
+    spec = sandbox.SandboxSpec(
+        share_network=False, ro_binds=hop_runner._harness_ro_binds(str(invoked))
+    )
+    found = sandbox.spawn_isolated(
+        ["bash", "-c", f"test -f {str(bundle)!r} && echo FOUND || echo MISSING"],
+        layout,
+        spec,
+        timeout_s=30.0,
+    )
+    assert "FOUND" in Path(found.stdout_path).read_text(), Path(found.stderr_path).read_text()[
+        -300:
+    ]
+    # RED: without the install-root binds the same probe must miss the bundle.
+    old = [(src, dst) for src, dst in spec.ro_binds if "node_modules" not in src]
+    missing = sandbox.spawn_isolated(
+        ["bash", "-c", f"test -f {str(bundle)!r} && echo FOUND || echo MISSING"],
+        layout,
+        sandbox.SandboxSpec(share_network=False, ro_binds=old),
+        timeout_s=30.0,
+    )
+    assert "MISSING" in Path(missing.stdout_path).read_text()
+
+
+# --- WP-1.8: duplicate ro-bind destinations (task-44, G8 blocker #3) ---------
+
+
+def test_build_bwrap_cmd_deduplicates_ro_bind_destinations(tmp_path):
+    layout = sandbox.prepare_layout(str(tmp_path / "worker"))
+    prefix = tmp_path / "prefix"
+    (prefix / "bin").mkdir(parents=True)
+    interpreter = prefix / "bin" / "python"
+    interpreter.write_text("#!/bin/sh\n")
+    interpreter.chmod(0o700)
+    # Environment-independent: a directory bind plus a file inside it, twice.
+    dupes = [(str(prefix), str(prefix)), (str(interpreter), str(interpreter))] * 2
+    argv = sandbox.build_bwrap_cmd(
+        ["/bin/true"],
+        cwd=str(layout.workspace),
+        ro_binds=dupes,
+        rw_binds=[(layout.root, layout.root)],
+        share_network=False,
+    )
+    destinations = [argv[i + 2] for i, item in enumerate(argv) if item == "--ro-bind"]
+    assert destinations == [str(prefix), str(interpreter)]
+    assert len(destinations) == len(set(destinations)), (
+        "a destination bound twice makes bwrap fail while creating the path"
+    )
+
+
+def test_duplicate_dir_and_file_binds_still_execute(tmp_path):
+    """Compose the real shape: a directory bind plus a file inside it, twice."""
+    base = tmp_path / "prefix"
+    (base / "bin").mkdir(parents=True)
+    interpreter = base / "bin" / "python"
+    interpreter.write_text("#!/bin/sh\necho RUNS\n")
+    interpreter.chmod(0o700)
+    layout = sandbox.prepare_layout(str(tmp_path / "worker"))
+    probe = sandbox.probe_worker_network_isolation(str(tmp_path / "probe"))
+    if not probe["enforced"]:
+        assert probe["reason"], probe
+        return
+    binds = [(p, p) for p in sandbox.SYSTEM_RO_BINDS]
+    binds += [(str(base), str(base)), (str(interpreter), str(interpreter))]
+    binds += [(str(base), str(base)), (str(interpreter), str(interpreter))]
+    res = sandbox.spawn_confined(
+        [str(interpreter)],
+        cwd=str(layout.workspace),
+        env=sandbox.scrub_worker_env(dict(os.environ)),
+        ro_binds=binds,
+        rw_binds=[(layout.root, layout.root)],
+        spec=sandbox.SandboxSpec(cpu_time_s=30, memory_bytes=2**30),
+        timeout_s=30.0,
+    )
+    assert res.exit_code == 0, Path(res.stderr_path).read_text()[-400:]
+    assert "RUNS" in Path(res.stdout_path).read_text()
+
+
+# --- WP-1.9: relay must exec the qualified absolute harness path (task-45) ---
+
+
+def test_broker_relay_refuses_a_bare_harness_name(monkeypatch):
+    from hop.harnesses import broker_relay
+
+    with pytest.raises(broker_relay.RelayError):
+        broker_relay.qualified_command(["pi", "-p"])
+    with pytest.raises(broker_relay.RelayError):
+        broker_relay.qualified_command([])
+    assert broker_relay.qualified_command(["/abs/pi", "-p"]) == ["/abs/pi", "-p"]
+    executed: dict = {}
+    monkeypatch.setattr(broker_relay, "loopback_up", lambda: True)
+    monkeypatch.setattr(broker_relay.os, "fork", lambda: 1)
+    monkeypatch.setattr(broker_relay.os, "execv", lambda path, argv: executed.update(path=path))
+    monkeypatch.setattr(sys, "argv", ["broker_relay.py", "/tmp/x.sock", "1", "--", "pi", "-p"])
+    with pytest.raises(broker_relay.RelayError):
+        broker_relay.main()
+    assert executed == {}, "a bare harness name must never be exec'd through PATH"
+
+
+def test_broker_relay_ignores_a_hostile_path(tmp_path, monkeypatch):
+    """An absolute qualified path wins even when PATH holds a fake harness."""
+    from hop.harnesses import broker_relay
+
+    real = tmp_path / "real" / "pi"
+    real.parent.mkdir(parents=True)
+    real.write_text("#!/bin/sh\necho REAL\n")
+    real.chmod(0o700)
+    shim_dir = tmp_path / "shim"
+    shim_dir.mkdir()
+    shim = shim_dir / "pi"
+    shim.write_text("#!/bin/sh\necho SHIM\n")
+    shim.chmod(0o700)
+    monkeypatch.setenv("PATH", f"{shim_dir}{os.pathsep}{os.environ.get('PATH', '')}")
+    assert shutil.which("pi") == str(shim)
+    executed: dict = {}
+    monkeypatch.setattr(broker_relay, "loopback_up", lambda: True)
+    monkeypatch.setattr(broker_relay.os, "fork", lambda: 1)
+    monkeypatch.setattr(
+        broker_relay.os, "execv", lambda path, argv: executed.update(path=path, argv=argv)
+    )
+    monkeypatch.setattr(sys, "argv", ["broker_relay.py", "/tmp/x.sock", "1", "--", str(real), "-p"])
+    broker_relay.main()
+    assert executed["path"] == str(real)
+    assert executed["argv"][0] == str(real)
+    assert shim_dir.name not in executed["path"]

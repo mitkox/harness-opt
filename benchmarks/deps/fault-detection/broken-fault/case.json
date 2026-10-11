@@ -1,0 +1,21 @@
+{
+  "case_id": "broken-fault",
+  "title": "A fault that cannot be applied makes the case inconclusive",
+  "repo_subdir": "repo",
+  "target_module": "calc.py",
+  "test_files": ["tests/test_visible.py"],
+  "faults": [
+    {"fault_id": "bad", "patch_file": "faults/bad.patch", "description": "references a file that does not exist"}
+  ],
+  "mandatory_faults": ["bad"],
+  "minimum_kills": 1,
+  "examples": [
+    {
+      "label": "inconclusive",
+      "example_class": "inconclusive",
+      "candidate_patch_file": "candidates/ok.patch",
+      "expected_verdict": "error",
+      "expected_error_class": "fault_patch_unapplied"
+    }
+  ]
+}

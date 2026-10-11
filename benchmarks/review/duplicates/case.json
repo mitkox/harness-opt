@@ -1,0 +1,30 @@
+{
+  "case_id": "duplicates",
+  "expects": {
+    "outcome": "fail"
+  },
+  "labels": [
+    {
+      "path": "src/util.py",
+      "line": 2,
+      "rule": "locale-unsafe-lowercase",
+      "severity": "low"
+    }
+  ],
+  "findings": [
+    {
+      "path": "src/util.py",
+      "line": 2,
+      "rule": "locale-unsafe-lowercase",
+      "severity": "low",
+      "message": "lower() is locale dependent"
+    },
+    {
+      "path": "src/util.py",
+      "line": 2,
+      "rule": "locale-unsafe-lowercase",
+      "severity": "low",
+      "message": "same issue reported again"
+    }
+  ]
+}

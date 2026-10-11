@@ -22,6 +22,7 @@ import os
 import tempfile
 
 from .contracts.profile import RegistryComponent, digest_payload, tree_digest
+from .files import ensure_owner_dir
 
 
 class RegistryError(RuntimeError):
@@ -58,8 +59,9 @@ def compute_record_digest(record: RegistryComponent) -> str:
 class ComponentRegistry:
     def __init__(self, root: str):
         self.root = root
-        os.makedirs(os.path.join(root, "content"), exist_ok=True)
-        os.makedirs(os.path.join(root, "records"), exist_ok=True)
+        ensure_owner_dir(root)
+        ensure_owner_dir(os.path.join(root, "content"))
+        ensure_owner_dir(os.path.join(root, "records"))
         self.index_path = os.path.join(root, "index.json")
         self.index_anchor = os.path.join(root, "index.sha256")
         self._index: dict[str, RegistryComponent] = {}
@@ -232,7 +234,7 @@ class ComponentRegistry:
         _, files = self.by_digest(record_digest)
         for rel, data in files.items():
             target = os.path.join(dest, rel)
-            os.makedirs(os.path.dirname(target) or dest, exist_ok=True)
+            ensure_owner_dir(os.path.dirname(target) or dest)
             _atomic_write(target, data)
 
     # -- integrity ---------------------------------------------------------
@@ -251,9 +253,9 @@ class ComponentRegistry:
 
     def verify_all(self) -> list[dict]:
         """Recompute every record; return per-record integrity evidence."""
-        results = []
+        results: list[dict] = []
         for record in self.all_components():
-            entry = {
+            entry: dict[str, object] = {
                 "type": record.component_type.value,
                 "name": record.logical_name,
                 "version": record.version,
@@ -294,7 +296,7 @@ class ComponentRegistry:
         base = self._content_dir(content_digest)
         for rel, data in files.items():
             target = os.path.join(base, rel)
-            os.makedirs(os.path.dirname(target) or base, exist_ok=True)
+            ensure_owner_dir(os.path.dirname(target) or base)
             _atomic_write(target, data)
 
 
@@ -317,7 +319,7 @@ def _sha256_hex(data: bytes) -> str:
 
 
 def _atomic_write(path: str, data: bytes) -> None:
-    os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
+    ensure_owner_dir(os.path.dirname(path) or ".")
     fd, tmp = tempfile.mkstemp(dir=os.path.dirname(path) or ".", suffix=".partial")
     try:
         with os.fdopen(fd, "wb") as fh:

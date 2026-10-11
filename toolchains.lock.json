@@ -14,7 +14,7 @@
     "version": "0.4.0-dev (build 10834, commit 992cb503c)"
   },
   "harnesses": {
-    "pi": {"package": "@earendil-works/pi-coding-agent", "version": "0.85.1", "mode": "headless JSONL (-p --mode json)"},
+    "pi": {"package": "@earendil-works/pi-coding-agent", "version": "1.1.0", "mode": "headless JSONL (-p --mode json)", "path": "/home/mitko/.local/share/mise/installs/npm-earendil-works-pi-coding-agent/1.1.0/node_modules/.bin/pi", "sha256": "c44ddd4e40f6e881c7afb5d974129ca69d53429ee06e8d6e08c8df9ea9ea58f4", "probe_digest": "sha256:e97e307efb84ab764e3f61a784677d2839d505bc109f603398add277b8a98b50", "observed": "2026-10-09 on this host via mise npm-earendil-works-pi-coding-agent 1.1.0; build probe only, live model execution unexecuted until owner input O2"},
     "opencode": {"path": "/home/mitko/.npm-global/lib/node_modules/@opencode/cli/bin/opencode.exe", "version": "v2.0.2", "note": "opencode and opencode2 are the same binary"},
     "prime": {"path": "/home/mitko/.local/share/uv/tools/prime/bin/prime", "version": "Prime CLI 0.6.33", "note": "cloud CLI, not the Prime Agent harness; blocked for M5"},
     "dsh": {"package": "@deepseek-ai/dsh", "version": "0.1.5-rc.1", "note": "developer preview; blocked for M5"}

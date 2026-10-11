@@ -19,9 +19,10 @@ import threading
 import time
 import traceback
 import uuid
+from dataclasses import dataclass
 from functools import lru_cache, partial
 
-import yaml
+import yaml  # type: ignore[import-untyped]
 
 from .bundle import compile_bundle, harness_build_digest, model_deployment_digest
 from .config import Paths, current_paths
@@ -40,13 +41,30 @@ from .contracts.records import (
     TrajectoryEvent,
     Verdict,
 )
-from .files import atomic_json, identifier
+from .evaluation.sealed import SealedAccessDenied, SealedIntegrityError, SealedStore
+from .files import atomic_json, ensure_owner_dir, identifier
+from .harnesses.broker import Broker
 from .harnesses.pi_adapter import PiJsonAdapter
 from .harnesses.scripted import ScriptedHarness
 from .inference import verify_served_model
-from .lifecycle import CancellationWatch, ExecutedRun, PreparedRun, RunContext, VerifiedRun
+from .lifecycle import (
+    CancellationWatch,
+    ExecutedRun,
+    HarnessLifecycle,
+    PreparedRun,
+    ProfileIdentityKw,
+    RunContext,
+    RunRequest,
+    RunResult,
+    VerifiedRun,
+)
 from .runstore import RunStore
-from .sandbox import SandboxSpec, assert_no_hidden_material, prepare_layout
+from .sandbox import (
+    SandboxSpec,
+    assert_no_hidden_material,
+    prepare_layout,
+    probe_worker_network_isolation,
+)
 from .storage import ArtifactStore
 from .telemetry.observe import (
     InferenceRecord,
@@ -58,7 +76,7 @@ from .telemetry.observe import (
 from .telemetry.redaction import sanitize_attributes
 from .telemetry.spool import SpoolQueue
 from .telemetry.taxonomy import assert_known_event
-from .telemetry.tracing import RunTracer
+from .telemetry.tracing import RunTracer, Span
 from .trajectories import REQUIRED_PREFIX_EVENTS, TERMINAL_EVENTS, EventLedger
 from .verification import (
     VerifierSetupError,
@@ -77,6 +95,130 @@ VERIFIER_ROOT = resolve_env(*VERIFIER_ROOT_VARS, default=os.path.join(ROOT, ".hi
 HIDDEN_ROOT = os.path.join(VERIFIER_ROOT, "hidden-tests")
 VERIFIER_VERSION = "debug-verifier-v2"
 ADAPTER_REVISION = "pi-json-adapter-v1"
+
+
+def require_worker_network_isolation(harness: str, report: dict) -> dict:
+    """Fail closed when the worker network cannot be proven isolated (ADR-012).
+
+    There is deliberately no shared-network fallback for agent harnesses: an
+    unenforceable boundary is terminal ``infra_error``, never a run.
+    """
+    if harness == "pi" and not report.get("enforced"):
+        raise InfraError("worker_network_isolation_unavailable", str(report.get("reason", "")))
+    return report
+
+
+class SealedAdoptionError(RuntimeError):
+    """A declared sealed holdout could not be resolved at the trusted boundary."""
+
+
+@dataclass
+class HiddenCase:
+    """Where the verifier's hidden case came from, for evidence purposes."""
+
+    hidden_dir: str
+    source: str  # "sealed" | "legacy-unsealed"
+    sealed_case_id: str = ""
+    hidden_ref_digest: str = ""
+    ledger_path: str = ""
+    exposure_count: int = 0
+    repeated: bool = False
+    promotion_eligible: bool = True
+
+
+def plan_hidden_case(
+    case_id: str,
+    *,
+    legacy_root: str,
+    sealed_root: str = "",
+    index_path: str = "",
+) -> tuple[str, dict]:
+    """Decide the hidden-case source without reading or ledgering anything.
+
+    Returns ``("sealed", entry)`` when a case index declares a ``hidden_ref``
+    for this benchmark case, else ``("legacy-unsealed", {})``. Planning is
+    side-effect free so a duplicate/idempotent submission cannot record a
+    spurious holdout read.
+    """
+    from .evaluation.splits import default_sealed_root
+
+    index_file = index_path or os.environ.get("HOP_CASE_PACKAGE_INDEX", "")
+    if not sealed_root and not index_file:
+        # No sealed store is configured: stay on the legacy path and do not
+        # touch the default sealed root (which may not exist or be writable).
+        return "legacy-unsealed", {}
+    root = sealed_root or default_sealed_root()
+    if not index_file:
+        index_file = os.path.join(root, "case-index.json")
+    if not os.path.isfile(index_file):
+        return "legacy-unsealed", {}
+    try:
+        with open(index_file, encoding="utf-8") as fh:
+            payload = json.load(fh)
+    except (OSError, json.JSONDecodeError) as exc:
+        raise SealedAdoptionError(f"cannot read case index {index_file}: {exc}") from exc
+    cases = payload.get("cases", payload) if isinstance(payload, dict) else {}
+    entry = dict(cases.get(case_id, {})) if isinstance(cases, dict) else {}
+    if entry.get("hidden_ref"):
+        return "sealed", entry
+    return "legacy-unsealed", {}
+
+
+def materialize_sealed_case(
+    entry: dict,
+    run_dir: str,
+    *,
+    run_id: str,
+    sealed_root: str = "",
+) -> HiddenCase:
+    """Owner-read the sealed holdout (ledgered) and stage it in the run dir.
+
+    Any failure is a hard ``SealedAdoptionError``: a declared sealed case never
+    falls back to the interim ``.hidden/`` tree.
+    """
+    from .evaluation.splits import default_sealed_root
+
+    root = sealed_root or default_sealed_root()
+    hidden_ref = str(entry.get("hidden_ref", ""))
+    sealed_case_id = str(entry.get("case_id", ""))
+    try:
+        store = SealedStore(root)
+        material = store.read(
+            hidden_ref,
+            actor=f"verifier:{run_id}",
+            role="verifier",
+            purpose="evaluation",
+            run_id=run_id,
+        )
+    except (SealedAccessDenied, SealedIntegrityError, KeyError, ValueError) as exc:
+        raise SealedAdoptionError(str(exc)) from exc
+    destination = os.path.join(run_dir, "sealed-case")
+    if os.path.isdir(destination):
+        shutil.rmtree(destination)
+    os.makedirs(destination, mode=0o700)
+    for rel, data in sorted(material.items()):
+        target = os.path.join(destination, rel)
+        os.makedirs(os.path.dirname(target) or destination, mode=0o700, exist_ok=True)
+        fd = os.open(target, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+        try:
+            os.write(fd, data)
+            os.fsync(fd)
+        finally:
+            os.close(fd)
+    report = store.exposure()
+    repeated = sealed_case_id in set(store.repeated_exposure())
+    return HiddenCase(
+        hidden_dir=destination,
+        source="sealed",
+        sealed_case_id=sealed_case_id,
+        hidden_ref_digest="sha256:" + hashlib.sha256(hidden_ref.encode()).hexdigest()[:16],
+        ledger_path=store.ledger.path,
+        exposure_count=int(report.get("counts", {}).get(sealed_case_id, 0)),
+        repeated=repeated,
+        # A repeated holdout exposure invalidates promotion claims for the runs
+        # that read it, not just for a single run reading it twice.
+        promotion_eligible=store.promotion_eligible(run_id) and not repeated,
+    )
 
 
 class InfraError(RuntimeError):
@@ -216,7 +358,7 @@ class Runner:
         runs_dir = runs_dir or str(self.paths.runs)
         self._owns_store = store is None
         self.runs_dir = runs_dir
-        os.makedirs(runs_dir, exist_ok=True)
+        ensure_owner_dir(runs_dir)
         self.store = store or RunStore(os.path.join(runs_dir, "ledger.db"))
         self.artifacts = artifacts or ArtifactStore(os.path.join(runs_dir, "artifacts"))
         # M3: optional profile registry. Lazily constructed only when a profile
@@ -339,7 +481,7 @@ class Runner:
         )
         run_id = record.run_id
         run_dir = os.path.join(self.runs_dir, run_id)
-        os.makedirs(run_dir, exist_ok=True)
+        ensure_owner_dir(run_dir)
         attempt = self.store.new_attempt(
             run_id, AttemptRecord(attempt_id=new_id("att"), worker_id=new_id("worker"))
         )
@@ -523,31 +665,50 @@ class Runner:
             compiled_target=(profile_target if profile_info else ""),
             compiled_target_digest=(profile_info["artifact_digest"] if profile_info else ""),
         )
-        profile_kw = {
-            "profile_id": (profile_info["profile_id"] if profile_info else ""),
-            "profile_digest": (profile_info["profile_digest"] if profile_info else ""),
-            "lock_digest": (profile_info["lock_digest"] if profile_info else ""),
-            "compiled_target": (profile_target if profile_info else ""),
-            "compiled_target_digest": (profile_info["artifact_digest"] if profile_info else ""),
-        }
+        # The hidden case is resolved once, here: the sealed store is the only
+        # source when a case index declares a hidden_ref (its read is ledgered),
+        # otherwise the interim .hidden/ tree is used and reported as legacy.
+        run_id = new_id("run")
+        run_dir = os.path.join(self.runs_dir, run_id)
         hidden_root = (
             str(self.paths.verifier / "hidden-tests") if self._explicit_paths else HIDDEN_ROOT
         )
-        hidden_case_dir = os.path.join(hidden_root, case_id)
         verifier_error: VerifierSetupError | None = None
+        hidden_case = HiddenCase(
+            hidden_dir=os.path.join(hidden_root, case_id), source="legacy-unsealed"
+        )
         try:
-            verifier_manifest = load_verifier_manifest(hidden_case_dir)
-            verifier_id = verifier_manifest["verifier_id"]
-            verifier_version = verifier_manifest["version"]
-        except VerifierSetupError as exc:
+            hidden_source, sealed_entry = plan_hidden_case(
+                case_id,
+                legacy_root=hidden_root,
+                sealed_root=os.environ.get("HOP_SEALED_ROOT", ""),
+                index_path=os.environ.get("HOP_CASE_PACKAGE_INDEX", ""),
+            )
+        except SealedAdoptionError as exc:
+            hidden_source, sealed_entry = "legacy-unsealed", {}
+            verifier_error = VerifierSetupError("sealed_case_unavailable", str(exc))
+        hidden_case_dir = os.path.join(hidden_root, case_id)
+        if hidden_source == "sealed":
+            # The sealed manifest is only available after the owner read, which
+            # happens post-admission so duplicate submissions cannot ledger one.
             verifier_manifest = None
-            verifier_error = exc
+            verifier_id, verifier_version = "", ""
+        elif verifier_error is None:
+            try:
+                verifier_manifest = load_verifier_manifest(hidden_case_dir)
+                verifier_id = verifier_manifest["verifier_id"]
+                verifier_version = verifier_manifest["version"]
+            except VerifierSetupError as exc:
+                verifier_manifest = None
+                verifier_error = exc
+                verifier_id, verifier_version = "", ""
+        else:
+            verifier_manifest = None
             verifier_id, verifier_version = "", ""
 
         repo_digest = "sha256:" + hash_tree(repo_src)
         env_digest = environment_digest(case_dir)
         model_digest = model_deployment_digest(deployment)
-        run_id = new_id("run")
         record, created = self.store.admit(
             RunRecord(
                 run_id=run_id,
@@ -572,7 +733,24 @@ class Runner:
             return self._replay(record)
         run_id = record.run_id
         run_dir = os.path.join(self.runs_dir, run_id)
-        os.makedirs(run_dir, exist_ok=True)
+        ensure_owner_dir(run_dir)
+        hidden_case = HiddenCase(hidden_dir=hidden_case_dir, source=hidden_source)
+        if hidden_source == "sealed":
+            # Trusted boundary: the only sealed read happens here, once, for the
+            # run that was actually created; it is recorded in the holdout ledger.
+            try:
+                hidden_case = materialize_sealed_case(
+                    sealed_entry,
+                    run_dir,
+                    run_id=run_id,
+                    sealed_root=os.environ.get("HOP_SEALED_ROOT", ""),
+                )
+                hidden_case_dir = hidden_case.hidden_dir
+                verifier_manifest = load_verifier_manifest(hidden_case_dir)
+                verifier_error = None
+            except (SealedAdoptionError, VerifierSetupError) as exc:
+                verifier_manifest = None
+                verifier_error = VerifierSetupError("sealed_case_unavailable", str(exc))
         ledger = EventLedger(os.path.join(run_dir, "events.jsonl"))
         seq: dict[str, int] = {}
         attempt = self.store.new_attempt(
@@ -583,66 +761,10 @@ class Runner:
         wf = tracer.start(
             "workflow.run", {"aop.run_id": run_id, "aop.bundle_digest": bundle.digest}
         )
-        adm = tracer.start("admission.resolve", {"aop.task_id": task["task_id"]})
-        emit = partial(self._emit, ledger, seq, run_id, attempt.attempt_id, bundle.digest)
-        ident = {
-            "task_id": task["task_id"],
-            "bundle": bundle.digest,
-            "model_deployment_digest": model_digest,
-            "harness_digest": harness_build.harness_digest,
-            "repo_snapshot_digest": repo_digest,
-            "environment_digest": env_digest,
-            "trace_id": tracer.trace_id,
-        }
-        emit(
-            "aop-runner",
-            EventAuthority.PLATFORM_OBSERVATION,
-            "run.admitted",
-            ident,
-            trace_id=tracer.trace_id,
-            span_id=adm.span_id,
-            parent_span_id=wf.span_id,
-            model_digest=model_digest,
-            harness_digest=harness_build.harness_digest,
-            repo_digest=repo_digest,
-            env_digest=env_digest,
-            **profile_kw,
-        )
-        tracer.finish(adm)
-        emit(
-            "aop-runner",
-            EventAuthority.PLATFORM_OBSERVATION,
-            "run.started",
-            {"queue_delay_s": round(time.monotonic() - t0, 3)},
-            trace_id=tracer.trace_id,
-            span_id=wf.span_id,
-            model_digest=model_digest,
-            harness_digest=harness_build.harness_digest,
-            repo_digest=repo_digest,
-            env_digest=env_digest,
-            **profile_kw,
-        )
         # Prompt/context snapshot as content-addressed artifact (never inline).
         # Best-effort here: the snapshot-stage write later is the strict one
         # (storage failures surface as durable infra_error there).
         prompt_ref = self._artifact_ref_or_none(prompt.encode(), run_id, "confidential")
-        emit(
-            "aop-runner",
-            EventAuthority.PLATFORM_OBSERVATION,
-            "context.prepared",
-            {
-                "prompt_digest": (prompt_ref.digest if prompt_ref else ""),
-                "prompt_bytes": (prompt_ref.size_bytes if prompt_ref else 0),
-            },
-            trace_id=tracer.trace_id,
-            span_id=wf.span_id,
-            model_digest=model_digest,
-            harness_digest=harness_build.harness_digest,
-            repo_digest=repo_digest,
-            env_digest=env_digest,
-            payload_refs=([prompt_ref.digest] if prompt_ref else []),
-            **profile_kw,
-        )
         # Skill catalog exposure (M2 records exposure separately from use).
         skill_entries = [
             SkillCatalogEntry(
@@ -657,34 +779,6 @@ class Runner:
             skill_catalog_digest(skill_entries)
             if skill_entries
             else ("sha256:" + hashlib.sha256(b"empty-catalog").hexdigest())
-        )
-        emit(
-            "aop-runner",
-            EventAuthority.PLATFORM_OBSERVATION,
-            "skill.catalog_exposed",
-            {
-                "skills": [e.skill_id for e in skill_entries],
-                "catalog_digest": catalog_digest,
-                "note": "exposure is not selection, loading, or execution",
-            },
-            trace_id=tracer.trace_id,
-            span_id=wf.span_id,
-            model_digest=model_digest,
-            harness_digest=harness_build.harness_digest,
-            payload_refs=([catalog_digest] if skill_entries else []),
-            **profile_kw,
-        )
-        emit(
-            "aop-runner",
-            EventAuthority.PLATFORM_OBSERVATION,
-            "agent.started",
-            {"agent_id": "agent-1", "harness": harness},
-            agent_id="agent-1",
-            trace_id=tracer.trace_id,
-            span_id=wf.span_id,
-            model_digest=model_digest,
-            harness_digest=harness_build.harness_digest,
-            **profile_kw,
         )
         spool = SpoolQueue(
             os.path.join(self.runs_dir, "_spool"), os.path.join(self.runs_dir, "_collector")
@@ -723,6 +817,15 @@ class Runner:
             profile_info=profile_info,
             profile_target=profile_target,
         )
+        # Hidden-case provenance is evidence, not a contract field: keep it on
+        # the context so the manifest and evaluation report can record it.
+        ctx.hidden_source = hidden_case.source  # type: ignore[attr-defined]
+        ctx.sealed_case_id = hidden_case.sealed_case_id  # type: ignore[attr-defined]
+        ctx.hidden_ref_digest = hidden_case.hidden_ref_digest  # type: ignore[attr-defined]
+        ctx.holdout_ledger = hidden_case.ledger_path  # type: ignore[attr-defined]
+        ctx.holdout_exposure_count = hidden_case.exposure_count  # type: ignore[attr-defined]
+        ctx.holdout_repeated = hidden_case.repeated  # type: ignore[attr-defined]
+        ctx.holdout_promotion_eligible = hidden_case.promotion_eligible  # type: ignore[attr-defined]
         try:
             with CancellationWatch(cancel, cancel_file):
                 return self._run_inner(ctx)
@@ -736,12 +839,134 @@ class Runner:
         except BaseException as exc:  # noqa: BLE001 - every failure is terminal & recorded
             return self._infra_error(ctx, "unclassified_infra_error", exc)
 
+    def execute_request(self, request: RunRequest) -> RunResult:
+        """Typed public entry point; legacy command handlers route through it."""
+        return RunResult(
+            request,
+            self.execute(
+                request.case_id,
+                model_alias=request.model_alias,
+                harness=request.harness,
+                timeout_s=request.timeout_s,
+                idempotency_key=request.idempotency_key,
+                profile=request.profile,
+                profile_target=request.profile_target,
+                variant_overrides=request.variant_overrides,
+            ),
+        )
+
     # -- main lifecycle ----------------------------------------------------
     def _run_inner(self, ctx: RunContext) -> dict:
+        # Prefix evidence lives inside the terminal-evidence guard: a failure
+        # writing the very first events must still produce a durable report
+        # instead of escaping execute() without terminal evidence.
+        self._emit_prefix_evidence(ctx)
         prepared = self._prepare_run(ctx)
-        execution = self._execute_run(ctx, prepared)
-        verification = self._verify_run(ctx, prepared, execution)
-        return self._finalize_run(ctx, prepared, execution, verification)
+        try:
+            execution = self._execute_run(ctx, prepared)
+            verification = self._verify_run(ctx, prepared, execution)
+            return self._finalize_run(ctx, prepared, execution, verification)
+        finally:
+            close = getattr(prepared.adapter, "close", None)
+            if callable(close):
+                close()
+
+    def _emit_prefix_evidence(self, ctx: RunContext) -> None:
+        """Emit run.admitted/started, context.prepared, catalog and agent.started."""
+        emit = self._events(ctx)
+        profile_kw = ProfileIdentityKw(
+            profile_id=(ctx.profile_info["profile_id"] if ctx.profile_info else ""),
+            profile_digest=(ctx.profile_info["profile_digest"] if ctx.profile_info else ""),
+            lock_digest=(ctx.profile_info["lock_digest"] if ctx.profile_info else ""),
+            compiled_target=(ctx.profile_target if ctx.profile_info else ""),
+            compiled_target_digest=(
+                ctx.profile_info["artifact_digest"] if ctx.profile_info else ""
+            ),
+        )
+        ident = {
+            "task_id": ctx.task["task_id"],
+            "bundle": ctx.bundle.digest,
+            "model_deployment_digest": ctx.model_digest,
+            "harness_digest": ctx.harness_build.harness_digest,
+            "repo_snapshot_digest": ctx.repo_digest,
+            "environment_digest": ctx.env_digest,
+            "trace_id": ctx.tracer.trace_id,
+        }
+        adm = ctx.tracer.start("admission.resolve", {"aop.task_id": ctx.task["task_id"]})
+        emit(
+            "aop-runner",
+            EventAuthority.PLATFORM_OBSERVATION,
+            "run.admitted",
+            ident,
+            trace_id=ctx.tracer.trace_id,
+            span_id=adm.span_id,
+            parent_span_id=ctx.wf.span_id,
+            model_digest=ctx.model_digest,
+            harness_digest=ctx.harness_build.harness_digest,
+            repo_digest=ctx.repo_digest,
+            env_digest=ctx.env_digest,
+            **profile_kw,
+        )
+        ctx.tracer.finish(adm)
+        emit(
+            "aop-runner",
+            EventAuthority.PLATFORM_OBSERVATION,
+            "run.started",
+            {"queue_delay_s": round(time.monotonic() - ctx.t0, 3)},
+            trace_id=ctx.tracer.trace_id,
+            span_id=ctx.wf.span_id,
+            model_digest=ctx.model_digest,
+            harness_digest=ctx.harness_build.harness_digest,
+            repo_digest=ctx.repo_digest,
+            env_digest=ctx.env_digest,
+            **profile_kw,
+        )
+        emit(
+            "aop-runner",
+            EventAuthority.PLATFORM_OBSERVATION,
+            "context.prepared",
+            {
+                "prompt_digest": (ctx.prompt_ref.digest if ctx.prompt_ref else ""),
+                "prompt_bytes": (ctx.prompt_ref.size_bytes if ctx.prompt_ref else 0),
+            },
+            trace_id=ctx.tracer.trace_id,
+            span_id=ctx.wf.span_id,
+            model_digest=ctx.model_digest,
+            harness_digest=ctx.harness_build.harness_digest,
+            repo_digest=ctx.repo_digest,
+            env_digest=ctx.env_digest,
+            payload_refs=([ctx.prompt_ref.digest] if ctx.prompt_ref else []),
+            **profile_kw,
+        )
+        skill_entries = [s.split("@")[0] for s in ctx.bundle.skill_variant_ids]
+        emit(
+            "aop-runner",
+            EventAuthority.PLATFORM_OBSERVATION,
+            "skill.catalog_exposed",
+            {
+                "skills": skill_entries,
+                "catalog_digest": ctx.catalog_digest,
+                "note": "exposure is not selection, loading, or execution",
+            },
+            trace_id=ctx.tracer.trace_id,
+            span_id=ctx.wf.span_id,
+            model_digest=ctx.model_digest,
+            harness_digest=ctx.harness_build.harness_digest,
+            payload_refs=([ctx.catalog_digest] if skill_entries else []),
+            **profile_kw,
+        )
+        emit(
+            "aop-runner",
+            EventAuthority.PLATFORM_OBSERVATION,
+            "agent.started",
+            {"agent_id": "agent-1", "harness": ctx.harness},
+            agent_id="agent-1",
+            trace_id=ctx.tracer.trace_id,
+            span_id=ctx.wf.span_id,
+            model_digest=ctx.model_digest,
+            harness_digest=ctx.harness_build.harness_digest,
+            **profile_kw,
+        )
 
     def _events(self, ctx: RunContext):
         return partial(
@@ -787,7 +1012,7 @@ class Runner:
             compiled_dir = os.path.join(ctx.run_dir, "worker", "profile")
             for rel, data in sorted(ctx.profile_info["files"].items()):
                 destination = os.path.join(compiled_dir, rel)
-                os.makedirs(os.path.dirname(destination) or compiled_dir, exist_ok=True)
+                ensure_owner_dir(os.path.dirname(destination) or compiled_dir)
                 with open(destination, "wb") as fh:
                     fh.write(data)
         hidden_markers = (
@@ -809,6 +1034,12 @@ class Runner:
             allowed_paths=ctx.task.get("allowed_paths", []),
             protected_paths=ctx.task.get("protected_paths", []),
         )
+        network = (
+            probe_worker_network_isolation(os.path.join(ctx.run_dir, "worker", "netprobe"))
+            if ctx.harness == "pi"
+            else {"enforced": True, "reason": "not_required", "bwrap": None}
+        )
+        require_worker_network_isolation(ctx.harness, network)
         manifest = {
             "run_id": ctx.run_id,
             "attempt_id": ctx.attempt.attempt_id,
@@ -824,8 +1055,19 @@ class Runner:
                 "hidden_test_hash": hash_hidden_dir(ctx.hidden_case_dir)
                 if os.path.isdir(ctx.hidden_case_dir)
                 else "",
+                # Where the holdout came from: the sealed store (ledgered) or the
+                # interim .hidden/ tree, which stays readable and is reported
+                # legacy/unsealed rather than silently upgraded.
+                "hidden_source": getattr(ctx, "hidden_source", "legacy-unsealed"),
+                "sealed_case_id": getattr(ctx, "sealed_case_id", ""),
+                "hidden_ref_digest": getattr(ctx, "hidden_ref_digest", ""),
+                "holdout_ledger": getattr(ctx, "holdout_ledger", ""),
+                "holdout_exposure_count": getattr(ctx, "holdout_exposure_count", 0),
+                "holdout_repeated": getattr(ctx, "holdout_repeated", False),
+                "holdout_promotion_eligible": getattr(ctx, "holdout_promotion_eligible", True),
             },
         }
+        manifest["network"] = network
         if ctx.profile_info is not None:
             manifest["profile"] = {
                 "profile_id": ctx.profile_info["profile_id"],
@@ -852,12 +1094,33 @@ class Runner:
         self.store.set_status(ctx.run_id, RunStatus.RUNNING)
 
         # 2. Adapter preparation.
-        adapter: object
+        adapter: HarnessLifecycle
+        broker: Broker | None = None
         if ctx.harness == "pi":
+            # ADR-012: the worker has no host network. Inference is reached only
+            # through the per-run broker on a bind-mounted AF_UNIX socket with a
+            # per-attempt bearer token; the probe above is the only authority for
+            # the enforcement claim, and a failure is terminal infra_error.
             spec = SandboxSpec(
-                share_network=True, ro_binds=_harness_ro_binds(ctx.harness_build.executable)
+                share_network=False, ro_binds=_harness_ro_binds(ctx.harness_build.executable)
             )
-            adapter = PiJsonAdapter(deployment=ctx.deployment, spec=spec, compiled_dir=compiled_dir)
+            broker = Broker(
+                ctx.deployment,
+                ctx.run_id,
+                ctx.attempt.attempt_id,
+                os.path.join(ctx.run_dir, "worker", "broker"),
+                timeout_s=ctx.timeout_s,
+            )
+            adapter = PiJsonAdapter(
+                deployment=ctx.deployment,
+                # The probed absolute harness path: the relay must never resolve
+                # the harness through the sandbox PATH.
+                executable=ctx.harness_build.executable,
+                spec=spec,
+                compiled_dir=compiled_dir,
+                broker=broker,
+            )
+            broker.start()
         elif ctx.harness.startswith("scripted:"):
             adapter = ScriptedHarness(ctx.harness.split(":", 1)[1])
         else:
@@ -865,6 +1128,8 @@ class Runner:
         try:
             session = adapter.prepare(ctx.bundle.digest, os.path.join(ctx.run_dir, "worker"), "w1")
         except Exception as exc:
+            if broker is not None:
+                broker.close()
             raise InfraError("adapter_prepare_failure", str(exc)) from exc
         emit(
             "aop-runner",
@@ -918,7 +1183,7 @@ class Runner:
             parent_span_id=agent_span.span_id,
             **{k: v for k, v in prepared.ident_kw.items() if k not in ("trace_id", "span_id")},
         )
-        tool_spans: dict[str, object] = {}
+        tool_spans: dict[str, Span] = {}
         tool_starts: dict[str, float] = {}
         first_token_seen = False
         agent_t0 = time.monotonic()
@@ -1074,7 +1339,9 @@ class Runner:
                 if not isinstance(result, dict):
                     result = {"raw": str(result)[:2000]}
                 start = tool_starts.get(call_id, time.time())
-                tsp = tool_spans.pop(call_id, None)
+                done_span: Span | None = None
+                if call_id in tool_spans:
+                    done_span = tool_spans.pop(call_id)
                 call = normalize_tool_call(
                     tool_name,
                     native_source,
@@ -1107,7 +1374,7 @@ class Runner:
                         "exit_status": call.exit_status,
                     },
                     trace_id=ctx.tracer.trace_id,
-                    span_id=(tsp.span_id if tsp else infer_span.span_id),
+                    span_id=(done_span.span_id if done_span else infer_span.span_id),
                     parent_span_id=agent_span.span_id,
                     tool_id=tool_name,
                     tool_version=native_source,
@@ -1118,8 +1385,8 @@ class Runner:
                         if k not in ("trace_id", "span_id")
                     },
                 )
-                if tsp is not None:
-                    ctx.tracer.finish(tsp)
+                if done_span is not None:
+                    ctx.tracer.finish(done_span)
 
         output = prepared.adapter.start(
             ctx.prompt,
@@ -1365,10 +1632,21 @@ class Runner:
                     timeout_s=120.0,
                     work_root=os.path.join(ctx.run_dir, "verify"),
                     manifest=ctx.verifier_manifest,
+                    hidden_source=getattr(ctx, "hidden_source", ""),
                 )
                 verifier_ran = True
                 verifier_dt = time.monotonic() - verifier_t0
                 eval_result.agent_claim = execution.output.agent_claim
+                if getattr(ctx, "hidden_source", "") == "sealed":
+                    eval_result.details["holdout"] = {
+                        "source": "sealed",
+                        "sealed_case_id": getattr(ctx, "sealed_case_id", ""),
+                        "hidden_ref_digest": getattr(ctx, "hidden_ref_digest", ""),
+                        "ledger": getattr(ctx, "holdout_ledger", ""),
+                        "exposure_count": getattr(ctx, "holdout_exposure_count", 0),
+                        "repeated": getattr(ctx, "holdout_repeated", False),
+                        "promotion_eligible": getattr(ctx, "holdout_promotion_eligible", True),
+                    }
                 _write_json(
                     os.path.join(ctx.run_dir, "evaluation.json"),
                     eval_result.model_dump(mode="json"),
@@ -1460,7 +1738,7 @@ class Runner:
         verification: VerifiedRun,
     ) -> dict:
         emit = self._events(ctx)
-        required = REQUIRED_PREFIX_EVENTS
+        required: tuple[str, ...] = REQUIRED_PREFIX_EVENTS
         if verification.verifier_ran:
             required = required + ("evaluation.recorded",)
         completeness = ctx.ledger.completeness(
@@ -1660,7 +1938,7 @@ class Runner:
         )
         if run_dir:
             try:
-                os.makedirs(run_dir, exist_ok=True)
+                ensure_owner_dir(run_dir)
                 _write_json(os.path.join(run_dir, "error.json"), detail)
             except OSError as error:
                 detail["terminal_artifact_error"] = type(error).__name__
@@ -1752,17 +2030,65 @@ def _patch_and_diff(
     return text, text
 
 
+def _symlink_chain(path: str) -> list[str]:
+    """The path and every symlink hop it takes, in walk order."""
+    chain: list[str] = []
+    seen: set[str] = set()
+    current = path
+    for _ in range(32):
+        if not current or current in seen:
+            break
+        seen.add(current)
+        chain.append(current)
+        if not os.path.islink(current):
+            break
+        target = os.readlink(current)
+        current = (
+            target
+            if os.path.isabs(target)
+            else os.path.normpath(os.path.join(os.path.dirname(current), target))
+        )
+    return chain
+
+
+def _node_install_roots(executable: str) -> list[str]:
+    """The outermost ``node_modules`` install roots containing the executable.
+
+    Layout-agnostic: a mise install, a global npm prefix and a local
+    ``node_modules`` all resolve to the same shape, so no home directory is
+    special-cased. Nested ``node_modules`` directories are dropped when an
+    outer root already covers them.
+    """
+    roots: list[str] = []
+    for candidate in (*_symlink_chain(executable), os.path.realpath(executable)):
+        current = candidate
+        while current and current != "/":
+            if os.path.basename(current) == "node_modules" and os.path.isdir(current):
+                roots.append(current)
+                break
+            current = os.path.dirname(current)
+    minimal: list[str] = []
+    for root in sorted(set(roots), key=len):
+        if not any(root == kept or root.startswith(kept + os.sep) for kept in minimal):
+            minimal.append(root)
+    return minimal
+
+
 def _harness_ro_binds(executable: str) -> list[tuple[str, str]]:
-    """Read-only host paths the pinned harness needs (itself plus its Node runtime)."""
+    """Read-only host paths the pinned harness needs (itself plus its runtime).
+
+    The harness package install root is resolved from the executable's realpath
+    chain, so the bundle is reachable inside the namespace regardless of how the
+    package manager laid it out; a symlinked install root (``.../latest``) is
+    bound at its own path too. Node's resolved runtime is bound so the
+    ``#!/usr/bin/env node`` shebang cannot fall back to an incompatible node.
+    """
     binds: list[tuple[str, str]] = []
     real = os.path.realpath(executable)
-    for root in (os.path.expanduser("~/.npm-global"),):
-        if real.startswith(root) and os.path.isdir(root):
-            binds.append((root, root))
+    for root in _node_install_roots(executable):
+        binds.append((root, root))
     node = shutil.which("node")
     if node:
-        # ``pi`` uses ``#!/usr/bin/env node``; bind the resolved runtime so the
-        # sandbox does not fall back to an incompatible system node.
         binds.append((os.path.dirname(node), os.path.dirname(node)))
         node_real = os.path.realpath(node)
         node_prefix = os.path.dirname(os.path.dirname(node_real))
@@ -1770,10 +2096,17 @@ def _harness_ro_binds(executable: str) -> list[tuple[str, str]]:
             binds.append((node_prefix, node_prefix))
     if not binds and os.path.exists(real):
         binds.append((os.path.dirname(real), os.path.dirname(real)))
+    # Keep the invoked path reachable when it crosses a symlinked install root.
+    for candidate in (*_symlink_chain(executable), node or ""):
+        ancestor = os.path.dirname(candidate) if candidate else ""
+        while ancestor and ancestor != "/" and not ancestor.startswith("/usr"):
+            if os.path.islink(ancestor):
+                binds.append((ancestor, ancestor))
+            ancestor = os.path.dirname(ancestor)
     seen: set[str] = set()
     unique: list[tuple[str, str]] = []
     for src, dst in binds:
-        if src not in seen:
+        if src not in seen and os.path.exists(src):
             seen.add(src)
             unique.append((src, dst))
     return unique

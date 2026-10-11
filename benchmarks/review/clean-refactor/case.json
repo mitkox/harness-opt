@@ -1,0 +1,9 @@
+{
+  "case_id": "clean-refactor",
+  "expects": {
+    "outcome": "pass",
+    "abstained": true
+  },
+  "labels": [],
+  "findings": []
+}

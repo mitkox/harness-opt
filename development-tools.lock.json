@@ -1,16 +1,37 @@
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "platform": "linux-x86_64",
+  "python": "3.14",
+  "wheelhouse": "${HOME}/dev/esf/worktrees/hop-wheelhouse",
+  "documented_overrides": {
+    "HOP_WHEELHOUSE": "Approved local wheelhouse (wheels + MANIFEST.sha256). Replaces the pinned wheelhouse path; the manifest and every wheel hash are still verified.",
+    "HOP_MYPY_PYTHON": "Approved copy of the pinned mypy interpreter (local_environment). Replaces the pinned interpreter path; the file must still match interpreter_sha256. A PATH mypy is never accepted.",
+    "HOP_TOOLS_VENV": "Target directory for the pinned wheel-artifact tool environment.",
+    "HOP_LOCK_VENV": "Target .venv link used by scripts/dev bootstrap.",
+    "path_expansion": "Pinned paths may use ${HOME} or ~ so the repository carries no hardcoded username; the resolver expands them and still hash-verifies the resolved file."
+  },
   "tools": {
     "ruff": {
-      "version": "0.16.8",
-      "sha256": "f3eb080f0173e1a5884fabcc2c836f5a0ebea35fccf252e718fc71b17f821ef7",
-      "source": "Existing local Ruff executable; no download or installation performed",
+      "name": "ruff",
+      "kind": "local_binary",
+      "version": "0.16.10",
+      "sha256": "14704de5ea0d07038512de127bd52d6a169fb70bd70ddfa25bf39e21fed6b2b6",
+      "source": "Observed local Ruff 0.16.10 from the mise install at /home/mitko/.local/share/mise/installs/ruff/0.16.10/ruff-x86_64-unknown-linux-gnu/ruff; resolved via PATH and hash-verified. No download or installation performed.",
       "status": "pinned_local_binary"
     },
     "mypy": {
-      "status": "blocked",
-      "reason": "No approved offline mypy artifact or transitive dependency lock is available. Administrator import is required before type qualification."
+      "name": "mypy",
+      "kind": "local_environment",
+      "module": "mypy",
+      "version": "2.3.1",
+      "interpreter": "${HOME}/dev/casa/.venv/bin/python",
+      "interpreter_version": "3.13.13",
+      "interpreter_sha256": "74fceb0fdd29c31cf066ac8d92465975ea4ac8592308d7c888e26a70092d8eeb",
+      "manifest": "mypy-cp313-library-manifest.sha256",
+      "manifest_sha256": "8196564ee5eea6b4da0c78fa428a494cdd07f54c8cb8ae68f8c6a66113203edb",
+      "status": "pinned_local_environment",
+      "source": "Owner input O1 (fallback): the owner-supplied mypy 2.3.1 environment (path not published). The pure-python repack from that tree cannot run on CPython 3.14 because mypy hard-imports the compiled-only librt package; this pin therefore runs mypy with the pinned CPython 3.13.13 interpreter that owns the verified library tree. See the internal O1 request record (not published).",
+      "deviation": "Type checking executes under CPython 3.13.13 with --python-version 3.14 targeting the evidenced platform; the toolchain is hash-verified by interpreter_sha256 + manifest_sha256 and no PATH mypy is accepted."
     }
   }
 }

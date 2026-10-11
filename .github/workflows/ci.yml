@@ -1,0 +1,107 @@
+# Continuous integration for HOP.
+#
+# Honest status of this definition (WP-4.1a):
+#   * NOT EXECUTED on the delivery host: that host has no network and no GitHub
+#     runner. Local evidence lives in the internal offline-install record (not published); this
+#     file is a definition, not evidence that a job passed.
+#   * No job uses `continue-on-error`, `if: false`, or a silent skip. A gate that
+#     cannot run fails red rather than reporting green.
+#   * The `types` job is a knowingly DIFFERENT execution path from the local
+#     pin: GitHub runners cannot host the local cp313 interpreter plus the
+#     hash-manifested library tree (see development-tools.lock.json). CI installs
+#     the same mypy version from a hash-pinned lock instead; that is not evidence
+#     for the local artifact pin.
+name: ci
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    name: lint (pinned ruff 0.16.10)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install pinned ruff from its release asset and verify the artifact hash
+        run: |
+          set -euo pipefail
+          curl -fsSL -o /tmp/ruff.tar.gz \
+            https://github.com/astral-sh/ruff/releases/download/0.16.10/ruff-x86_64-unknown-linux-gnu.tar.gz
+          tar -xzf /tmp/ruff.tar.gz -C /tmp
+          install -m 0755 /tmp/ruff-x86_64-unknown-linux-gnu/ruff /usr/local/bin/ruff
+          actual="$(sha256sum /usr/local/bin/ruff | cut -d' ' -f1)"
+          expected="14704de5ea0d07038512de127bd52d6a169fb70bd70ddfa25bf39e21fed6b2b6"
+          if [ "$actual" != "$expected" ]; then
+            echo "ruff artifact hash $actual != pinned $expected" >&2
+            exit 1
+          fi
+          ruff --version
+      - run: ruff check src tests scripts/dev
+      - run: ruff format --check src tests scripts/dev
+
+  types:
+    name: types (hash-pinned mypy; different path from the local pin)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+      - uses: astral-sh/setup-uv@v6
+        with:
+          version: "0.12.24"
+      # DEVIATION (recorded in the internal offline-install record, not published): the local
+      # authoritative pin runs mypy 2.3.1 with the cp313 interpreter and verifies
+      # a 1149-file sha256 manifest. A GitHub runner cannot reproduce that tree.
+      # This job is therefore a different execution path that pins the same
+      # version from PyPI with --require-hashes.
+      - name: Generate the tool lock (hashes) and install with --require-hashes
+        run: |
+          set -euo pipefail
+          uv pip compile --python 3.14 --generate-hashes \
+            .github/requirements-tools.in -o /tmp/requirements-tools.lock
+          python -m pip install --disable-pip-version-check \
+            --require-hashes -r /tmp/requirements-tools.lock
+          python -m mypy --version
+      - run: python -m mypy --python-version 3.14 src/hop
+
+  tests:
+    name: tests (CPython 3.14; sandbox suite must execute, never silently skip)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+      - name: Install bubblewrap and prove the sandbox backend works
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends bubblewrap
+          bwrap --unshare-pid --ro-bind / / true
+      # Build isolation is allowed here (network) because requirements.lock pins
+      # runtime/test dependencies but not the build backend; this is a documented
+      # CI-only deviation from the offline release build.
+      - name: Install HOP and test dependencies
+        run: |
+          set -euo pipefail
+          python -m pip install --disable-pip-version-check --require-hashes -r requirements.lock
+          python -m pip install --disable-pip-version-check --no-deps -e .
+      - name: unit + contract
+        run: python -m pytest tests -m "not live and not sandbox" -q -o addopts=
+      - name: sandbox lane (asserts it collected and ran work)
+        run: |
+          set -euo pipefail
+          collected="$(python -m pytest tests -m "sandbox" --collect-only -q -o addopts= | tail -1)"
+          echo "sandbox collection: $collected"
+          case "$collected" in
+            *"0 tests collected"*|*"no tests ran"*)
+              echo "sandbox lane collected nothing; refusing a green gate" >&2
+              exit 1
+              ;;
+          esac
+          python -m pytest tests -m "sandbox" -q -o addopts=

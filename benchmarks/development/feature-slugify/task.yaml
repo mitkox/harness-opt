@@ -1,0 +1,15 @@
+task_id: feature-slugify-t1
+case_id: feature-slugify
+workflow: feature
+split: development
+time_budget_s: 600
+verifier_ref: verifier:feature-slugify:v1
+verifier_id: verifier:feature-slugify
+repo_subdir: repo
+allowed_paths:
+  - slugify.py
+  - tests/test_slugify_visible.py
+protected_paths: []
+acceptance:
+  - Hidden behavioral tests for the documented slug rules pass.
+  - Public API and scope review pass; no unrelated files change.

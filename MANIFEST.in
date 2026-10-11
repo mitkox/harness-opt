@@ -1,0 +1,17 @@
+# Files shipped in the source distribution (sdist) in addition to the package.
+#
+# The wheel stays minimal: it carries only `hop/` and its dist-info, because the
+# installed CLI diagnostics are self-contained (they name the replacement
+# spelling and point at docs/migration-1.0.md). The sdist is the artifact an
+# operator unpacks, so it carries the release-facing docs:
+#   docs/migration-1.0.md   — required by every 1.0 migration diagnostic
+#   CHANGELOG.md            — release history
+#   README.md               — already included by setuptools; listed explicitly
+#
+# docs/release-1.0.0.md is deliberately NOT shipped. It records the artifact
+# sha256 values, so shipping it inside hop-1.0.0.tar.gz would make the archive
+# cite its own hash (and, after a rebuild, a superseded one). The release
+# description lives in the repository, not inside the artifact it describes.
+include README.md
+include CHANGELOG.md
+include docs/migration-1.0.md

@@ -1,0 +1,1 @@
+{"case": "feature-slugify", "origin": "authored-for-AOP-021", "created": "2026-10-09", "baseline": "documented feature absent; slugify raises NotImplementedError"}

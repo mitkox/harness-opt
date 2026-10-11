@@ -15,9 +15,11 @@ process group via SIGTERM/SIGKILL.
 
 from __future__ import annotations
 
+import json
 import os
 import shutil
 import signal
+import socket
 import subprocess
 import sys
 import threading
@@ -58,6 +60,160 @@ class SandboxLayout:
 
 def bwrap_available() -> bool:
     return shutil.which("bwrap") is not None
+
+
+NET_PROBE_SOURCE = '''
+"""probe: prove the namespace has no host route and loopback works."""
+import fcntl
+import json
+import socket
+import struct
+import sys
+
+SIOCGIFFLAGS = 0x8913
+SIOCSIFFLAGS = 0x8914
+IFF_UP = 0x1
+
+result = {
+    "loopback_up": False,
+    "unix_ok": False,
+    "host_reachable": None,
+    "public_reachable": None,
+    "interfaces": [],
+}
+try:
+    with open("/proc/net/dev") as fh:
+        result["interfaces"] = sorted(
+            line.split(":")[0].strip() for line in fh if ":" in line and line.split(":")[0].strip()
+        )
+except OSError:
+    pass
+try:
+    control = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    request = struct.pack("16sH", b"lo", 0)
+    flags = struct.unpack("16sH", fcntl.ioctl(control.fileno(), SIOCGIFFLAGS, request))[1]
+    if not flags & IFF_UP:
+        request = struct.pack("16sH", b"lo", flags | IFF_UP)
+        fcntl.ioctl(control.fileno(), SIOCSIFFLAGS, request)
+    control.close()
+    result["loopback_up"] = True
+except OSError:
+    pass
+try:
+    unix = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+    unix.settimeout(5)
+    unix.connect(sys.argv[1])
+    unix.close()
+    result["unix_ok"] = True
+except OSError:
+    pass
+try:
+    tcp = socket.socket()
+    tcp.settimeout(3)
+    tcp.connect(("127.0.0.1", int(sys.argv[2])))
+    tcp.close()
+    result["host_reachable"] = True
+except OSError:
+    result["host_reachable"] = False
+try:
+    public = socket.socket()
+    public.settimeout(3)
+    public.connect(("1.1.1.1", 443))
+    public.close()
+    result["public_reachable"] = True
+except OSError:
+    result["public_reachable"] = False
+print(json.dumps(result, sort_keys=True))
+'''
+
+
+def probe_worker_network_isolation(root: str) -> dict:
+    """Prove, with a real namespace, that the agent worker has no host network.
+
+    Returns a report whose ``enforced`` flag is only True when every check
+    passed. A failure is a terminal ``infra_error`` for the caller; there is no
+    shared-network fallback.
+    """
+    report: dict = {
+        "enforced": False,
+        "reason": "",
+        "bwrap": bwrap_available(),
+        "interfaces": [],
+        "loopback_up": False,
+        "unix_ok": False,
+        "host_reachable": None,
+        "public_reachable": None,
+    }
+    if not report["bwrap"]:
+        report["reason"] = "bwrap_missing"
+        return report
+    os.makedirs(root, exist_ok=True)
+    unix_path = os.path.join(root, "net-probe.sock")
+    try:
+        if os.path.exists(unix_path):
+            os.unlink(unix_path)
+    except OSError:
+        pass
+    unix_listener = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+    unix_listener.bind(unix_path)
+    unix_listener.listen(1)
+    host_listener = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    host_listener.bind(("127.0.0.1", 0))
+    host_listener.listen(1)
+    host_port = host_listener.getsockname()[1]
+    env = {
+        "PATH": os.environ.get("PATH", "/usr/bin:/bin"),
+        "HOME": root,
+        "TMPDIR": root,
+        "PYTHONDONTWRITEBYTECODE": "1",
+    }
+    try:
+        result = spawn_confined(
+            [sys.executable, "-I", "-c", NET_PROBE_SOURCE, unix_path, str(host_port)],
+            cwd=root,
+            env=env,
+            ro_binds=[(p, p) for p in SYSTEM_RO_BINDS] + interpreter_ro_binds(),
+            rw_binds=[(root, root)],
+            spec=SandboxSpec(isolate_mounts=True, share_network=False, cpu_time_s=60),
+            timeout_s=30.0,
+            stdout_path=os.path.join(root, "net-probe-stdout.log"),
+            stderr_path=os.path.join(root, "net-probe-stderr.log"),
+        )
+    except SandboxUnavailable as exc:
+        report["reason"] = f"sandbox_unavailable:{exc}"
+        return report
+    finally:
+        unix_listener.close()
+        host_listener.close()
+    if result.exit_code != 0:
+        report["reason"] = f"probe_failed:exit={result.exit_code}"
+        return report
+    try:
+        with open(result.stdout_path, encoding="utf-8") as fh:
+            lines = [line for line in fh.read().splitlines() if line.strip().startswith("{")]
+        observed = json.loads(lines[-1]) if lines else {}
+    except (OSError, json.JSONDecodeError, IndexError):
+        report["reason"] = "probe_output_unreadable"
+        return report
+    report.update({key: observed.get(key) for key in report if key in observed})
+    non_loopback = [name for name in report["interfaces"] if name not in ("lo", "sit0")]
+    if non_loopback:
+        report["reason"] = "non_loopback_interface:" + ",".join(non_loopback)
+        return report
+    if not report["loopback_up"]:
+        report["reason"] = "loopback_unavailable"
+        return report
+    if not report["unix_ok"]:
+        report["reason"] = "broker_socket_unreachable"
+        return report
+    if report["host_reachable"] is not False:
+        report["reason"] = "host_network_reachable"
+        return report
+    if report["public_reachable"] is not False:
+        report["reason"] = "public_network_reachable"
+        return report
+    report["enforced"] = True
+    return report
 
 
 def prepare_layout(root: str, snapshot_src: str = "") -> SandboxLayout:
@@ -104,12 +260,77 @@ class RunResult:
     backend: str = "bwrap"
 
 
+def interpreter_chain() -> list[str]:
+    """Every path in the interpreter's symlink chain, in walk order.
+
+    A venv interpreter is normally a chain of symlinks, e.g.
+    ``venv/bin/python -> python3 -> <install>/latest/bin/python3`` where
+    ``<install>/latest`` is itself a symlink to the real version directory.
+    """
+    chain: list[str] = []
+    seen: set[str] = set()
+    for start in (
+        sys.executable,
+        sys.exec_prefix,
+        sys.base_exec_prefix,
+        sys.prefix,
+        sys.base_prefix,
+    ):
+        path = start
+        for _ in range(32):
+            if not path or path in seen:
+                break
+            seen.add(path)
+            chain.append(path)
+            if not os.path.islink(path):
+                break
+            target = os.readlink(path)
+            path = (
+                target
+                if os.path.isabs(target)
+                else os.path.normpath(os.path.join(os.path.dirname(path), target))
+            )
+    return chain
+
+
 def interpreter_ro_binds() -> list[tuple[str, str]]:
-    """Bind the active interpreter prefix when it lives outside /usr (venv)."""
+    """Bind the interpreter prefix and every symlink in its chain.
+
+    Binding only the realpath of ``sys.prefix``/``sys.base_prefix`` leaves the
+    symlinked install root (``.../python/latest``) dangling inside the
+    namespace, so the venv's ``bin/python3`` symlink resolves to a path that
+    does not exist and every exec fails with ``execvp ... No such file or
+    directory``. Each component is bound at its own path *and* at its realpath,
+    and the venv prefix stays bound so workers still import the venv's
+    site-packages (the base interpreter is never substituted).
+    """
     binds: list[tuple[str, str]] = []
-    for prefix in {sys.prefix, sys.base_prefix}:
-        if prefix and not prefix.startswith("/usr") and os.path.isdir(prefix):
-            binds.append((prefix, prefix))
+    seen: set[str] = set()
+    candidates: list[str] = []
+    for path in interpreter_chain():
+        candidates.append(path)
+        candidates.append(os.path.realpath(path))
+        # A symlinked install root (``.../python/latest``) is an ancestor of the
+        # resolved executable, not an element of the chain itself. Bind it at
+        # its own path so the interpreter's stdlib lookup (base_prefix) resolves
+        # inside the namespace instead of hitting an empty mount point.
+        ancestor = os.path.dirname(path)
+        while ancestor and ancestor != "/" and not ancestor.startswith("/usr"):
+            if os.path.islink(ancestor):
+                candidates.append(ancestor)
+                candidates.append(os.path.realpath(ancestor))
+            ancestor = os.path.dirname(ancestor)
+    for prefix in (sys.prefix, sys.base_prefix):
+        if prefix:
+            candidates.append(prefix)
+            candidates.append(os.path.realpath(prefix))
+    for path in candidates:
+        if not path or path.startswith("/usr") or path in seen:
+            continue
+        if not os.path.exists(path):
+            continue
+        seen.add(path)
+        binds.append((path, path))
     return binds
 
 
@@ -132,6 +353,11 @@ def build_bwrap_cmd(
     seen: set[str] = set()
     for src, dst in list(ro_binds):
         if not os.path.exists(src):
+            continue
+        if dst in seen:
+            # Composed bind sets (spawn_isolated + a harness spec) can list the
+            # same destination twice; bwrap cannot mount it twice and dies while
+            # creating the path. The first occurrence wins.
             continue
         args += ["--ro-bind", src, dst]
         seen.add(dst)
@@ -245,6 +471,11 @@ def spawn_isolated(
     stdout_path: str = "",
     stderr_path: str = "",
 ) -> RunResult:
+    if spec.share_network:
+        raise ValueError(
+            "agent workers must not share the host network; use the inference "
+            "broker instead of share_network=True"
+        )
     env = scrub_worker_env(dict(os.environ))
     if extra_env:
         env.update(extra_env)

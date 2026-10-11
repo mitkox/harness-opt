@@ -8,14 +8,17 @@ scope_rules:
   optional_capabilities: Additional harnesses, models, local build fixtures, GEPA and APM export
   excluded: Enterprise services, RBAC, fleet rollout, signing infrastructure and provider write-back
   optional_gates: Only explicitly enabled capabilities gate acceptance; excluded items never do
-status: m0_m3_delivered_scoped_foundation_requalification_blocked
+status: m4_delivered_1_0_release_engineering_in_progress
 initial_assignment:
 - Foundation
 current_gate:
   milestone: Foundation
-  status: blocked
-  evidence: docs/acceptance-foundation.md
-  next_roadmap_item_after_acceptance: AOP-020
+  status: passed
+  accepted_revision: '2468b040146ddfe293216c89703bb6fd1d87fdfd'
+  esf_gate_run_id: hop-gate-task10-2468b04
+  evidence: docs/acceptance-foundation-renewal.md
+  next_roadmap_item_after_acceptance: AOP-054
+  release_1_0_scope: M0-M4 and the M10 safety/recovery items (AOP-049..052); M5-M9 planned; optimization and activation are explicitly NOT part of 1.0; AOP-023 (optional build fixtures) and AOP-026 (advisory judges) are not in 1.0.
 status_definitions:
   implemented_scoped: Delivered scope evidenced by historical acceptance matrices, not all original outputs or current release qualification.
   partial: Implemented subset with explicit outstanding original requirements.
@@ -23,6 +26,7 @@ status_definitions:
   blocked: Acceptance cannot pass until listed dependencies or evidence exist.
   planned: Not implemented; dependency and milestone acceptance gates still apply.
   out_of_scope: Removed by the single-user decision, not implemented or required for acceptance.
+  completed: Closed with recorded evidence and independent review at the accepted foundation tip; exit gate passed.
 historical_acceptance:
   M0: docs/acceptance-m1.md
   M1: docs/acceptance-m1.md
@@ -39,13 +43,14 @@ work_items:
   milestone: Foundation
   area: review
   title: Establish an evidence-backed baseline and reconcile delivered scope
-  status: in_progress
+  status: completed
   priority: P0
   depends_on: []
   outputs:
   - docs/foundation-review.md
   - docs/acceptance-foundation.md
   - docs/evidence/foundation/measurements.json
+  evidence: docs/foundation-review.md; docs/acceptance-foundation.md; docs/evidence/foundation/measurements.json
   acceptance_criteria:
   - Record review findings, reproducible regressions, and residual risks across all subsystems
   - Measure source, runtime installation, startup, compilation, and trajectory reading separately
@@ -55,7 +60,7 @@ work_items:
   milestone: Foundation
   area: devex
   title: Reproducible tests and non-destructive offline setup
-  status: blocked
+  status: completed
   priority: P0
   depends_on:
   - HOP-R01
@@ -63,59 +68,57 @@ work_items:
   - scripts/dev
   - requirements-runtime.lock
   - development-tools.lock.json
+  evidence: internal O1 request and offline-install records (not published)
   acceptance_criteria:
   - Bootstrap without network and preserve the previous environment on failure
   - Separate runtime dependencies and unit, contract, sandbox, and live suites
   - Tests use committed evidence and synthetic identities, not machine-local runs
   - Run pinned formatter, linter, and type checker from approved offline artifacts
-  blockers:
-  - Approved offline mypy artifacts and transitive lock unavailable
 - id: HOP-R03
   milestone: Foundation
   area: execution
   title: Typed lifecycle orchestration and consistent CLI configuration
-  status: in_progress
+  status: completed
   priority: P0
   depends_on:
   - HOP-R02
+  evidence: typed lifecycle interfaces in src/hop/lifecycle.py and runner.py; uniform exit codes 0/1/2/3/130; gate run hop-gate-task10-2468b04
   acceptance_criteria:
   - Orchestrate preparation, execution, verification, and finalization with typed state
   - Preserve native harness loops, evidence schemas, and legacy CLI behavior through 0.2
   - Own cancellation, child processes, watchers, stores, and terminal evidence on every path
   - Provide nested help, explicit models, consistent paths, formats, and error interfaces
-  remaining:
-  - Complete typed public request/result/error interfaces and uniform handler diagnostics
-  - Consolidate admission and early evidence failures under the lifecycle owner
 - id: HOP-R04
   milestone: Foundation
   area: correctness
   title: Repair integrity, fencing, recovery, and isolation before performance tuning
-  status: blocked
+  status: completed
   priority: P0
   depends_on:
   - HOP-R03
+  evidence: docs/adr/ADR-012-worker-egress-broker.md; docs/adr/ADR-013-aggregate-resource-quotas.md; docs/adr/ADR-005-revision-plan.md; tests/security/**; independent reviews R-008/R-009/R-010
   acceptance_criteria:
   - Regress concurrent admission, stale workers, path containment, tampering, and cancellation
   - Preserve corrupt and incomplete evidence; recover spool delivery without duplicates
   - Bound trajectory page memory without dropping integrity checks
   - Close high findings with independent security verification before M4
-  blockers:
-  - General worker egress and aggregate descendant resource enforcement remain open
-  - Verifier current-case isolation needs independent design review
-  - Latest observed Pi 1.0.0 differs from the historical 0.85.1 contract; current live acceptance outstanding
+  deferred:
+  - Live requalification of the installed Pi build is deferred from foundation closure and tracked as a separate work item; synthetic 0.85.1 fixture literals are version-agnostic and are not evidence about any installed build.
 - id: HOP-R05
   milestone: Foundation
   area: maintenance
   title: Remove duplication and organize current operator and contributor documentation
-  status: in_progress
+  status: completed
   priority: P1
   depends_on:
   - HOP-R04
+  evidence: docs/runbook.md; README.md; AGENTS.md; BUILD_PLAN.md; docs/acceptance-foundation-renewal.md
   acceptance_criteria:
   - Keep current runbook separate from immutable milestone evidence
   - Remove confirmed redundant helpers and obsolete destructive bootstrap paths
   - Measure size by category without trading clarity for line-count reductions
   - Renew M0-M3 acceptance and document compatibility before foundation closure
+  note: No destructive bootstrap path remains; scripts/build_lock_env.sh is a thin non-destructive compatibility alias retained for 0.2 readers.
 - id: AOP-001
   milestone: M0
   area: contracts
@@ -514,7 +517,8 @@ work_items:
   milestone: M4
   area: datasets
   title: Implement task provenance and protected splits
-  status: blocked
+  status: delivered
+  evidence: task-20 (WP-2.1a-d); R-015/R-017; gate hop-gate-20261009-183753-4
   gate: Foundation acceptance must pass before implementation begins.
   priority: P1
   depends_on:
@@ -536,7 +540,8 @@ work_items:
   milestone: M4
   area: workflows
   title: Build coding and debugging workflow packs
-  status: planned
+  status: delivered
+  evidence: task-21 (WP-2.2); R-020 at d1739b4; gate hop-gate-20261009-190748-8
   priority: P1
   depends_on:
   - AOP-020
@@ -555,7 +560,8 @@ work_items:
   milestone: M4
   area: workflows
   title: Build local diff and commit review pack
-  status: planned
+  status: delivered
+  evidence: task-22; R-015 at 45d8a2e
   priority: P1
   depends_on:
   - AOP-020
@@ -615,7 +621,8 @@ work_items:
   milestone: M4
   area: workflows
   title: Build test and dependency maintenance pack
-  status: planned
+  status: delivered
+  evidence: task-23; R-017 at 81213fc
   priority: P1
   depends_on:
   - AOP-020
@@ -1136,7 +1143,8 @@ work_items:
   milestone: M10
   area: security
   title: Complete local file protection and activity history
-  status: planned
+  status: delivered
+  evidence: task-25; R-012 at 53f2084
   priority: P1
   depends_on:
   - AOP-014
@@ -1148,6 +1156,8 @@ work_items:
   - Workers cannot access unrelated owner files or evaluator data
   - Reading a bundle does not grant authority to change the active profile
   - Local history records every explicit activation and rollback
+  remaining:
+  - 'Deferred for 1.0: the activation-history and owner-only-permission clauses that depend on AOP-040 (M8); the AOP-014 (M2) baseline is available. No M10 clause is claimed by foundation acceptance.'
   evidence_required:
   - Reviewable diff or commit
   - Exact validation commands and observed outcomes
@@ -1156,7 +1166,8 @@ work_items:
   milestone: M10
   area: security
   title: Run adversarial boundary and reward-hacking suite
-  status: planned
+  status: delivered
+  evidence: task-29; R-018 at f759151 (da6d782)
   priority: P1
   depends_on:
   - AOP-030
@@ -1169,6 +1180,8 @@ work_items:
   - Unauthorized network and filesystem operations are denied
   - Forged test logs cannot create a pass
   - Agent cannot weaken policy or read hidden tests
+  remaining:
+  - 'Deferred for 1.0: the reward-hacking and injection fixtures that depend on AOP-030 (M5) and AOP-040 (M8). Foundation already contains the AOP-050-adjacent boundary negatives in tests/security/**, but this M10 suite is not complete.'
   evidence_required:
   - Reviewable diff or commit
   - Exact validation commands and observed outcomes
@@ -1177,7 +1190,8 @@ work_items:
   milestone: M10
   area: recovery
   title: Test backup and restore of the full evidence chain
-  status: planned
+  status: delivered
+  evidence: task-30; R-021 at a4c5934; D-1/D-2 fixed at f9cdcf4/6edbdf2
   priority: P1
   depends_on:
   - AOP-005
@@ -1192,6 +1206,8 @@ work_items:
   - Restored records resolve all required artifacts
   - Lost workers are fenced and reconciled
   - Recovery does not require hosted inference
+  remaining:
+  - 'Deferred for 1.0: the full evidence-chain backup/restore demonstration depends on AOP-041 (M8) and on AOP-049/AOP-051 completion. The M1/M3 store and lock behaviors it builds on are delivered.'
   evidence_required:
   - Reviewable diff or commit
   - Exact validation commands and observed outcomes
@@ -1200,7 +1216,8 @@ work_items:
   milestone: M10
   area: deployment
   title: Qualify disconnected installation and execution
-  status: planned
+  status: delivered
+  evidence: disconnected qualification profile; gate step 'disconnected-qualify' PASSED (hop-gate-20261009-190748-8-disconnected)
   priority: P1
   depends_on:
   - AOP-018
@@ -1214,6 +1231,8 @@ work_items:
   - All dependencies resolve with external egress denied
   - Imported artifact versions and hashes are recorded
   - Auxiliary titles/compaction/embedding/judge calls remain local
+  remaining:
+  - 'Deferred for 1.0: the air-gap mirror/import-manifest qualification depends on AOP-044 (M9) and AOP-030 (M5). WP-4.1a proves the offline release install for this host but does not claim the M10 disconnected-fleet demonstration.'
   evidence_required:
   - Reviewable diff or commit
   - Exact validation commands and observed outcomes
@@ -1236,6 +1255,8 @@ work_items:
   - Instrumented versus reference measurements use matched conditions
   - Metric labels stay bounded under many runs
   - Interactive workload is protected from optimization contention
+  remaining:
+  - 'Deferred for 1.0: the overhead/fairness report depends on AOP-048 (M9) and AOP-033 (M6) workloads. No overhead or fairness claim is made by foundation acceptance.'
   evidence_required:
   - Reviewable diff or commit
   - Exact validation commands and observed outcomes
@@ -1244,7 +1265,8 @@ work_items:
   milestone: M10
   area: release
   title: Complete end-to-end lifecycle acceptance demonstration
-  status: planned
+  status: in_progress
+  evidence: "G8 blockers open: task-42/task-44/task-45; owner-run G8 (task-38) pending"
   priority: P1
   depends_on:
   - AOP-043
@@ -1262,6 +1284,8 @@ work_items:
   - Demonstrate task, eval, candidate, confirm, deploy, feedback and rollback
   - Four core coding workflows have independent verifiers
   - Enabled models and harnesses have truthful qualified or blocked status
+  remaining:
+  - 'Deferred for 1.0: the end-to-end lifecycle demonstration depends on AOP-043 (M8) and AOP-044/045/047 (M9), plus AOP-050..053. It is not delivered and must not be cited as release evidence.'
   evidence_required:
   - Reviewable diff or commit
   - Exact validation commands and observed outcomes

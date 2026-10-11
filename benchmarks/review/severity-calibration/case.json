@@ -1,0 +1,38 @@
+{
+  "case_id": "severity-calibration",
+  "expects": {
+    "outcome": "pass"
+  },
+  "labels": [
+    {
+      "path": "src/calc.py",
+      "line": 3,
+      "rule": "division-by-zero",
+      "severity": "high"
+    },
+    {
+      "path": "src/calc.py",
+      "line": 7,
+      "rule": "naming",
+      "severity": "low"
+    }
+  ],
+  "findings": [
+    {
+      "path": "src/calc.py",
+      "line": 3,
+      "rule": "division-by-zero",
+      "severity": "high",
+      "message": "b may be zero",
+      "line_text": "    return a / b"
+    },
+    {
+      "path": "src/calc.py",
+      "line": 7,
+      "rule": "naming",
+      "severity": "low",
+      "message": "unclear name",
+      "line_text": "    result = 0  # naming"
+    }
+  ]
+}

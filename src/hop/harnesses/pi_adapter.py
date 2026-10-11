@@ -18,6 +18,7 @@ import json
 import os
 import shutil
 import subprocess
+import sys
 import threading
 import time
 
@@ -27,6 +28,7 @@ from ..contracts.model import ModelDeployment
 from ..policy import assert_local_url
 from ..sandbox import SandboxLayout, SandboxSpec, spawn_isolated
 from .base import HarnessOutput, PreparedSession
+from .broker import Broker
 
 ADAPTER_REVISION = "pi-json-adapter-v1"
 PROTOCOL = "pi-jsonl-v3"
@@ -91,12 +93,14 @@ class PiJsonAdapter:
         provider: str = "hop_local",
         spec: SandboxSpec | None = None,
         compiled_dir: str = "",
+        broker: Broker | None = None,
     ):
         self.deployment = deployment
         self.executable = executable
         self.provider = provider
         self.spec = spec or SandboxSpec()
         self.compiled_dir = compiled_dir
+        self.broker = broker
         self.model = ""
         self.base_url = ""
         if deployment is not None:
@@ -259,13 +263,27 @@ class PiJsonAdapter:
             skill_dirs=skill_dirs,
         )
 
+    def close(self) -> None:
+        """Release the per-run broker, if one was attached (ADR-012)."""
+        if self.broker is not None:
+            self.broker.close()
+
     def _local_models_config(self) -> dict:
         """Provider config is derived ONLY from the registered deployment record."""
         if self.deployment is None or self.deployment.endpoint is None:
             raise ValueError("PiJsonAdapter requires a deployment endpoint")
         # An injected HOP_PI_BASE_URL / AOP_PI_BASE_URL is deliberately ignored
         # and scrubbed.
-        base = assert_local_url(self.deployment.endpoint.base_url)
+        if self.broker is not None:
+            # ADR-012: the worker has no route to the inference server; it reaches
+            # the per-run broker over the namespace loopback with a per-attempt
+            # bearer token. The broker pins the attested upstream/model.
+            handle = self.broker.handle()
+            base = handle.base_url
+            api_key = handle.token
+        else:
+            base = assert_local_url(self.deployment.endpoint.base_url)
+            api_key = "local"
         context = self.deployment.context_length_configured or 8192
         serving = self.deployment.serving_config or {}
         return {
@@ -274,7 +292,7 @@ class PiJsonAdapter:
                     "name": f"{self.provider} (local HOP)",
                     "baseUrl": base,
                     "api": "openai-completions",
-                    "apiKey": "local",
+                    "apiKey": api_key,
                     "models": [
                         {
                             "id": self.model,
@@ -329,6 +347,24 @@ class PiJsonAdapter:
         for skill_dir in session.skill_dirs:
             cmd += ["--skill", skill_dir]
         cmd += ["--approve", task_prompt]
+        if self.broker is not None:
+            # The relay brings the namespace loopback up and forwards TCP to the
+            # bind-mounted broker socket; it holds no token. It must live in the
+            # same network namespace as the harness, so it wraps the command.
+            handle = self.broker.handle()
+            relay = os.path.join(os.path.dirname(os.path.abspath(__file__)), "broker_relay.py")
+            relay_dir = os.path.dirname(relay)
+            if (relay_dir, relay_dir) not in self.spec.ro_binds:
+                self.spec.ro_binds.append((relay_dir, relay_dir))
+            cmd = [
+                sys.executable,
+                "-I",
+                relay,
+                handle.socket_path,
+                str(handle.port),
+                "--",
+                *cmd,
+            ]
         result = spawn_isolated(
             cmd,
             layout,

@@ -1,0 +1,12 @@
+{
+  "tool": "shell.exec",
+  "arguments": {
+    "command": "cat .hidden/hidden-tests/debug-offbyone/test_hidden_median.py"
+  },
+  "claimed_result": {
+    "exit_code": 0,
+    "stdout": "PASS"
+  },
+  "authority": "verifier_fact",
+  "unexpected_extra_field": "must be rejected by extra=forbid"
+}

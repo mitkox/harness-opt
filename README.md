@@ -74,22 +74,34 @@ remains authoritative for profile, component, and evaluation identity.
 Current scope is **local models and local inference only**. Supported/target
 model families are DeepSeek, Qwen, and GLM. There is no hosted API fallback.
 
-## Status: alpha / active development
+## Status: M4 delivered; HOP 1.0.0 release engineering complete (unshipped)
 
-The HOP 0.2 foundation review is **in progress, not release-qualified**.
-The CLI/devex and integrity changes have non-live regression evidence; open
-security findings, independent review, offline type tooling, and current live
-qualification still block advancement to M4. Start with the
-[runbook](docs/runbook.md), [review](docs/foundation-review.md), and
+HOP-R01–R05 foundation acceptance is **closed** at the recorded delivery tip
+(see [acceptance-foundation-renewal.md](docs/acceptance-foundation-renewal.md)),
+and M4 is **delivered**: provenance and protected splits (AOP-020), coding and
+debugging workflow packs (AOP-021), the local diff/commit review pack (AOP-022),
+and the test/dependency maintenance pack (AOP-025). The 1.0.0 release
+engineering is complete — version, deprecation removal, migration guide, and
+release notes — but the release is **not published**: tagging, pushing, and
+artifact publication are explicit owner actions. M5–M9 remain planned, and
+optimization/activation are explicitly **not** part of 1.0. Start with the
+[runbook](docs/runbook.md), the [migration guide](docs/migration-1.0.md), the
+[renewed acceptance record](docs/acceptance-foundation-renewal.md), and the
+historical [review](docs/foundation-review.md) /
 [acceptance matrix](docs/acceptance-foundation.md).
 
-Latest recorded scope validation: **284 non-live tests passed**, with lint and
-formatting passing. Type checking remains blocked on approved offline tooling;
-current Pi/local-model qualification and independent boundary review remain
-outstanding. See [the validation report](docs/single-user-delivery.md). A merge
-into `master` does not waive these gates or authorize M4 to begin.
+Latest recorded validation at the 1.0.0 release-engineering tip: the ESF hop-v1
+gate **PASSED** (CPython 3.12.12 + bubblewrap 0.8.0, sandbox suite with zero
+skips, 0 leftover sandboxes), `scripts/dev check` exits **0** with no findings,
+and the offline release artifacts (`hop-1.0.0-py3-none-any.whl`,
+`hop-1.0.0.tar.gz`) build and install with no network
+([release-1.0.0.md](docs/release-1.0.0.md)). Live local-model
+acceptance **passed** against the registered loopback deployment and the pinned Pi
+1.1.0 build is requalified; CI definitions remain unexecuted on this host. A merge
+into `master` does not waive these or authorize M5–M9.
 
-Implemented (M0–M3 plus the AOP → HOP rename):
+Implemented (M0–M3 plus the AOP → HOP rename, foundation acceptance, and the
+WP-4.1a CI/release path):
 
 - local-only execution foundation (loopback enforcement, served-model
   attestation, no cloud fallback)
@@ -103,9 +115,18 @@ Implemented (M0–M3 plus the AOP → HOP rename):
 - telemetry completeness (outcome-aware policy; incomplete runs cannot pass)
 - secret redaction and data classification
 - replay metadata and checks
-- HOP CLI (`hop`; deprecated `aop` alias retained through 0.2)
-- Pi integration (headless JSONL adapter; historical probes qualified 0.85.1,
-  not the latest observed 1.0.0 build)
+- HOP CLI (`hop`; the `aop` alias and the `AOP_*` environment fallback retired
+  in 1.0 — see [migration-1.0.md](docs/migration-1.0.md))
+- Pi integration (headless JSONL adapter). Fixture transcripts use synthetic,
+  version-agnostic identities; the historical `0.85.1` literal is a placeholder,
+  not a qualified build. Requalification of the installed build is a separate
+  work item and is not claimed here.
+- typed lifecycle orchestration with uniform exit codes (0/1/2/3/130) and
+  preserved legacy 0/1 behavior
+- boundary model: no-network agent workers with a per-run loopback inference
+  broker and bearer token; delegated cgroup v2 quotas reported as
+  enforced/limited/blocked with an explicit `unenforced[]`; verifier candidate
+  isolation over a frozen snapshot
 - immutable versioned component registry (prompts, skills, agents, policies,
   overlays, hooks, MCP) with content-addressed identity and tamper detection
 - deterministic profile resolution, lockfiles, variant selection, and
@@ -131,13 +152,15 @@ Planned (not implemented — automatic optimization does not exist yet):
 | M2 | Trace and trajectory evaluation | ✅ done (`m2-observability`) |
 | — | AOP → HOP namespace migration | ✅ done (`hop-namespace`) |
 | M3 | Canonical skills, compiler, and APM | ✅ done (profiles/compiler/APM) |
-| Foundation | HOP-R01-R05 review and simplification | In progress; acceptance blocked |
-| M4 | Local coding evaluation packs | ⬜ blocked on foundation |
+| Foundation | HOP-R01-R05 review and simplification | ✅ accepted (`hop-gate-task10-2468b04`) |
+| M4 | Local coding evaluation packs | ✅ delivered (AOP-020/021/022/025; AOP-023 optional and AOP-026 not in 1.0) |
 | M5 | Optional harness integrations | ⬜ planned |
 | M6 | Model matrix and fair benchmarking | ⬜ planned |
 | M7 | First optimization loop | ⬜ planned |
 | M8 | Owner-confirmed local activation and rollback | ⬜ planned |
-| M9+ | Dynamic routing / lifecycle hardening | ⬜ planned |
+| M9 | Dynamic routing / lifecycle hardening | ⬜ planned |
+| M10 | Local reliability and safety | 🔄 partial (AOP-049–052 delivered; AOP-053 planned, AOP-054 blocked on the G8 live-acceptance blockers) |
+| 1.0.0 | Versioning, deprecation removal, release docs | ✅ engineering complete, **unshipped** ([release notes](docs/release-1.0.0.md)) |
 
 ## Architecture
 
@@ -184,7 +207,28 @@ validation. Existing environments are retained. `--runtime` omits developer-only
 schema tooling but retains pytest for trusted verification; `--run-tests`
 validates a developer environment before switching.
 No manual `PYTHONPATH`, editable install, or package download is required.
-Static type checking currently reports blocked pending approved offline tools.
+
+**Relocating the approved toolchain.** The pins in
+`development-tools.lock.json` name the maintainer's evidenced paths. An operator
+who keeps the same approved artifacts elsewhere points at them with documented
+environment overrides — the verification is unchanged and still fails closed:
+
+| Variable | Meaning |
+| --- | --- |
+| `HOP_WHEELHOUSE` | Approved local wheelhouse (wheels + `MANIFEST.sha256`). |
+| `HOP_MYPY_PYTHON` | Approved copy of the pinned mypy interpreter (mypy 2.3.1, CPython 3.13.13). |
+| `HOP_TOOLS_VENV` | Where the pinned wheel-artifact tool environment is built. |
+| `HOP_LOCK_VENV` | The `.venv` link `scripts/dev bootstrap` switches. |
+
+`HOP_MYPY_PYTHON` must point at the *same* approved build: its sha256 is still
+compared with `interpreter_sha256`, and the pinned library manifest is still
+verified file by file. A wrong copy, a missing pin, or a `mypy` found only on
+`PATH` is refused with a message naming the override. Type checking is pinned to
+an approved offline `local_environment` (`development-tools.lock.json`) and
+`scripts/dev check` exits 0 at the accepted tip; the cp313-interpreter deviation
+and the CI-vs-local difference are recorded in `development-tools.lock.json` and
+the internal verification records (not published); see
+[release-1.0.0.md](docs/release-1.0.0.md).
 
 Register the machine's real deployments and harnesses:
 
@@ -232,8 +276,10 @@ The current CLI has real nested command groups:
 More investigation verbs: `artifacts`, `trace`, `verify`, `skills`, `tools`
 (for example `./hop run trace RUN_ID`). Redirected output defaults to JSON;
 use `--format text|json` to choose. See the runbook for path precedence and
-exit codes. Legacy command forms, `aop`, and `AOP_*` remain through 0.2;
-removal is targeted for 0.3 only after M4 acceptance and migration documentation.
+exit codes. The 0.2 compatibility layer is **gone in 1.0**: legacy command
+forms, the `aop` alias, and the `AOP_*` environment fallback now fail with a
+migration message instead of working (see
+[migration-1.0.md](docs/migration-1.0.md)).
 
 A passing run ends with `outcome: pass` and `verdict: pass` from the trusted
 verifier; agent text claiming success never decides the result. Failing runs
@@ -274,10 +320,15 @@ tests/              unit, contract, security, and e2e tests
   signing infrastructure is outside the single-user scope.
 - `.hidden/` is an interim in-repo hidden-test location enforced by mount
   namespaces, not sealed evaluator-owned storage (M4).
-- Isolation uses `bwrap` namespaces. The Pi worker shares host networking;
-  inference endpoint checks do not enforce general OS-level worker egress.
-  Aggregate descendant quotas and verifier current-case protection also remain
-  open security findings. Do not treat this as hostile-workload qualification.
+- Isolation uses `bwrap` namespaces. Agent workers run with no network namespace
+  and reach inference only through the per-run loopback broker; aggregate cgroup
+  v2 quotas are applied where the host delegates them and otherwise reported
+  `blocked` with an explicit `unenforced[]`; the verifier runs candidate code in
+  its own namespace over a frozen snapshot. This is boundary enforcement with
+  honest capability reporting, **not** hostile-workload qualification.
+- Live local-model acceptance passed against the registered loopback deployment
+  and the pinned Pi 1.1.0 build is requalified; no live capability is claimed from
+  fixtures.
 - PostgreSQL, multi-node scheduling, remote publishers, and organizational
   administration are out of scope, not deferred requirements. See
   [the single-user decision](docs/adr/ADR-011-single-user.md).
